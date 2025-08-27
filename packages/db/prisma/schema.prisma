@@ -1,0 +1,165 @@
+// Unified Prisma Schema for AI Receptionist Project
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  // previewFeatures = ["driverAdapters"]
+}
+
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      String   @default("USER") // Changed from enum to string
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Business relationship
+  businessId String?
+  business   Business? @relation(fields: [businessId], references: [id])
+
+  // Auth sessions
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  phoneNumber String
+  address     String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Users in this business
+  users User[]
+
+  // Business-specific data
+  calls         Call[]
+  appointments  Appointment[]
+  conversations Conversation[]
+  aiAgentConfig AIAgentConfig?
+
+  @@map("businesses")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Call {
+  id             String     @id @default(cuid())
+  customerName   String?
+  customerPhone  String
+  transcript     String?    @db.Text
+  intent         String?
+  status         String     @default("INCOMING") // INCOMING, IN_PROGRESS, COMPLETED, MISSED
+  duration       Int?       // Call duration in seconds
+  audioFileUrl   String?    // URL to the recorded call audio file
+  businessId     String
+  business       Business   @relation(fields: [businessId], references: [id])
+  logs           CallLog[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@map("calls")
+}
+
+model CallLog {
+  id          String   @id @default(cuid())
+  callId      String
+  call        Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  message     String   @db.Text
+  sender      String   // 'user' or 'ai'
+  timestamp   DateTime @default(now())
+  audioChunk  String?  // URL to the audio chunk for this message (if available)
+  metadata    Json?    // Additional metadata like sentiment, confidence, etc.
+
+  @@index([callId])
+  @@map("call_logs")
+}
+
+model Appointment {
+  id              String   @id @default(cuid())
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  appointmentTime DateTime
+  service         String?
+  notes           String?
+  status          String   @default("PENDING") // Changed from enum to string
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("appointments")
+}
+
+model Conversation {
+  id          String   @id @default(cuid())
+  customerId  String?
+  messages    Message[]
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  content        String
+  role           String   // Changed from enum to string
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  @@map("messages")
+}
+
+/// Stores per-business AI agent configuration
+model AIAgentConfig {
+  id               String   @id @default(cuid())
+  businessId       String   @unique
+  business         Business @relation(fields: [businessId], references: [id])
+
+  // Core prompts/config
+  firstMessage     String?                 // Optional greeting the AI starts with
+  agentLLM         String?  @db.Text       // Main memory/context about the business
+  systemPrompt     String?  @db.Text       // Additional system instructions
+
+  // Voice & model settings
+  voice            String   @default("alloy")
+  responseModel    String   @default("gpt-4o-realtime-preview-2024-12-17")
+  transcriptionModel String @default("whisper-1")
+
+  // Realtime/VAD settings
+  enableServerVAD  Boolean  @default(true)
+  turnDetection    String   @default("server_vad")
+  temperature      Float?   // Optional generation temperature
+
+  // Misc toggles / extra JSON config
+  settings         Json?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("ai_agent_configs")
+}

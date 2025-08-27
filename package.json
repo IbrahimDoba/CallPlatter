@@ -1,0 +1,30 @@
+{
+  "name": "call",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "biome format --write apps packages",
+    "format-lint:fix": "biome check apps packages --write",
+    "format-lint:check": "biome ci apps packages",
+    "check-types": "turbo run check-types",
+    "server:dev": "turbo dev --filter=server",
+    "client:dev": "turbo dev --filter=client",
+    "db:dev": "turbo dev --filter=db",
+    "db:generate": "pnpm --filter @repo/db run db:generate",
+    "db:push": "pnpm --filter @repo/db run db:push",
+    "db:studio": "pnpm --filter @repo/db run db:studio",
+    "db:migrate": "pnpm --filter @repo/db run db:migrate"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.6",
+    "typescript": "5.9.2"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=18"
+  }
+}
