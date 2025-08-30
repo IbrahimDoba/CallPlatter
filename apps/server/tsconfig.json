@@ -6,9 +6,9 @@
       "@/*": ["./src/*"]
     },
     "target": "ES2020",
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "outDir": "./dist",
+    "module": "Nodenext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
