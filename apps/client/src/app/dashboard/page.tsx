@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, Calendar, Users, TrendingUp, PhoneCall } from "lucide-react";
-import { WebSocketDemo } from "@/components/demo/websocket-demo";
 import CallTestingModal from "@/components/CallTestingModal";
 
 interface DashboardStats {
@@ -230,40 +229,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            Manage your AI receptionist settings and view detailed reports
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <h4 className="font-medium">Voice Settings</h4>
-              <p className="text-sm text-muted-foreground">
-                Configure your AI's voice and greeting message
-              </p>
-            </div>
-            <div className="space-y-2">
-              <h4 className="font-medium">Working Hours</h4>
-              <p className="text-sm text-muted-foreground">
-                Set when your AI should handle calls
-              </p>
-            </div>
-            <div className="space-y-2">
-              <h4 className="font-medium">Integrations</h4>
-              <p className="text-sm text-muted-foreground">
-                Connect with external tools and services
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* WebSocket Demo */}
-      <WebSocketDemo />
 
       {/* Call Testing Modal */}
       <CallTestingModal

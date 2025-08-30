@@ -45,7 +45,7 @@ export default function SignUpPage() {
 
       if (response.ok) {
         toast.success("Account created successfully");
-        router.push("/auth/signin");
+        router.push("/signin");
       } else {
         const error = await response.json();
         toast.error(error.message || "Failed to create account");

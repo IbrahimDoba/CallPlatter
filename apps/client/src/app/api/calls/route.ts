@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@repo/db";
+import { getCalls } from "@/app/actions/calls";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 
@@ -15,16 +15,11 @@ export async function GET(request: NextRequest) {
     }
 
     const businessId = session.user.businessId;
+    
+    // Use the server action to get calls with logs
+    const calls = await getCalls(businessId);
 
-    // Get all calls for the business
-    const calls = await db.call.findMany({
-      where: { businessId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return NextResponse.json({
-      calls,
-    });
+    return NextResponse.json(calls);
   } catch (error) {
     console.error("Error fetching calls:", error);
     return NextResponse.json(
