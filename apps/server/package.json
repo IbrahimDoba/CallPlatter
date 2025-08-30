@@ -29,7 +29,6 @@
     "@types/node": "^20.10.5",
     "nodemon": "^3.1.7",
     "tsx": "^4.6.2",
-    "typescript": "^5.9.2",
-    "prisma": "^5.22.0"
+    "typescript": "^5.9.2"
   }
 }
