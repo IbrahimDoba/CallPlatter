@@ -2,92 +2,174 @@
 
 import { db } from '@repo/db'
 
-type CallLogInput = {
-  callId: string
-  businessId: string
-  logs: Array<{
-    type: 'user' | 'ai' | 'system'
-    message: string
-    timestamp: string
-    duration?: number
-    audioChunk?: string
-  }>
+export interface CallLogEntry {
+  message: string
+  sender: 'user' | 'ai'
+  timestamp: Date
+  audioChunk?: string
+  metadata?: any
 }
 
-export async function saveCallLogs(input: CallLogInput) {
+export interface CallData {
+  businessId: string
+  customerPhone?: string
+  customerName?: string
+  duration?: number
+  logs: CallLogEntry[]
+  finalTranscript?: string
+  intent?: string
+  status?: string
+}
+
+export async function saveCallToDatabase(callData: CallData) {
   try {
-    // Create or update the call
-    const call = await db.call.upsert({
-      where: { id: input.callId },
-      create: {
-        id: input.callId,
-        businessId: input.businessId,
-        status: 'COMPLETED',
-        duration: 0, // Will be updated with the actual duration
+    // Validate required data
+    if (!callData.businessId) {
+      throw new Error('Business ID is required');
+    }
+
+    if (!callData.logs || callData.logs.length === 0) {
+      throw new Error('Call logs are required');
+    }
+
+    // Verify business exists
+    const business = await db.business.findUnique({
+      where: { id: callData.businessId }
+    });
+
+    if (!business) {
+      throw new Error(`Business with ID ${callData.businessId} not found`);
+    }
+
+    // Create the call record
+    const call = await db.call.create({
+      data: {
+        businessId: callData.businessId,
+        customerPhone: callData.customerPhone || null,
+        customerName: callData.customerName || null,
+        status: callData.status || 'COMPLETED',
+        duration: callData.duration || null,
+        transcript: callData.finalTranscript || null,
+        intent: callData.intent || null,
       },
-      update: {},
-    })
+    });
 
-    // Save logs
-    const createdLogs = await db.$transaction(
-      input.logs.map(log =>
-        db.callLog.create({
+    // Create call logs
+    const callLogs = [];
+    
+    for (let i = 0; i < callData.logs.length; i++) {
+      const log = callData.logs[i];
+      if (!log) continue;
+      
+      try {
+        const createdLog = await db.callLog.create({
           data: {
-            callId: input.callId,
+            callId: call.id,
             message: log.message,
-            sender: log.type === 'ai' ? 'ai' : 'user',
-            audioChunk: log.audioChunk,
-            timestamp: new Date(log.timestamp),
-            metadata: {
-              type: log.type,
-              duration: log.duration,
-            },
+            sender: log.sender,
+            timestamp: log.timestamp,
+            audioChunk: log.audioChunk || null,
+            metadata: log.metadata || null,
           },
-        })
-      )
-    )
-
-    // Update call duration
-    if (input.logs.length > 0) {
-      const lastLog = input.logs[input.logs.length - 1]
-      if (lastLog?.timestamp) {
-        const callDuration = Math.floor(
-          (new Date(lastLog.timestamp).getTime() - call.createdAt.getTime()) / 1000
-        )
+        });
         
-        await db.call.update({
-          where: { id: input.callId },
-          data: {
-            status: 'COMPLETED',
-            duration: callDuration > 0 ? callDuration : call.duration,
-          },
-        })
+        callLogs.push(createdLog);
+      } catch (logError) {
+        // Continue with other logs even if one fails
+        continue;
       }
     }
 
-    return { success: true, logs: createdLogs }
+    return {
+      success: true,
+      callId: call.id,
+      logsCount: callLogs.length,
+      message: `Call saved successfully with ${callLogs.length} logs`
+    };
+    
   } catch (error) {
-    console.error('Error saving call logs:', error)
-    return { success: false, error: 'Failed to save call logs' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      details: error instanceof Error ? error.stack : undefined,
+      prismaCode: error && typeof error === 'object' && 'code' in error ? error.code : undefined
+    };
   }
 }
 
-export async function getCallLogs(callId: string, businessId: string) {
+// Test function to verify database connection
+export async function testDatabaseConnection() {
   try {
-    const call = await db.call.findUnique({
-      where: { id: callId, businessId },
-      include: {
-        logs: true
-      }
-    })
+    const businessCount = await db.business.count();
+    const callCount = await db.call.count();
+    const callLogCount = await db.callLog.count();
+    
+    return { 
+      success: true, 
+      businessCount, 
+      callCount, 
+      callLogCount 
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+}
 
-    if (!call) {
-      return { success: false, error: 'Call not found' }
+// Function to get a specific business by ID
+export async function getBusinessById(businessId: string) {
+  try {
+    const business = await db.business.findUnique({
+      where: { id: businessId },
+      select: {
+        id: true,
+        name: true,
+        phoneNumber: true,
+        createdAt: true
+      }
+    });
+    
+    return {
+      success: true,
+      business
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+export async function deleteCall(callId: string) {
+  try {
+    // Verify the call exists
+    const existingCall = await db.call.findUnique({
+      where: { id: callId },
+    });
+
+    if (!existingCall) {
+      return { success: false as const, error: 'Call not found' };
     }
 
-    return { success: true, logs: call.logs }
+    // Delete all related call logs first (if you have a separate table for logs)
+    await db.callLog.deleteMany({
+      where: { callId },
+    });
+
+    // Delete the call
+    await db.call.delete({
+      where: { id: callId },
+    });
+
+    return { success: true as const };
   } catch (error) {
-    console.error('Error fetching call logs:', error)
-    return { success: false, error: 'Failed to fetch call logs' }
+    console.error('Error deleting call:', error);
+    return {
+      success: false as const,
+      error: 'Failed to delete call',
+    };
   }
 }

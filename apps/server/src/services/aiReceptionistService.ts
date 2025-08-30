@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 // Removed ffmpeg dependency - using WebM directly with Whisper
 import { logger } from '../utils/logger';
 
@@ -18,10 +19,20 @@ function sanitizeVoice(input?: string): string {
   return 'alloy';
 }
 
-const openai = new OpenAI({
-  apiKey:process.env.OPENAI_API_KEY,
-});
+// Ensure env vars are loaded if this file is imported directly in tests/tools
+dotenv.config();
 
+let openai: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (openai) return openai;
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is missing. Set it in your environment or .env file.');
+  }
+  openai = new OpenAI({ apiKey });
+  return openai;
+}
 export type AgentRuntimeConfig = {
   transcriptionModel?: string; // e.g. 'whisper-1'
   responseModel?: string;      // e.g. 'gpt-4o-mini' (non-realtime flow)
@@ -59,7 +70,7 @@ export class AIReceptionistService {
 
       const audioFile = fs.createReadStream(tempFilePath);
       
-      const transcription = await openai.audio.transcriptions.create({
+      const transcription = await getOpenAIClient().audio.transcriptions.create({
         file: audioFile,
         model: cfg?.transcriptionModel || 'whisper-1',
         prompt: 'Business-related conversation, including terms like hours, appointment, booking, customer service. ALL ANSWERS SHOULD BE SHORT, DYNAMIC AND STRAINGHT TO THE POINT',
@@ -93,7 +104,7 @@ export class AIReceptionistService {
         cfg?.agentLLM ? `Business memory/context:\n${cfg.agentLLM}` : '',
       ].filter(Boolean).join('\n\n');
 
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAIClient().chat.completions.create({
         model: cfg?.responseModel || 'gpt-4o-mini',
         messages: [
           { role: 'system', content: system },
@@ -121,7 +132,7 @@ export class AIReceptionistService {
    */
   async textToSpeech(text: string, cfg?: AgentRuntimeConfig): Promise<Buffer> {
     try {
-      const mp3 = await openai.audio.speech.create({
+      const mp3 = await getOpenAIClient().audio.speech.create({
         model: 'tts-1',
         voice: sanitizeVoice(cfg?.voice),
         input: text,

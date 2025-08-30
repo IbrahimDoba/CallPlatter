@@ -63,19 +63,23 @@ model Session {
 }
 
 model Call {
-  id             String     @id @default(cuid())
-  customerName   String?
-  customerPhone  String
-  transcript     String?    @db.Text
-  intent         String?
-  status         String     @default("INCOMING") // INCOMING, IN_PROGRESS, COMPLETED, MISSED
-  duration       Int?       // Call duration in seconds
-  audioFileUrl   String?    // URL to the recorded call audio file
-  businessId     String
-  business       Business   @relation(fields: [businessId], references: [id])
-  logs           CallLog[]
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id               String     @id @default(cuid())
+  customerName     String?
+  customerEmail    String?    
+  customerPhone    String?
+  customerAddress  String?    @db.Text 
+  transcript       String?    @db.Text
+  summary          String?    @db.Text 
+  intent           String?    
+  callType         String?    @default("WEB") // PHONE or WEB
+  status           String     @default("INCOMING") // INCOMING, IN_PROGRESS, COMPLETED, MISSED
+  duration         Int?       // Call duration in seconds
+  audioFileUrl     String?    // URL to the recorded call audio file
+  businessId       String
+  business         Business   @relation(fields: [businessId], references: [id])
+  logs             CallLog[]
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   @@map("calls")
 }
@@ -141,9 +145,10 @@ model AIAgentConfig {
   business         Business @relation(fields: [businessId], references: [id])
 
   // Core prompts/config
-  firstMessage     String?                 // Optional greeting the AI starts with
-  agentLLM         String?  @db.Text       // Main memory/context about the business
-  systemPrompt     String?  @db.Text       // Additional system instructions
+  firstMessage     String?                
+  goodbyeMessage   String?                 
+  agentLLM         String?  @db.Text       
+  systemPrompt     String?  @db.Text       
 
   // Voice & model settings
   voice            String   @default("alloy")
@@ -154,6 +159,13 @@ model AIAgentConfig {
   enableServerVAD  Boolean  @default(true)
   turnDetection    String   @default("server_vad")
   temperature      Float?   // Optional generation temperature
+
+  // Question Collection Settings
+  askForName       Boolean?  @default(true)
+  askForPhone      Boolean?  @default(true)
+  askForCompany    Boolean?  @default(false)
+  askForEmail      Boolean?  @default(true)
+  askForAddress    Boolean?  @default(false)
 
   // Misc toggles / extra JSON config
   settings         Json?
