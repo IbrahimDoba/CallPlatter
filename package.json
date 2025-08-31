@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
+    "@repo/tsconfig": "workspace:*",
     "prettier": "^3.6.2",
     "turbo": "^2.5.6",
     "typescript": "5.9.2"

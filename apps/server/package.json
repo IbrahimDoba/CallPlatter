@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon --watch src --ext ts,tsx --exec tsx src/server.ts",
+    "dev:build": "nodemon --exec npx ts-node src/server.ts --port:3001",
     "build": "tsc",
     "start": "node dist/server.js",
     "start:tsx": "tsx src/server.ts"
@@ -29,6 +30,7 @@
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.10.5",
     "nodemon": "^3.1.7",
+    "ts-node": "^10.9.2",
     "tsx": "^4.6.2",
     "typescript": "^5.9.2"
   }
