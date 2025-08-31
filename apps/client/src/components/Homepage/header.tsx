@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Phone, Menu, X } from "lucide-react"
 
@@ -88,12 +89,16 @@ export default function Header() {
                   About
                 </a>
                 <div className="pt-6 border-t">
-                  <Button variant="ghost" className="w-full mb-4 justify-start">
-                    Sign In
-                  </Button>
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                    Get Started
-                  </Button>
+                  <Link href="/signin" className="block w-full">
+                    <Button variant="ghost" className="w-full mb-4 justify-start">
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link href="/signup" className="block w-full">
+                    <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                      Get Started
+                    </Button>
+                  </Link>
                 </div>
               </nav>
             </motion.div>
@@ -150,10 +155,14 @@ export default function Header() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
             >
-              <Button variant="ghost">Sign In</Button>
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-500/25">
-                Get Started
-              </Button>
+              <Link href="/signin">
+                <Button variant="ghost">Sign In</Button>
+              </Link>
+              <Link href="/signup">
+                <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-500/25">
+                  Get Started
+                </Button>
+              </Link>
             </motion.div>
 
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileNavOpen(true)}>

@@ -75,7 +75,7 @@ export function useAICall({
 
         // Mint ephemeral token from backend
         const tokenResp = await fetch(
-          "/api/ai-receptionist/realtime/ephemeral-token",
+          `${process.env.NEXT_PUBLIC_API_URL}/api/ai-receptionist/realtime/ephemeral-token`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
