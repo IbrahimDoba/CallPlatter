@@ -7,10 +7,12 @@ export type CallWithLogs = {
   businessId: string
   customerPhone: string
   customerName: string | null
+  summary: string | null
   duration: number | null
   status: 'COMPLETED' | 'IN_PROGRESS' | 'MISSED' | 'FAILED'
   createdAt: Date
   updatedAt: Date
+  audioFileUrl: string | null
   logs: {
     id: string
     message: string

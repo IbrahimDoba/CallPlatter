@@ -6,27 +6,8 @@ import { ChevronLeft, ChevronRight, Phone, Clock, MessageSquare, ChevronRight as
 import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { CallDetailPanel } from "@/components/CallDetailsSlider"
+import type { CallEntry } from "@/types/calls"
 
-interface CallEntry {
-  id: string
-  contact: string
-  duration: string
-  timestamp: string
-  status: "TEST" | "COMPLETED" | "MISSED" | "IN_PROGRESS"
-  summary?: string
-  transcript?: Array<{
-    speaker: "agent" | "caller"
-    message: string
-    timestamp?: string
-  }>
-  customerPhone?: string
-  logs?: Array<{
-    id: string
-    message: string
-    sender: "ai" | "user"
-    audioChunk?: string
-  }>
-}
 
 interface CallListProps {
   calls: CallEntry[]
@@ -49,6 +30,11 @@ export function CallList({
   const [isPanelOpen, setIsPanelOpen] = useState(false)
 
   const handleCallClick = (call: CallEntry) => {
+    console.log('[CallList] Selected call:', { 
+      id: call.id, 
+      hasAudioFileUrl: !!call.audioFileUrl,
+      audioFileUrl: call.audioFileUrl 
+    });
     setSelectedCall(call)
     setIsPanelOpen(true)
   }

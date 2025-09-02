@@ -33,7 +33,7 @@ export default function DashboardHeader({
             <h2 className="text-2xl font-semibold text-foreground">
               {pageTitle}
             </h2>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center ">
               <Button
                 variant="outline"
                 size="sm"
@@ -56,7 +56,7 @@ export default function DashboardHeader({
       </header>
 
       {/* Search and Filter Bar */}
-      <div className=" pb-6">
+      {/* <div className=" pb-6">
         <div className="flex items-center gap-4 px-4 mx-auto w-full max-w-[1200px] pt-4 sm:pt-6">
         <Button
           variant="outline"
@@ -68,7 +68,7 @@ export default function DashboardHeader({
         </Button>
           <Input placeholder={searchPlaceholder} className="max-w-md" />
         </div>
-      </div>
+      </div> */}
     </>
   );
 }

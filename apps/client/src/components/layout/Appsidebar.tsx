@@ -96,13 +96,13 @@ export default function AppSidebar({ session }: AppSidebarProps) {
                       asChild
                       isActive={isActive}
                       className={cn(
-                        "transition-all duration-200 hover:scale-105",
+                        "transition-all duration-200 hover:scale-105 py-6 px-4 rounded-lg",
                         isActive && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                       )}
                     >
-                      <Link href={item.href}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.name}</span>
+                      <Link href={item.href} className="gap-3">
+                        <item.icon className="h-5 w-5" />
+                        <span className="text-base">{item.name}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

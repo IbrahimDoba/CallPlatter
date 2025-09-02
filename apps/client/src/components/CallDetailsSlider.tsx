@@ -2,14 +2,30 @@
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { X, Trash2, Play, Pause, Star, User } from "lucide-react";
-import { AudioUploader } from "./AudioUploader";
-import { useState } from "react";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { X, Trash2, Star, User, Loader2, Calendar } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { deleteCall } from "@/app/actions/callLogs";
 import { format } from "date-fns";
+import { AudioPlayer } from "./AudioPlayer";
+import { generateAppointmentFromSummary } from "@/app/actions/GenerateAppointment";
 
 interface CallDetailPanelProps {
   isOpen: boolean;
@@ -45,27 +61,89 @@ export function CallDetailPanel({
   onClose,
   call,
 }: CallDetailPanelProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(call?.audioFileUrl || '');
+  console.log("[CallDetails] Rendering with props:", {
+    isOpen,
+    callId: call?.id,
+  });
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isGeneratingAppointment, setIsGeneratingAppointment] = useState(false);
+
+  // Log when call details change
+  useEffect(() => {
+    if (call) {
+      console.log("[CallDetails] Call data loaded:", {
+        id: call.id,
+        status: call.status,
+        hasAudio: !!call.audioFileUrl,
+        transcriptLength: call.transcript?.length || 0,
+        logsLength: call.logs?.length || 0,
+      });
+    }
+  }, [
+    call,
+    call?.id,
+    call?.status,
+    call?.audioFileUrl,
+    call?.transcript?.length,
+    call?.logs?.length,
+  ]);
+
+  const handleGenerateAppointment = async () => {
+    if (!call?.summary) {
+      toast.error("No summary available to generate appointment");
+      return;
+    }
+
+    setIsGeneratingAppointment(true);
+    try {
+      const result = await generateAppointmentFromSummary(
+        call.id,
+        call.summary
+      );
+
+      if (result.success && result.shouldCreateAppointment) {
+        toast.success("Appointment created successfully from call summary");
+      } else {
+        toast.error(
+          result.error || "Could not create appointment from this call"
+        );
+      }
+    } catch (error) {
+      toast.error("Failed to generate appointment");
+    } finally {
+      setIsGeneratingAppointment(false);
+    }
+  };
+
+  // Log panel open/close state changes
+  useEffect(() => {
+    console.log(`[CallDetails] Panel ${isOpen ? "opened" : "closed"}`);
+  }, [isOpen]);
 
   const handleDelete = async () => {
-    if (!call) return;
-    
+    if (!call) {
+      console.warn("[CallDetails] Attempted to delete but no call is selected");
+      return;
+    }
+
+    console.log("[CallDetails] Starting deletion of call:", call.id);
     setIsDeleting(true);
     try {
+      console.log("[CallDetails] Sending delete request for call:", call.id);
       const result = await deleteCall(call.id);
+      console.log("[CallDetails] Call deleted successfully:", call.id);
       if (result.success) {
-        toast.success('Call deleted successfully');
+        toast.success("Call deleted successfully");
         onClose();
         // You might want to refresh the calls list here if needed
       } else {
-        toast.error(result.error || 'Failed to delete call');
+        toast.error(result.error || "Failed to delete call");
       }
     } catch (error) {
-      console.error('Error deleting call:', error);
-      toast.error('An error occurred while deleting the call');
+      console.error("[CallDetails] Error deleting call:", error);
+      toast.error("An error occurred while deleting the call");
     } finally {
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
@@ -74,7 +152,9 @@ export function CallDetailPanel({
 
   if (!call) return null;
 
-  const formatDuration = (seconds: number | string | null | undefined): string => {
+  const formatDuration = (
+    seconds: number | string | null | undefined
+  ): string => {
     if (!seconds) return "--:--";
 
     let totalSeconds: number;
@@ -94,6 +174,7 @@ export function CallDetailPanel({
   };
 
   const getStatusVariant = (status: string) => {
+    console.log(`[CallDetails] Getting status variant for: ${status}`);
     switch (status) {
       case "COMPLETED":
         return "default";
@@ -108,17 +189,17 @@ export function CallDetailPanel({
   };
 
   const getDisplayName = () => {
-    if (!call) return 'Unknown Caller';
-    if (call.customerName) return call.customerName;
-    if (call.customerPhone) return call.customerPhone;
-    return 'Unknown Caller';
-  };
-
-  const getTimestamp = () => {
-    return call.timestamp || call.createdAt || "";
+    if (!call) {
+      console.warn("[CallDetails] No call data available for display name");
+      return "Unknown Caller";
+    }
+    const name = call.customerName || call.customerPhone || "Unknown Caller";
+    console.log(`[CallDetails] Generated display name: ${name}`);
+    return name;
   };
 
   const getAllMessages = () => {
+    console.log("[CallDetails] Getting all messages for call:", call?.id);
     const messages: Array<{
       id: string;
       message: string;
@@ -126,6 +207,11 @@ export function CallDetailPanel({
       timestamp?: string;
       audioChunk?: string;
     }> = [];
+
+    if (!call) {
+      console.warn("[CallDetails] No call data available to get messages");
+      return [];
+    }
 
     // Add transcript messages
     if (call.transcript && Array.isArray(call.transcript)) {
@@ -160,16 +246,11 @@ export function CallDetailPanel({
     });
   };
 
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-    // Here you would implement actual audio playback logic
-  };
-
   const messages = getAllMessages();
 
   return (
     <Drawer open={isOpen} onOpenChange={onClose} direction="right">
-      <DrawerContent className="h-full  lg:min-w-[800px] max-w-[90vw] ml-auto mt-0 rounded-l-lg" >
+      <DrawerContent className="h-full lg:min-w-[800px] max-w-[90vw] ml-auto mt-0 rounded-l-lg">
         <div className="flex flex-col h-full">
           {/* Header */}
           <DrawerHeader className="border-b border-border">
@@ -178,7 +259,10 @@ export function CallDetailPanel({
                 <div className="flex items-center justify-between">
                   <DrawerTitle className="text-left">
                     {getDisplayName()}
-                    <Badge variant={getStatusVariant(call.status)} className="ml-2">
+                    <Badge
+                      variant={getStatusVariant(call.status)}
+                      className="ml-2"
+                    >
                       {call.status}
                     </Badge>
                   </DrawerTitle>
@@ -205,7 +289,10 @@ export function CallDetailPanel({
                   </div>
                 </div>
                 <DrawerDescription className="flex items-center gap-2 mt-1">
-                  {formatDistanceToNow(new Date(call.timestamp || call.createdAt || ''), { addSuffix: true })}
+                  {formatDistanceToNow(
+                    new Date(call.timestamp || call.createdAt || ""),
+                    { addSuffix: true }
+                  )}
                 </DrawerDescription>
               </div>
             </div>
@@ -214,109 +301,59 @@ export function CallDetailPanel({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Call Summary */}
+            {/* Call Summary */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-orange-600 dark:text-orange-400 text-lg font-bold">
+                  Call Summary
+                </h3>
+                {call.summary && (
+                  <Button
+                    onClick={handleGenerateAppointment}
+                    disabled={isGeneratingAppointment}
+                    size="sm"
+                    variant="outline"
+                    className="text-orange-600 border-orange-300 hover:bg-orange-50 hover:border-orange-400"
+                  >
+                    {isGeneratingAppointment ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Generate Appointment
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+              <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 space-y-3">
+                {call.summary ? (
+                  <div className="border-orange-200 dark:border-orange-800">
+                    <p className="text-orange-900 dark:text-orange-100 text-md whitespace-pre-line">
+                      {call.summary?.replace(/\*\*/g, "")}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-orange-600 dark:text-orange-400 text-sm">
+                    No summary available for this call
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Audio Player Section - REPLACED AudioUploader */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-foreground">
-                Call Summary
+                Call Recording
               </h3>
-              <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="space-y-1">
-                    <p className="text-orange-600 dark:text-orange-400 text-xs font-medium">Name</p>
-                    <p className="text-orange-900 dark:text-orange-100">
-                      {call.customerName || 'Not provided'}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-orange-600 dark:text-orange-400 text-xs font-medium">Phone</p>
-                    <p className="text-orange-900 dark:text-orange-100">
-                      {call.customerPhone || 'Not provided'}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-orange-600 dark:text-orange-400 text-xs font-medium">Duration</p>
-                    <p className="text-orange-900 dark:text-orange-100">
-                      {formatDuration(call.duration)}
-                    </p>
-                  </div>
-                </div>
-                {call.summary && (
-                  <div className="mt-2 pt-3 border-t border-orange-200 dark:border-orange-800">
-                    <p className="text-orange-600 dark:text-orange-400 text-xs font-medium mb-1">Summary</p>
-                    <p className="text-orange-900 dark:text-orange-100 text-sm">
-                      {call.summary}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Audio Uploader Section */}
-            <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Call Recording</h3>
-              <AudioUploader 
-                onUploadComplete={(url) => {
-                  setAudioUrl(url);
-                  // Here you would typically update the call record with the new audio URL
-                  // Example: updateCallAudio(call.id, url);
-                }}
-                initialAudioUrl={audioUrl}
-                callId={call.id}
+              <AudioPlayer
+                audioUrl={call.audioFileUrl}
+                callDuration={call.duration}
               />
             </div>
-
-            {/* Audio Player */}
-            {(call.audioFileUrl || call.duration) && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-foreground">
-                  Call Recording
-                </h3>
-                {call.audioFileUrl ? (
-                  <audio src={call.audioFileUrl} controls className="w-full">
-                    <track
-                      kind="captions"
-                      srcLang="en"
-                      label="English"
-                      default
-                    />
-                  </audio>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 w-8 p-0 bg-transparent"
-                      onClick={handlePlayPause}
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-3 w-3" />
-                      ) : (
-                        <Play className="h-3 w-3" />
-                      )}
-                    </Button>
-
-                    {/* Waveform visualization */}
-                    <div className="flex-1 flex items-center gap-0.5 h-8">
-                      {Array.from({ length: 60 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-0.5 rounded-full transition-colors ${
-                            i < 20
-                              ? "bg-blue-400 h-6"
-                              : i < 35
-                                ? "bg-blue-300 h-4"
-                                : "bg-gray-300 h-2"
-                          }`}
-                        />
-                      ))}
-                    </div>
-
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {formatDuration(call.duration)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Transcript/Conversation */}
             {messages.length > 0 && (
@@ -329,7 +366,7 @@ export function CallDetailPanel({
                 {messages.length === 0 && (
                   <>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"/>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full" />
                       <span className="text-sm font-medium text-blue-600">
                         Agent
                       </span>
@@ -389,24 +426,28 @@ export function CallDetailPanel({
           </div>
         </div>
       </DrawerContent>
-      
+
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogAction>
-              This action cannot be undone. This will permanently delete this call record.
-            </AlertDialogAction>
+            <AlertDialogDescription className="text-foreground">
+              This action cannot be undone. This will permanently delete this
+              call record.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDelete} 
+            <AlertDialogAction
+              onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

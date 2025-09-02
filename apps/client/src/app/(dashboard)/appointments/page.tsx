@@ -10,18 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Clock, User, Phone } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-
-interface Appointment {
-  id: string;
-  customerName: string;
-  customerPhone: string;
-  appointmentTime: string;
-  notes: string | null;
-  createdAt: string;
-}
+import { createAppointment } from "@/app/actions/GenerateAppointment";
+import { updateAppointmentStatus } from "@/app/actions/appointments";
+import { AppointmentDetailsSlider } from "@/components/AppointmentDetailsSlider";
+import type { Appointment } from "@/types/appointment";
 
 export default function AppointmentsPage() {
   const { data: session } = useSession();
@@ -29,12 +24,17 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newAppointment, setNewAppointment] = useState({
+  const [newAppointment, setNewAppointment] = useState<Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>>({
     customerName: "",
     customerPhone: "",
+    customerEmail: null,
     appointmentTime: "",
-    notes: "",
+    service: null,
+    notes: null,
+    status: "pending",
+    businessId: session?.user?.businessId || ""
   });
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   useEffect(() => {
     const fetchAppointments = async () => {
@@ -56,38 +56,61 @@ export default function AppointmentsPage() {
     }
   }, [session]);
 
+  const handleStatusChange = async (appointmentId: string, newStatus: string) => {
+    try {
+      const result = await updateAppointmentStatus(appointmentId, newStatus);
+      
+      if (result.success) {
+        toast.success(`Appointment marked as ${newStatus.toLowerCase()}`);
+        // Update the appointments list
+        const updatedAppointments = appointments.map(apt => 
+          apt.id === appointmentId ? { ...apt, status: newStatus } as Appointment : apt
+        );
+        setAppointments(updatedAppointments);
+        setSelectedAppointment(prev => prev ? { ...prev, status: newStatus } as Appointment : null);
+      } else {
+        throw new Error(result.error || 'Failed to update status');
+      }
+    } catch (error) {
+      toast.error('Failed to update appointment status');
+      console.error('Error updating appointment status:', error);
+    }
+  };
+
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    try {
-      const response = await fetch("/api/appointments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newAppointment),
-      });
-
+    const result = await createAppointment({
+      customerName: newAppointment.customerName,
+      customerPhone: newAppointment.customerPhone,
+      customerEmail: newAppointment.customerEmail || undefined,
+      appointmentTime: newAppointment.appointmentTime,
+      service: newAppointment.service || undefined,
+      notes: newAppointment.notes || undefined,
+      businessId: session?.user?.businessId || ""
+    });
+  
+    if (result.success) {
+      toast.success("Appointment created successfully");
+      // Refresh appointments list
+      const response = await fetch("/api/appointments");
       if (response.ok) {
-        toast.success("Appointment created successfully");
-        setIsDialogOpen(false);
-        setNewAppointment({
-          customerName: "",
-          customerPhone: "",
-          appointmentTime: "",
-          notes: "",
-        });
-        // Refresh appointments
-        const refreshResponse = await fetch("/api/appointments");
-        if (refreshResponse.ok) {
-          const data = await refreshResponse.json();
-          setAppointments(data.appointments);
-        }
-      } else {
-        toast.error("Failed to create appointment");
+        const data = await response.json();
+        setAppointments(data.appointments);
       }
-    } catch (error) {
-      toast.error("An error occurred");
+      setIsDialogOpen(false);
+      setNewAppointment({
+        customerName: "",
+        customerPhone: "",
+        customerEmail: null,
+        appointmentTime: "",
+        service: null,
+        notes: null,
+        status: "pending",
+        businessId: session?.user?.businessId || ""
+      });
+    } else {
+      toast.error(result.error || "Failed to create appointment");
     }
   };
 
@@ -113,14 +136,14 @@ export default function AppointmentsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardContent className="p-6">
-              <div className="h-64 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-64 bg-gray-200 rounded animate-pulse"/>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-16 bg-gray-200 rounded animate-pulse"></div>
+                {['appointment-1', 'appointment-2', 'appointment-3'].map((id) => (
+                  <div key={id} className="h-16 bg-gray-200 rounded animate-pulse"/>
                 ))}
               </div>
             </CardContent>
@@ -132,6 +155,12 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-6">
+      <AppointmentDetailsSlider
+        isOpen={!!selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+        appointment={selectedAppointment}
+        onStatusChange={handleStatusChange}
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -196,7 +225,7 @@ export default function AppointmentsPage() {
                 <Label htmlFor="notes">Notes</Label>
                 <Textarea
                   id="notes"
-                  value={newAppointment.notes}
+                  value={newAppointment.notes || ''}
                   onChange={(e) => setNewAppointment({
                     ...newAppointment,
                     notes: e.target.value
@@ -296,37 +325,41 @@ export default function AppointmentsPage() {
             {appointmentsForSelectedDate.length > 0 ? (
               <div className="space-y-4">
                 {appointmentsForSelectedDate.map((appointment) => (
-                  <div
-                    key={appointment.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                  <Card 
+                    key={appointment.id} 
+                    className="mb-4 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setSelectedAppointment(appointment)}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-green-600" />
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium">{appointment.customerName}</h3>
+                            <Badge 
+                              variant={new Date(appointment.appointmentTime) < new Date() ? 'secondary' : 'default'}
+                              className={new Date().toDateString() === new Date(appointment.appointmentTime).toDateString() ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' : ''}
+                            >
+                              {new Date().toDateString() === new Date(appointment.appointmentTime).toDateString() ? 'Today' : new Date(appointment.appointmentTime) < new Date() ? 'Completed' : 'Upcoming'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-500">{appointment.customerPhone}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium">
+                            {format(new Date(appointment.appointmentTime), "MMM d, yyyy")}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {format(new Date(appointment.appointmentTime), "h:mm a")}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-medium">{appointment.customerName}</h3>
-                        <p className="text-sm text-gray-600 flex items-center">
-                          <Phone className="h-3 w-3 mr-1" />
-                          {appointment.customerPhone}
-                        </p>
-                        <p className="text-sm text-gray-500 flex items-center">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {format(new Date(appointment.appointmentTime), "h:mm a")}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="outline">
-                        {format(new Date(appointment.appointmentTime), "h:mm a")}
-                      </Badge>
                       {appointment.notes && (
-                        <p className="text-xs text-gray-500 mt-1 max-w-32 truncate">
+                        <p className="mt-2 text-sm text-gray-600 line-clamp-2">
                           {appointment.notes}
                         </p>
                       )}
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             ) : (

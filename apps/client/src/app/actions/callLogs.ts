@@ -19,6 +19,8 @@ export interface CallData {
   finalTranscript?: string
   intent?: string
   status?: string
+  audioFileUrl?: string
+  metadata?: Record<string, any>
 }
 
 export async function saveCallToDatabase(callData: CallData) {
@@ -51,6 +53,7 @@ export async function saveCallToDatabase(callData: CallData) {
         duration: callData.duration || null,
         transcript: callData.finalTranscript || null,
         intent: callData.intent || null,
+        audioFileUrl: callData.audioFileUrl || null,
       },
     });
 

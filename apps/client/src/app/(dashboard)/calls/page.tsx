@@ -7,28 +7,9 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { CallList } from '@/components/CallList'
 import { toast } from 'sonner'
 import { getCalls, type CallWithLogs } from '@/app/actions/calls'
+import type { CallEntry } from '@/types/calls'
 
 // Define the call type to match your CallList component
-interface CallEntry {
-  id: string
-  contact: string
-  duration: string
-  timestamp: string
-  status: "TEST" | "COMPLETED" | "MISSED" | "IN_PROGRESS"
-  summary?: string
-  transcript?: Array<{
-    speaker: "agent" | "caller"
-    message: string
-    timestamp?: string
-  }>
-  customerPhone?: string
-  logs?: Array<{
-    id: string
-    message: string
-    sender: "ai" | "user"
-    audioChunk?: string
-  }>
-}
 
 export default function CallsPage() {
   const { data: session } = useSession()
@@ -47,8 +28,10 @@ export default function CallsPage() {
       contact: call.customerName || 'Unknown Caller',
       duration: call.duration?.toString() || '0',
       timestamp: call.createdAt.toISOString(),
+      audioFileUrl: call.audioFileUrl ?? undefined,
       status: call.status as CallEntry['status'], // Type assertion to match expected status type
       customerPhone: call.customerPhone || '',
+      summary: call.summary || '',
       logs: call.logs.map(log => ({
         id: log.id,
         message: log.message,

@@ -211,14 +211,15 @@ export default function AgentForm() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="alloy">alloy</SelectItem>
-                  <SelectItem value="nova">nova</SelectItem>
-                  <SelectItem value="shimmer">shimmer</SelectItem>
-                  <SelectItem value="echo">echo</SelectItem>
-                  <SelectItem value="onyx">onyx</SelectItem>
-                  <SelectItem value="fable">fable</SelectItem>
                   <SelectItem value="ash">ash</SelectItem>
-                  <SelectItem value="sage">sage</SelectItem>
+                  <SelectItem value="ballad">ballad</SelectItem>
                   <SelectItem value="coral">coral</SelectItem>
+                  <SelectItem value="echo">echo</SelectItem>
+                  <SelectItem value="sage">sage</SelectItem>
+                  <SelectItem value="shimmer">shimmer</SelectItem>
+                  <SelectItem value="verse">verse</SelectItem>
+                  <SelectItem value="marin">marin</SelectItem>
+                  <SelectItem value="cedar">cedar</SelectItem>
                 </SelectContent>
               </Select>
             </div>

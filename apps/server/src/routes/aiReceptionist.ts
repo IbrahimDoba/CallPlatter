@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { logger } from "../utils/logger";
 import { db } from "@repo/db";
+import { instructions } from "@/utils/instructions";
 
 const router: Router = Router();
 
@@ -25,17 +26,17 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
 
     // Load per-business AI Agent config to personalize the realtime session
     let sessionVoice = voice || "alloy";
-    let instructions = [
-      "You are an AI phone receptionist for a business.",
-      "Your job: greet callers, answer questions, route appropriately, book appointments, and take messages.",
-      "Style: extremely concise, friendly, and professional. Prefer one short sentence (<= 15 words).",
-      "CRITICAL: Only respond ONCE per user message. Never generate multiple responses or interrupt yourself.",
-      "Wait for the caller to speak before responding. Do not continue talking after your response.",
-      "Ask at most one clarifying question only when necessary to proceed.",
-      "Avoid filler and small talk. No emojis. Keep the conversation natural and efficient.",
-      'If there is silence for more than 5 seconds after your response, ask "Are you still there?" once. If no response after 5 more seconds, say goodbye and append <END_CALL>.',
-      "When the conversation is complete or the caller is done, append <END_CALL> after your final sentence.",
-    ].join("\n");
+    // let instructions = [
+    //   "You are an AI phone receptionist for a business.",
+    //   "Your job: greet callers, answer questions, route appropriately, book appointments, and take messages.",
+    //   "Style: extremely concise, friendly, and professional. Prefer one short sentence (<= 15 words).",
+    //   "CRITICAL: Only respond ONCE per user message. Never generate multiple responses or interrupt yourself.",
+    //   "Wait for the caller to speak before responding. Do not continue talking after your response.",
+    //   "Ask at most one clarifying question only when necessary to proceed.",
+    //   "Avoid filler and small talk. No emojis. Keep the conversation natural and efficient.",
+    //   'If there is silence for more than 5 seconds after your response, ask "Are you still there?" once. If no response after 5 more seconds, say goodbye and append <END_CALL>.',
+    //   "When the conversation is complete or the caller is done, append <END_CALL> after your final sentence.",
+    // ].join("\n");
     let transcriptionModel: string | undefined = "whisper-1";
     let temperature: number | undefined = 0.7; // Lower temperature for more predictable responses
     let firstMessage: string | null | undefined = undefined;
@@ -130,12 +131,14 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
         }
 
         if (cfg) {
+          // Create a mutable copy of the instructions
+          const sessionInstructions = [...instructions];
+          
           if (cfg.voice) sessionVoice = cfg.voice;
-          if (cfg.systemPrompt) instructions += `\n\n${cfg.systemPrompt}`;
-          if (cfg.agentLLM)
-            instructions += `\n\nBusiness memory/context:\n${cfg.agentLLM}`;
+          if (cfg.systemPrompt) sessionInstructions.push(`\n\n${cfg.systemPrompt}`);
+          if (cfg.agentLLM) sessionInstructions.push(`\n\nBusiness memory/context:\n${cfg.agentLLM}`);
           if (cfg.firstMessage) {
-            instructions += `\n\nWhen the call starts, greet the caller with: "${cfg.firstMessage}"`;
+            sessionInstructions.push(`\n\nWhen the call starts, greet the caller with: "${cfg.firstMessage}"`);
             firstMessage = cfg.firstMessage;
           }
           if (cfg.transcriptionModel)
@@ -180,7 +183,7 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
           // Enhanced session configuration
           instructions,
           temperature: temperature || 0.6, // Lower temperature for consistency
-          max_response_output_tokens: 250, // Shorter responses to prevent cutoffs
+          max_response_output_tokens: 350, // Shorter responses to prevent cutoffs
 
           tool_choice: "none", // Disable tools to prevent unexpected behavior
         }),
