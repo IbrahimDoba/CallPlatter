@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import WebCallModal from "@/components/WebCallModal";
+import WebCallModal from "@/components/module/call/WebCallModal";
 import { Globe, Settings } from "lucide-react";
 
 interface DashboardHeaderProps {

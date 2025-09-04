@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight, Phone, Clock, MessageSquare, ChevronRight as ViewIcon } from "lucide-react"
 import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
-import { CallDetailPanel } from "@/components/CallDetailsSlider"
+import { CallDetailPanel } from "@/components/module/call/CallDetailsSlider"
 import type { CallEntry } from "@/types/calls"
 
 

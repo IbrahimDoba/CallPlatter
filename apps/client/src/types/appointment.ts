@@ -2,7 +2,7 @@ export type Appointment = {
   id: string;
   customerName: string;
   customerPhone: string;
-  customerEmail: string | null;
+  customerEmail: string | null | undefined;
   appointmentTime: string; // ISO string format
   service: string | null;
   notes: string | null;

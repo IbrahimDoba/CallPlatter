@@ -24,7 +24,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { deleteCall } from "@/app/actions/callLogs";
 import { format } from "date-fns";
-import { AudioPlayer } from "./AudioPlayer";
+import { AudioPlayer } from "../audio/AudioPlayer";
 import { generateAppointmentFromSummary } from "@/app/actions/GenerateAppointment";
 
 interface CallDetailPanelProps {

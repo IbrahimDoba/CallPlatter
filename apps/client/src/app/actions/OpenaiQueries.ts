@@ -64,52 +64,26 @@ export async function generateCallSummary(
       .join("\n\n");
 
     // Create the prompt for summary generation
-    const prompt = `You are an AI assistant that creates detailed, professional summaries of customer service calls for business records.
+    const prompt = `Generate a professional call summary for ${call.business.name} (${call.business.phoneNumber || "Phone not provided"}). Customer: ${call.customerName || "Name not provided"}, Call Type: ${call.callType || "WEB"}, Duration: ${call.duration ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s` : "Unknown"}.
 
-BUSINESS DETAILS:
-- Business Name: ${call.business.name}
-- Business Phone: ${call.business.phoneNumber || 'Not provided'}
-
-CUSTOMER INFORMATION:
-- Customer Name: ${call.customerName || 'Not provided'}
-- Call Type: ${call.callType || 'WEB'}
-- Call Duration: ${call.duration ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s` : "Unknown"}
-
-CONVERSATION LOGS:
+Conversation:
 ${conversationText}
 
-Please generate a comprehensive summary that includes:
-
-1. CUSTOMER DETAILS:
-   - Full name (if mentioned)
-   - Contact information (phone, email, address if provided)
-   - Any other identifying information
-
-2. CALL PURPOSE:
-   - Primary reason for the call
-   - Specific products/services inquired about
-
-3. KEY POINTS DISCUSSED:
-   - Main topics covered
-   - Customer's specific requests or concerns
-   - Any issues or complaints raised
-
-4. ACTIONS TAKEN:
-   - Steps taken during the call
-   - Information provided to the customer
-   - Any promises made
-
-5. NEXT STEPS:
-   - Follow-up required (if any)
-   - Pending actions
-   - Any scheduled callbacks or appointments
-
-6. ADDITIONAL NOTES:
-   - Special instructions
-   - Customer preferences
-   - Any other relevant details
-
-Format the summary in clear, well-organized sections. Include all customer-provided details, even if they seem minor, as they might be important for future reference.`;
+Please create a comprehensive and well-organized call summary that captures all essential information from this conversation. The summary should include complete customer details such as their name, 
+contact information, and any identifying information they provided during the call. 
+Document the primary purpose of the call including the reason they contacted us and any specific 
+products or services that were discussed. Cover all key discussion points that arose during the 
+conversation including main topics covered, specific requests made by the customer, any concerns or
+ issues they raised, and complaints if applicable. Detail any actions that were taken during the call 
+ such as steps completed to assist the customer, information that was provided to them, and any 
+ promises or commitments made by our team. Clearly outline the next steps that need to be taken 
+ including any required follow-ups, pending actions that need completion, scheduled appointments, 
+ or callbacks. Include additional relevant notes such as special instructions from the customer, 
+ their preferences or requirements, and any other details that may be important for future reference.
+ Please ensure that all customer-provided information is included in the summary regardless of 
+ how minor it may seem, as even small details can be crucial for maintaining excellent customer 
+ service and building strong relationships. Format the summary in clear, well-organized sections
+  that make it easy to quickly find and reference specific information.`;
 
     // Generate summary using OpenAI
     const completion = await openai.chat.completions.create({

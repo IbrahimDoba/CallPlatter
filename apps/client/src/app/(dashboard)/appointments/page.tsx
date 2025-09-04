@@ -15,8 +15,10 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { createAppointment } from "@/app/actions/GenerateAppointment";
 import { updateAppointmentStatus } from "@/app/actions/appointments";
-import { AppointmentDetailsSlider } from "@/components/AppointmentDetailsSlider";
+
 import type { Appointment } from "@/types/appointment";
+import { AppointmentDetailsSlider } from "@/components/module/Appointment/AppointmentDetailsSlider";
+import { AllAppointmentsList } from "@/components/module/Appointment/View-All-Appointments";
 
 export default function AppointmentsPage() {
   const { data: session } = useSession();
@@ -169,78 +171,110 @@ export default function AppointmentsPage() {
             Manage your scheduled appointments
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Appointment
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Appointment</DialogTitle>
-              <DialogDescription>
-                Add a new appointment to your calendar
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateAppointment} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="customerName">Customer Name</Label>
-                <Input
-                  id="customerName"
-                  value={newAppointment.customerName}
-                  onChange={(e) => setNewAppointment({
-                    ...newAppointment,
-                    customerName: e.target.value
-                  })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerPhone">Phone Number</Label>
-                <Input
-                  id="customerPhone"
-                  value={newAppointment.customerPhone}
-                  onChange={(e) => setNewAppointment({
-                    ...newAppointment,
-                    customerPhone: e.target.value
-                  })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="appointmentTime">Appointment Time</Label>
-                <Input
-                  id="appointmentTime"
-                  type="datetime-local"
-                  value={newAppointment.appointmentTime}
-                  onChange={(e) => setNewAppointment({
-                    ...newAppointment,
-                    appointmentTime: e.target.value
-                  })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={newAppointment.notes || ''}
-                  onChange={(e) => setNewAppointment({
-                    ...newAppointment,
-                    notes: e.target.value
-                  })}
-                />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Create Appointment</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          {/* New View All Appointments Button */}
+          <AllAppointmentsList 
+            appointments={appointments}
+            onAppointmentClick={(appointment) => setSelectedAppointment(appointment)}
+          />
+          
+          {/* Existing New Appointment Button */}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Appointment
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Appointment</DialogTitle>
+                <DialogDescription>
+                  Add a new appointment to your calendar
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateAppointment} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="customerName">Customer Name</Label>
+                  <Input
+                    id="customerName"
+                    value={newAppointment.customerName}
+                    onChange={(e) => setNewAppointment({
+                      ...newAppointment,
+                      customerName: e.target.value
+                    })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customerPhone">Phone Number</Label>
+                  <Input
+                    id="customerPhone"
+                    value={newAppointment.customerPhone}
+                    onChange={(e) => setNewAppointment({
+                      ...newAppointment,
+                      customerPhone: e.target.value
+                    })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customerEmail">Email (Optional)</Label>
+                  <Input
+                    id="customerEmail"
+                    type="email"
+                    value={newAppointment.customerEmail || ''}
+                    onChange={(e) => setNewAppointment({
+                      ...newAppointment,
+                      customerEmail: e.target.value
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="appointmentTime">Appointment Time</Label>
+                  <Input
+                    id="appointmentTime"
+                    type="datetime-local"
+                    value={newAppointment.appointmentTime}
+                    onChange={(e) => setNewAppointment({
+                      ...newAppointment,
+                      appointmentTime: e.target.value
+                    })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="service">Service (Optional)</Label>
+                  <Input
+                    id="service"
+                    value={newAppointment.service || ''}
+                    onChange={(e) => setNewAppointment({
+                      ...newAppointment,
+                      service: e.target.value
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={newAppointment.notes || ''}
+                    onChange={(e) => setNewAppointment({
+                      ...newAppointment,
+                      notes: e.target.value
+                    })}
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Create Appointment</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Stats */}
@@ -336,13 +370,35 @@ export default function AppointmentsPage() {
                           <div className="flex items-center gap-2">
                             <h3 className="font-medium">{appointment.customerName}</h3>
                             <Badge 
-                              variant={new Date(appointment.appointmentTime) < new Date() ? 'secondary' : 'default'}
-                              className={new Date().toDateString() === new Date(appointment.appointmentTime).toDateString() ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' : ''}
+                              variant={
+                                appointment.status === 'completed' 
+                                  ? 'secondary' 
+                                  : appointment.status === 'cancelled' 
+                                    ? 'destructive' 
+                                    : 'default'
+                              }
+                              className={
+                                new Date().toDateString() === new Date(appointment.appointmentTime).toDateString() 
+                                  ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' 
+                                  : ''
+                              }
                             >
-                              {new Date().toDateString() === new Date(appointment.appointmentTime).toDateString() ? 'Today' : new Date(appointment.appointmentTime) < new Date() ? 'Completed' : 'Upcoming'}
+                              {appointment.status === 'completed' 
+                                ? 'Completed' 
+                                : appointment.status === 'cancelled' 
+                                  ? 'Cancelled'
+                                  : new Date().toDateString() === new Date(appointment.appointmentTime).toDateString() 
+                                    ? 'Today' 
+                                    : new Date(appointment.appointmentTime) < new Date() 
+                                      ? 'Past' 
+                                      : 'Upcoming'
+                              }
                             </Badge>
                           </div>
                           <p className="text-sm text-gray-500">{appointment.customerPhone}</p>
+                          {appointment.service && (
+                            <p className="text-sm text-blue-600">{appointment.service}</p>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-medium">

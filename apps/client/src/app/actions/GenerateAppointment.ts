@@ -24,7 +24,6 @@ interface GenerateAppointmentResult {
   callId?: string
   shouldCreateAppointment?: boolean
 }
-
 export async function generateAppointmentFromCall(callId: string): Promise<GenerateAppointmentResult> {
   try {
     if (!callId) {
@@ -61,6 +60,12 @@ export async function generateAppointmentFromCall(callId: string): Promise<Gener
       .map(log => `${log.sender.toUpperCase()}: ${log.message}`)
       .join('\n\n')
 
+    // Get current date information for accurate relative date calculation
+    const now = new Date()
+    const currentDate = now.toISOString().split('T')[0] // YYYY-MM-DD format
+    const currentDayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' })
+    const currentTime = now.toLocaleTimeString('en-US', { hour12: false })
+
     // Create the prompt for appointment extraction
     const prompt = `You are an AI assistant that analyzes customer service call transcripts to determine if an appointment should be scheduled and extract appointment details.
 
@@ -68,12 +73,32 @@ Business: ${call.business.name}
 Customer: ${call.customerName || 'Unknown'}
 Customer Phone: ${call.customerPhone || 'Unknown'}
 
+CURRENT DATE AND TIME CONTEXT:
+- Today's date: ${currentDate} (${currentDayOfWeek})
+- Current time: ${currentTime}
+
 CONVERSATION:
 ${conversationText}
 
 Analyze this conversation and determine:
 1. Does the customer want to schedule an appointment? (yes/no)
 2. If yes, extract the appointment details
+
+IMPORTANT DATE CALCULATION RULES:
+- Calculate all relative dates based on TODAY'S DATE: ${currentDate}
+- "tomorrow" = ${new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+- "next week" = the same day of week in the following week
+- "next Monday/Tuesday/etc" = the next occurrence of that weekday from today
+- "in 2 weeks" = exactly 14 days from today
+- Always use year 2025 for all appointments
+- If no specific time is mentioned, use 10:00 AM as default
+
+Examples of correct date calculations from today (${currentDate}):
+- "tomorrow at 2pm" → next day at 14:00
+- "next Monday" → the next Monday after today
+- "next week Friday" → Friday of next week
+- "in 2 weeks on Wednesday" → Wednesday exactly 2 weeks from today
+- "this Friday" → this coming Friday (or next Friday if today is already Friday)
 
 Respond with JSON containing:
 {
@@ -83,7 +108,7 @@ Respond with JSON containing:
     "customerPhone": "phone number from conversation", 
     "customerEmail": "email from conversation or null",
     "customerAddress": "complete address if mentioned or null",
-    "appointmentTime": "ISO datetime or null",
+    "appointmentTime": "ISO datetime in 2025 (YYYY-MM-DDTHH:MM:SSZ) or null if no time discussed",
     "service": "specific service/product requested",
     "notes": "all collected details, preferences, special requirements"
   },
@@ -93,16 +118,19 @@ Respond with JSON containing:
     "hasEmail": boolean,
     "hasAddress": boolean,
     "hasServiceDetails": boolean
-  }
+  },
+  "dateCalculation": "explanation of how you calculated the date from today ${currentDate}"
 }
 
 Only set shouldCreateAppointment to true if customer explicitly requested service AND you have at least name and phone.
 
 Important:
-- Only set shouldCreateAppointment to true if the customer explicitly requested an appointment
+- Calculate ALL dates relative to TODAY: ${currentDate}
+- Always use year 2025 for any extracted dates
 - If no specific time was mentioned, set appointmentTime to null
 - Use the customer info from the call record if not mentioned in conversation
-- Be conservative - only create appointments when clearly requested`
+- Be conservative - only create appointments when clearly requested
+- Show your date calculation reasoning in the dateCalculation field`
 
     // Generate appointment data using OpenAI
     const completion = await openai.chat.completions.create({
@@ -110,15 +138,15 @@ Important:
       messages: [
         {
           role: 'system',
-          content: 'You are a professional assistant that analyzes customer service calls to identify appointment requests. Always respond with valid JSON only.'
+          content: 'You are a professional assistant that analyzes customer service calls to identify appointment requests. Always respond with valid JSON only. Pay careful attention to date calculations based on the provided current date.'
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 400,
-      temperature: 0.2, // Low temperature for consistent extraction
+      max_tokens: 500, // Increased to accommodate date calculation explanation
+      temperature: 0.1, // Very low temperature for consistent date extraction
     })
 
     const responseText = completion.choices[0]?.message?.content?.trim()
@@ -136,6 +164,7 @@ Important:
     }
 
     console.log('AI appointment analysis:', aiResponse)
+    console.log('Date calculation reasoning:', aiResponse.dateCalculation)
 
     // If AI determined no appointment should be created
     if (!aiResponse.shouldCreateAppointment) {
@@ -168,6 +197,24 @@ Important:
       return { success: false, error: 'Missing required customer information' }
     }
 
+    // Ensure appointment time is in 2025 and validate the date
+    const appointmentDate = new Date(finalAppointmentData.appointmentTime)
+    if (appointmentDate.getFullYear() !== 2025) {
+      appointmentDate.setFullYear(2025)
+      finalAppointmentData.appointmentTime = appointmentDate.toISOString()
+    }
+
+    // Validate that the appointment date is not in the past
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const appointmentDateOnly = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate())
+    
+    if (appointmentDateOnly < todayStart) {
+      console.warn('Appointment date is in the past, adjusting to next occurrence')
+      // This shouldn't happen with proper calculation, but as a safety net
+      appointmentDate.setDate(appointmentDate.getDate() + 7) // Move to next week
+      finalAppointmentData.appointmentTime = appointmentDate.toISOString()
+    }
+
     // Create the appointment
     const appointment = await db.appointment.create({
       data: {
@@ -183,6 +230,7 @@ Important:
     })
 
     console.log('Appointment created from call:', appointment.id)
+    console.log('Final appointment time:', finalAppointmentData.appointmentTime)
 
     return {
       success: true,
@@ -233,6 +281,11 @@ Call Summary: ${summary}
 Customer: ${call.customerName || 'Unknown'}
 Phone: ${call.customerPhone || 'Unknown'}
 
+IMPORTANT: When extracting appointment times, always use the year 2025 if no year is specified. For example:
+- "tomorrow at 2pm" becomes the next day in 2025 at 2pm
+- "January 15th" becomes "2025-01-15T10:00:00Z" (default to 10am if no time given)
+- "next Monday" becomes the next Monday in 2025
+
 Respond with JSON:
 {
   "shouldCreateAppointment": boolean,
@@ -240,7 +293,7 @@ Respond with JSON:
     "customerName": "name from summary or call record",
     "customerPhone": "phone from summary or call record", 
     "customerEmail": "email if mentioned in summary or null",
-    "appointmentTime": "ISO datetime if specific time mentioned, otherwise tomorrow 10am",
+    "appointmentTime": "ISO datetime in 2025 - if specific time mentioned use it, otherwise default to tomorrow 10am in 2025",
     "service": "service type requested",
     "notes": "appointment details from summary"
   },
@@ -263,16 +316,25 @@ Only create appointment if summary indicates customer requested service/booking.
     }
 
     const data = response.appointmentData
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(10, 0, 0, 0)
+    
+    // Default to tomorrow 10am in 2025 if no specific time provided
+    const defaultTime = generateDefaultAppointmentTime()
+
+    let appointmentTime = new Date(defaultTime)
+    if (data.appointmentTime) {
+      appointmentTime = new Date(data.appointmentTime)
+      // Ensure the year is 2025 if it was parsed as a different year
+      if (appointmentTime.getFullYear() !== 2025) {
+        appointmentTime.setFullYear(2025)
+      }
+    }
 
     const appointment = await db.appointment.create({
       data: {
         customerName: data.customerName || call.customerName || 'Unknown',
         customerPhone: data.customerPhone || call.customerPhone || 'Unknown',
         customerEmail: data.customerEmail || null,
-        appointmentTime: data.appointmentTime ? new Date(data.appointmentTime) : tomorrow,
+        appointmentTime,
         service: data.service || null,
         notes: data.notes || `Generated from call summary on ${new Date().toLocaleDateString()}`,
         status: 'PENDING',
@@ -289,10 +351,11 @@ Only create appointment if summary indicates customer requested service/booking.
   }
 }
 
-// Helper function to generate a default appointment time (next business day at 10 AM)
+// Helper function to generate a default appointment time (next business day at 10 AM in 2025)
 function generateDefaultAppointmentTime(): string {
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  // Get current date but set year to 2025
+  const today = new Date()
+  const tomorrow = new Date(2025, today.getMonth(), today.getDate() + 1)
   
   // Set to 10 AM
   tomorrow.setHours(10, 0, 0, 0)
@@ -346,12 +409,18 @@ export async function createAppointment(appointmentData: {
   businessId: string
 }) {
   try {
+    // Ensure appointment time is in 2025
+    const appointmentDate = new Date(appointmentData.appointmentTime)
+    if (appointmentDate.getFullYear() !== 2025) {
+      appointmentDate.setFullYear(2025)
+    }
+
     const appointment = await db.appointment.create({
       data: {
         customerName: appointmentData.customerName,
         customerPhone: appointmentData.customerPhone,
         customerEmail: appointmentData.customerEmail || null,
-        appointmentTime: new Date(appointmentData.appointmentTime),
+        appointmentTime: appointmentDate,
         service: appointmentData.service || null,
         notes: appointmentData.notes || null,
         status: 'PENDING',
