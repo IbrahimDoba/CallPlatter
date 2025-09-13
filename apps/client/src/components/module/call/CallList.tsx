@@ -7,6 +7,7 @@ import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { CallDetailPanel } from "@/components/module/call/CallDetailsSlider"
 import type { CallEntry } from "@/types/calls"
+import { formatPhoneNumber } from "@/lib/phoneUtils"
 
 
 interface CallListProps {
@@ -45,20 +46,14 @@ export function CallList({
     setTimeout(() => setSelectedCall(null), 300)
   }
 
-  const formatDuration = (duration: string): string => {
-    // If duration is already formatted (MM:SS), return as is
-    if (duration.includes(':')) return duration
-    
+  const formatDuration = (duration: number): string => {
     // If duration is in seconds, convert to MM:SS
-    const seconds = Number.parseInt(duration)
-    if (!isNaN(seconds)) {
-      const mins = Math.floor(seconds / 60)
-      const secs = Math.floor(seconds % 60)
-      return `${mins}:${secs.toString().padStart(2, '0')}`
-    }
-    
-    return duration || '--:--'
+    const seconds = Math.floor(duration)
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
+
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -108,14 +103,9 @@ export function CallList({
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="font-medium truncate">
-                        {call.contact || 'Unknown Caller'}
+                      <span className="font-semibold  text-[#1c1917]">
+                        {formatPhoneNumber(call.customerPhone || '')}
                       </span>
-                      {call.customerPhone && (
-                        <span className="text-sm text-muted-foreground">
-                          ({call.customerPhone})
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -125,7 +115,7 @@ export function CallList({
                       <Clock className="h-4 w-4" />
                       <span>{formatDuration(call.duration)}</span>
                     </div>
-                    <span>{formatTimestamp(call.timestamp)}</span>
+                    <span>{formatTimestamp(call.createdAt)}</span>
                   </div>
 
                   {/* Right: View button with icon */}

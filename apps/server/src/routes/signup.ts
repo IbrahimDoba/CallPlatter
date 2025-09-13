@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { Router } from "express";
 import { db } from "@repo/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { logger } from "../utils/logger";
+
+const router: Router = Router();
 
 const signupSchema = z.object({
   name: z.string().min(2, "Business name must be at least 2 characters"),
@@ -10,10 +13,10 @@ const signupSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-export async function POST(request: NextRequest) {
+// POST /api/signup
+router.post("/", async (req, res) => {
   try {
-    const body = await request.json();
-    const { name, email, phoneNumber, password } = signupSchema.parse(body);
+    const { name, email, phoneNumber, password } = signupSchema.parse(req.body);
 
     // Check if user already exists
     const existingUser = await db.user.findUnique({
@@ -21,10 +24,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingUser) {
-      return NextResponse.json(
-        { message: "User with this email already exists" },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        message: "User with this email already exists"
+      });
     }
 
     // Check if business with same phone number already exists
@@ -33,10 +35,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingBusiness) {
-      return NextResponse.json(
-        { message: "Business with this phone number already exists" },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        message: "Business with this phone number already exists"
+      });
     }
 
     // Hash password
@@ -66,35 +67,39 @@ export async function POST(request: NextRequest) {
       return { business, user };
     });
 
-    return NextResponse.json(
-      { 
-        message: "Business and user created successfully",
-        business: {
-          id: result.business.id,
-          name: result.business.name,
-          phoneNumber: result.business.phoneNumber,
-        },
-        user: {
-          id: result.user.id,
-          email: result.user.email,
-          name: result.user.name,
-          role: result.user.role,
-        }
+    logger.info("Business and user created successfully", {
+      businessId: result.business.id,
+      userId: result.user.id,
+      email
+    });
+
+    return res.status(201).json({
+      message: "Business and user created successfully",
+      business: {
+        id: result.business.id,
+        name: result.business.name,
+        phoneNumber: result.business.phoneNumber,
       },
-      { status: 201 }
-    );
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+        role: result.user.role,
+      }
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { message: "Validation error", errors: error.errors },
-        { status: 400 }
-      );
+      return res.status(400).json({
+        message: "Validation error",
+        errors: error.errors
+      });
     }
 
-    console.error("Signup error:", error);
-    return NextResponse.json(
-      { message: "Internal server error" },
-      { status: 500 }
-    );
+    logger.error("Signup error:", error);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
-}
+});
+
+export default router;

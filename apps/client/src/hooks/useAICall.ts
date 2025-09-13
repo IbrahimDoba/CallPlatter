@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useSession } from "next-auth/react";
 
 export type CallState =
   | "idle"
@@ -42,6 +43,7 @@ export function useAICall({
   onRecordingComplete,
   audioElement,
 }: UseAICallProps) {
+  const { data: session } = useSession();
   const [isRecording, setIsRecording] = useState(false);
   const [conversation, setConversation] = useState<TranscriptEntry[]>([]);
   const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "processing" | "uploading" | "complete" | "error">("idle");
@@ -311,9 +313,17 @@ export function useAICall({
       
       onLog("system", `Uploading ${filename} (${Math.round(audioBlob.size / 1024)}KB)...`);
       
-      const response = await fetch('/api/upload-call-recording', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001'}/api/upload-call-recording`, {
         method: 'POST',
         body: formData,
+        headers: {
+          'Authorization': `Bearer ${session?.user?.id}`,
+          'x-user-id': session?.user?.id || '',
+          'x-user-email': session?.user?.email || '',
+          'x-user-business-id': session?.user?.businessId || '',
+          'x-user-role': session?.user?.role || '',
+          'x-user-name': session?.user?.name || '',
+        },
       });
       
       if (!response.ok) {

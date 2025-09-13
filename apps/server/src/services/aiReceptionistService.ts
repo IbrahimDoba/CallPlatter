@@ -57,15 +57,17 @@ export class AIReceptionistService {
    * Transcribe audio using OpenAI Whisper API
    */
 
-  async transcribeAudio(audioBuffer: Buffer, cfg?: AgentRuntimeConfig): Promise<string> {
+  async transcribeAudio(audioBuffer: Buffer, cfg?: AgentRuntimeConfig, format?: string): Promise<string> {
     try {
-      // Create temporary file for audio (WebM format is supported by Whisper)
+      // Create temporary file for audio (supports WebM, WAV, and other formats)
       const tempDir = path.join(process.cwd(), 'temp');
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
 
-      const tempFilePath = path.join(tempDir, `audio_${Date.now()}.webm`);
+      // Determine file extension based on format or default to webm
+      const extension = format || 'webm';
+      const tempFilePath = path.join(tempDir, `audio_${Date.now()}.${extension}`);
       fs.writeFileSync(tempFilePath, audioBuffer);
 
       const audioFile = fs.createReadStream(tempFilePath);
@@ -104,8 +106,11 @@ export class AIReceptionistService {
         cfg?.agentLLM ? `Business memory/context:\n${cfg.agentLLM}` : '',
       ].filter(Boolean).join('\n\n');
 
+      // Use a chat model, not realtime model for text generation
+      const chatModel = cfg?.responseModel?.includes('realtime') ? 'gpt-4o-mini' : (cfg?.responseModel || 'gpt-4o-mini');
+      
       const completion = await getOpenAIClient().chat.completions.create({
-        model: cfg?.responseModel || 'gpt-4o-mini',
+        model: chatModel,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: transcription },

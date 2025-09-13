@@ -7,7 +7,6 @@ import type { Prisma } from "@prisma/client";
 export type AgentConfigPayload = {
   businessId: string;
   firstMessage?: string | null;
-  agentLLM?: string | null;
   systemPrompt?: string | null;
   voice?: string | null;
   responseModel?: string | null;
@@ -58,7 +57,6 @@ export async function saveAgentConfig(_prevState: unknown, formData: FormData) {
 
   const data: Prisma.AIAgentConfigUncheckedUpdateInput = {
     firstMessage: toStr("firstMessage"),
-    agentLLM: toStr("agentLLM"),
     systemPrompt: toStr("systemPrompt"),
     voice: toStr("voice") ?? undefined,
     responseModel: toStr("responseModel") ?? undefined,

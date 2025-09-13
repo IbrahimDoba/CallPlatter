@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, Calendar, Users, TrendingUp, PhoneCall } from "lucide-react";
 import CallTestingModal from "@/components/CallTestingModal";
+import { api } from "@/lib/api";
 
 interface DashboardStats {
   totalCalls: number;
@@ -29,11 +30,8 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await fetch("/api/dashboard/stats");
-        if (response.ok) {
-          const data = await response.json();
-          setStats(data);
-        }
+        const data = await api.dashboard.stats();
+        setStats(data);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {

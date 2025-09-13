@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, useActionState } from "react";
-import { useFormStatus } from "react-dom";
+import { useEffect, useId, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,25 +8,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Bot, Save, RefreshCcw, MessageSquare, Headphones, Settings, ChevronDown } from "lucide-react";
-import { loadAgentConfig, saveAgentConfig } from "./actions";
+import { Bot, Save, RefreshCcw, MessageSquare, Headphones, Settings, ChevronDown, Plus, Trash2, Edit } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api } from "@/lib/api";
 
-function SubmitButton({ children }: { children: React.ReactNode }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Please wait..." : children}
-    </Button>
-  );
+interface BusinessMemory {
+  id?: string;
+  title: string;
+  content: string;
+  isActive: boolean;
 }
 
 export default function AgentForm() {
   const { data: session } = useSession();
   const [businessId, setBusinessId] = useState("");
   const [firstMessage, setFirstMessage] = useState("");
-  const [agentLLM, setAgentLLM] = useState("");
+  const [businessMemories, setBusinessMemories] = useState<BusinessMemory[]>([]);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [voice, setVoice] = useState("alloy");
   const [responseModel, setResponseModel] = useState("gpt-4o-realtime-preview-2024-12-17");
@@ -37,10 +34,9 @@ export default function AgentForm() {
   const [temperature, setTemperature] = useState<string>("");
   const [settings, setSettings] = useState<string>("");
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-
-  // Server action state machines
-  const [loadState, loadAction] = useActionState(loadAgentConfig as any, null);
-  const [saveState, saveAction] = useActionState(saveAgentConfig as any, null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingMemory, setEditingMemory] = useState<BusinessMemory | null>(null);
 
   // Attempt to auto-fill businessId from session if present
   useEffect(() => {
@@ -48,64 +44,164 @@ export default function AgentForm() {
     if (sid && !businessId) setBusinessId(sid);
   }, [session, businessId]);
 
+  const loadAgentConfig = useCallback(async () => {
+    if (!businessId) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await api.agent.getConfig();
+      
+      if (response.ok) {
+        const { config, memories } = response.data;
+        if (!config) {
+          toast.info("No agent config found for this business yet");
+          return;
+        }
+        setFirstMessage(config.firstMessage ?? "");
+        setBusinessMemories(memories || []);
+        setSystemPrompt(config.systemPrompt ?? "");
+        setVoice(config.voice ?? "alloy");
+        setResponseModel(config.responseModel ?? "gpt-4o-realtime-preview-2024-12-17");
+        setTranscriptionModel(config.transcriptionModel ?? "whisper-1");
+        setEnableServerVAD(config.enableServerVAD ?? true);
+        setTurnDetection(config.turnDetection ?? "server_vad");
+        setTemperature(config.temperature != null ? String(config.temperature) : "");
+        setSettings(config.settings ? JSON.stringify(config.settings, null, 2) : "");
+        toast.success("Loaded agent config and memories");
+      } else {
+        toast.error(response.error || "Failed to load config");
+      }
+    } catch (error) {
+      console.error("Error loading agent config:", error);
+      toast.error("Failed to load agent config");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [businessId]);
+
   // Auto-load when businessId is available once
   useEffect(() => {
     if (businessId && !hasLoadedOnce) {
-      const fd = new FormData();
-      fd.set("businessId", businessId);
-      // biome-ignore lint/suspicious/noExplicitAny: server action dispatcher typing
-      (loadAction as any)(fd);
+      loadAgentConfig();
       setHasLoadedOnce(true);
     }
-  }, [businessId, hasLoadedOnce, loadAction]);
+  }, [businessId, hasLoadedOnce, loadAgentConfig]);
 
-  // When loadState changes with data, hydrate the form
-  useEffect(() => {
-    if (loadState && (loadState as any).ok) {
-      const cfg = (loadState as any).data;
-      if (!cfg) {
-        toast.info("No agent config found for this business yet");
-        return;
-      }
-      setFirstMessage(cfg.firstMessage ?? "");
-      setAgentLLM(cfg.agentLLM ?? "");
-      setSystemPrompt(cfg.systemPrompt ?? "");
-      setVoice(cfg.voice ?? "alloy");
-      setResponseModel(cfg.responseModel ?? "gpt-4o-realtime-preview-2024-12-17");
-      setTranscriptionModel(cfg.transcriptionModel ?? "whisper-1");
-      setEnableServerVAD(cfg.enableServerVAD ?? true);
-      setTurnDetection(cfg.turnDetection ?? "server_vad");
-      setTemperature(cfg.temperature != null ? String(cfg.temperature) : "");
-      setSettings(cfg.settings ? JSON.stringify(cfg.settings, null, 2) : "");
-      toast.success("Loaded agent config");
-    } else if (loadState && !(loadState as any).ok) {
-      toast.error((loadState as any).error || "Failed to load config");
+  const saveAgentConfig = async () => {
+    if (!businessId) {
+      toast.error("Missing business ID");
+      return;
     }
-  }, [loadState]);
 
-  // When saveState changes
-  useEffect(() => {
-    if (saveState && (saveState as any).ok) {
-      toast.success("Agent config saved");
-      // Re-load from server to ensure UI reflects normalized values
-      if (businessId) {
-        const fd = new FormData();
-        fd.set("businessId", businessId);
-        // trigger server action to fetch latest
-        // loadAction accepts FormData from useActionState
-        // biome-ignore lint/suspicious/noExplicitAny: server action dispatcher typing
-        (loadAction as any)(fd);
+    setIsSaving(true);
+    try {
+      let parsedSettings = undefined;
+      if (settings) {
+        try {
+          parsedSettings = JSON.parse(settings);
+        } catch {
+          toast.error("Invalid JSON in settings");
+          setIsSaving(false);
+          return;
+        }
       }
-    } else if (saveState && !(saveState as any).ok) {
-      toast.error((saveState as any).error || "Failed to save config");
+
+      const configData = {
+        firstMessage: firstMessage || null,
+        systemPrompt: systemPrompt || null,
+        voice: voice || null,
+        responseModel: responseModel || null,
+        transcriptionModel: transcriptionModel || null,
+        enableServerVAD,
+        turnDetection: turnDetection || null,
+        temperature: temperature ? Number.parseFloat(temperature) : null,
+        settings: parsedSettings,
+      };
+
+      const response = await api.agent.saveConfig(configData);
+      
+      if (response.ok) {
+        toast.success("Agent config saved");
+        // Re-load from server to ensure UI reflects normalized values
+        await loadAgentConfig();
+      } else {
+        toast.error(response.error || "Failed to save config");
+      }
+    } catch (error) {
+      console.error("Error saving agent config:", error);
+      toast.error("Failed to save agent config");
+    } finally {
+      setIsSaving(false);
     }
-  }, [saveState, businessId, loadAction]);
+  };
+
+  // Business Memory Management Functions
+  const addMemory = () => {
+    const newMemory: BusinessMemory = {
+      title: "",
+      content: "",
+      isActive: true,
+    };
+    setEditingMemory(newMemory);
+  };
+
+  const editMemory = (memory: BusinessMemory) => {
+    setEditingMemory(memory);
+  };
+
+  const saveMemory = async (memory: BusinessMemory) => {
+    try {
+      if (memory.id) {
+        // Update existing memory
+        const response = await api.agent.updateMemory(memory.id, memory);
+        if (response.ok) {
+          setBusinessMemories(prev => 
+            prev.map(m => m.id === memory.id ? response.data : m)
+          );
+          toast.success("Memory updated");
+        } else {
+          toast.error(response.error || "Failed to update memory");
+        }
+      } else {
+        // Create new memory
+        const response = await api.agent.createMemory(memory);
+        if (response.ok) {
+          setBusinessMemories(prev => [...prev, response.data]);
+          toast.success("Memory created");
+        } else {
+          toast.error(response.error || "Failed to create memory");
+        }
+      }
+      setEditingMemory(null);
+    } catch (error) {
+      console.error("Error saving memory:", error);
+      toast.error("Failed to save memory");
+    }
+  };
+
+  const deleteMemory = async (memoryId: string) => {
+    try {
+      const response = await api.agent.deleteMemory(memoryId);
+      if (response.ok) {
+        setBusinessMemories(prev => prev.filter(m => m.id !== memoryId));
+        toast.success("Memory deleted");
+      } else {
+        toast.error(response.error || "Failed to delete memory");
+      }
+    } catch (error) {
+      console.error("Error deleting memory:", error);
+      toast.error("Failed to delete memory");
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingMemory(null);
+  };
 
   // no-op: we rely on button disabled state and server errors
 
   const ids = {
     firstMessage: useId(),
-    agentLLM: useId(),
     systemPrompt: useId(),
     voice: useId(),
     responseModel: useId(),
@@ -113,6 +209,8 @@ export default function AgentForm() {
     turnDetection: useId(),
     temperature: useId(),
     settings: useId(),
+    memoryTitle: useId(),
+    memoryContent: useId(),
   } as const;
 
   return (
@@ -124,22 +222,10 @@ export default function AgentForm() {
           </h1>
           <p className="text-gray-600 mt-2">Manage the AI agent voice, prompts and realtime settings</p>
         </div>
-        <form action={saveAction}>
-          <input type="hidden" name="businessId" value={businessId} />
-          <input type="hidden" name="firstMessage" value={firstMessage} />
-          <input type="hidden" name="agentLLM" value={agentLLM} />
-          <input type="hidden" name="systemPrompt" value={systemPrompt} />
-          <input type="hidden" name="voice" value={voice} />
-          <input type="hidden" name="responseModel" value={responseModel} />
-          <input type="hidden" name="transcriptionModel" value={transcriptionModel} />
-          <input type="hidden" name="enableServerVAD" value={String(enableServerVAD)} />
-          <input type="hidden" name="turnDetection" value={turnDetection} />
-          <input type="hidden" name="temperature" value={temperature} />
-          <input type="hidden" name="settings" value={settings} />
-          <SubmitButton>
-            <Save className="h-4 w-4 mr-2" /> Save
-          </SubmitButton>
-        </form>
+        <Button onClick={saveAgentConfig} disabled={isSaving}>
+          <Save className="h-4 w-4 mr-2" />
+          {isSaving ? "Saving..." : "Save"}
+        </Button>
       </div>
 
       <Card>
@@ -155,12 +241,10 @@ export default function AgentForm() {
               <Label htmlFor="businessId">Business ID</Label>
               <Input id="businessId" value={businessId} onChange={(e) => setBusinessId(e.target.value)} placeholder="business id" disabled={!!businessId} />
             </div>
-            <form action={loadAction} className="pb-0.5">
-              <input type="hidden" name="businessId" value={businessId} />
-              <SubmitButton>
-                <RefreshCcw className="h-4 w-4 mr-2" /> Load
-              </SubmitButton>
-            </form>
+            <Button onClick={loadAgentConfig} disabled={isLoading} className="pb-0.5">
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              {isLoading ? "Loading..." : "Load"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -177,16 +261,61 @@ export default function AgentForm() {
             <Label htmlFor={ids.firstMessage}>First Message</Label>
             <Input id={ids.firstMessage} value={firstMessage} onChange={(e) => setFirstMessage(e.target.value)} placeholder="Hello, thanks for calling ..." />
           </div>
-          <details className="group rounded-md border border-gray-200 bg-white">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium text-gray-800">
-              <span>Agent Memory (Business Context)</span>
-              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="space-y-2 border-t border-gray-200 p-3 pt-2">
-              <Label htmlFor={ids.agentLLM} className="sr-only">Agent Memory (Business Context)</Label>
-              <Textarea id={ids.agentLLM} rows={10} value={agentLLM} onChange={(e) => setAgentLLM(e.target.value)} placeholder="Describe your services, policies, FAQs, etc." />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Business Memories</Label>
+              <Button onClick={addMemory} size="sm" variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Memory
+              </Button>
             </div>
-          </details>
+            
+            {businessMemories.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No business memories yet. Add some to help your AI agent understand your business better.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {businessMemories.map((memory) => (
+                  <div key={memory.id || 'temp'} className="border rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm text-gray-900">{memory.title}</h4>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{memory.content}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            memory.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {memory.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          onClick={() => editMemory(memory)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {memory.id && (
+                          <Button
+                            onClick={() => deleteMemory(memory.id!)}
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="space-y-2">
             <Label htmlFor={ids.systemPrompt}>System Prompt (optional)</Label>
             <Textarea id={ids.systemPrompt} rows={4} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} placeholder="Additional guardrails and instructions" />
@@ -279,6 +408,56 @@ export default function AgentForm() {
           <Textarea id={ids.settings} rows={6} value={settings} onChange={(e) => setSettings(e.target.value)} placeholder='{"example":true}' />
         </CardContent>
       </Card>
+
+      {/* Memory Edit Modal */}
+      {editingMemory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              {editingMemory.id ? 'Edit Memory' : 'Add Memory'}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor={ids.memoryTitle}>Title</Label>
+                <Input
+                  id={ids.memoryTitle}
+                  value={editingMemory.title}
+                  onChange={(e) => setEditingMemory({...editingMemory, title: e.target.value})}
+                  placeholder="e.g., Business Hours, Location, Services"
+                />
+              </div>
+              <div>
+                <Label htmlFor={ids.memoryContent}>Content</Label>
+                <Textarea
+                  id={ids.memoryContent}
+                  value={editingMemory.content}
+                  onChange={(e) => setEditingMemory({...editingMemory, content: e.target.value})}
+                  placeholder="Describe the information..."
+                  rows={4}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={editingMemory.isActive}
+                  onCheckedChange={(checked) => setEditingMemory({...editingMemory, isActive: checked})}
+                />
+                <Label>Active</Label>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <Button
+                onClick={() => saveMemory(editingMemory)}
+                disabled={!editingMemory.title.trim() || !editingMemory.content.trim()}
+              >
+                Save
+              </Button>
+              <Button onClick={cancelEdit} variant="outline">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
