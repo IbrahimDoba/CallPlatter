@@ -368,14 +368,6 @@ export function AudioPlayer({ audioUrl, callDuration, className = "" }: AudioPla
           <div className="text-sm font-mono text-gray-600 dark:text-gray-400">
             {formatTime(currentTime)}{duration && Number.isFinite(duration) ? ` / ${formatTime(duration)}` : ''}
           </div>
-          {callDuration && (
-            <>
-              <span className="text-gray-400">/</span>
-              <div className="text-sm font-mono text-gray-600 dark:text-gray-400">
-               {typeof callDuration === 'string' ? callDuration : formatTime(Number(callDuration))}
-              </div>
-            </>
-          )}
         </div>
 
         <div className="flex items-center space-x-2">

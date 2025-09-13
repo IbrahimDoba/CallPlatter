@@ -15,10 +15,22 @@ export function validateEnvironment(): void {
     'PORT'
   ];
 
+  const optionalEnvVars = [
+    'UPLOADTHING_SECRET',
+    'UPLOADTHING_APP_ID'
+  ];
+
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
   
   if (missingVars.length > 0) {
     throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
+
+  // Log optional environment variables status
+  const missingOptional = optionalEnvVars.filter(varName => !process.env[varName]);
+  if (missingOptional.length > 0) {
+    console.warn(`Missing optional environment variables: ${missingOptional.join(', ')}`);
+    console.warn('UploadThing functionality may not work without these variables');
   }
 }
 

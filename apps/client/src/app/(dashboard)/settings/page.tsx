@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Settings, Phone, Clock, MessageSquare, Bell } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface BusinessSettings {
   name: string;
@@ -45,13 +46,14 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await fetch("/api/settings");
-        if (response.ok) {
-          const data = await response.json();
+        const data = await api.settings.get();
+        if (data.settings) {
           setSettings(data.settings);
         }
       } catch (error) {
         console.error("Error fetching settings:", error);
+        // Settings endpoint is not implemented yet, so we'll handle gracefully
+        setLoading(false);
       } finally {
         setLoading(false);
       }
@@ -65,21 +67,11 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch("/api/settings", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(settings),
-      });
-
-      if (response.ok) {
-        toast.success("Settings saved successfully");
-      } else {
-        toast.error("Failed to save settings");
-      }
+      await api.settings.update(settings);
+      toast.success("Settings saved successfully");
     } catch (error) {
-      toast.error("An error occurred");
+      console.error("Error saving settings:", error);
+      toast.error("Failed to save settings");
     } finally {
       setSaving(false);
     }

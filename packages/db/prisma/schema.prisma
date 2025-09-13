@@ -48,6 +48,7 @@ model Business {
   appointments  Appointment[]
   conversations Conversation[]
   aiAgentConfig AIAgentConfig?
+  businessMemories BusinessMemory[]
 
   @@map("businesses")
 }
@@ -75,6 +76,7 @@ model Call {
   status           String     @default("INCOMING") // INCOMING, IN_PROGRESS, COMPLETED, MISSED
   duration         Int?       // Call duration in seconds
   audioFileUrl     String?    // URL to the recorded call audio file
+  twilioCallSid    String?    // Twilio Call SID for webhook matching
   businessId       String
   business         Business   @relation(fields: [businessId], references: [id])
   logs             CallLog[]
@@ -147,7 +149,6 @@ model AIAgentConfig {
   // Core prompts/config
   firstMessage     String?                
   goodbyeMessage   String?                 
-  agentLLM         String?  @db.Text       
   systemPrompt     String?  @db.Text       
 
   // Voice & model settings
@@ -174,4 +175,18 @@ model AIAgentConfig {
   updatedAt        DateTime @updatedAt
 
   @@map("ai_agent_configs")
+}
+
+/// Stores business-specific memory/context information
+model BusinessMemory {
+  id        String   @id @default(cuid())
+  title     String   // e.g., "Location", "Hours", "Menu_Info"
+  content   String   // The actual information
+  isActive  Boolean  @default(true)
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("business_memory")
 }

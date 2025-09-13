@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { CallList } from '@/components/module/call/CallList'
 import { toast } from 'sonner'
-import { getCalls, type CallWithLogs } from '@/app/actions/calls'
+import { api } from '@/lib/api'
 import type { CallEntry } from '@/types/calls'
 
 // Define the call type to match your CallList component
@@ -22,30 +22,33 @@ export default function CallsPage() {
   const [totalItems, setTotalItems] = useState(0)
   const itemsPerPage = 10
 
-  const transformApiData = (apiData: CallWithLogs[]): CallEntry[] => {
+  const transformApiData = useCallback((apiData: any[]): CallEntry[] => {
     return apiData.map(call => ({
       id: call.id,
-      contact: call.customerName || 'Unknown Caller',
-      duration: call.duration?.toString() || '0',
-      timestamp: call.createdAt.toISOString(),
-      audioFileUrl: call.audioFileUrl ?? undefined,
-      status: call.status as CallEntry['status'], // Type assertion to match expected status type
-      customerPhone: call.customerPhone || '',
-      summary: call.summary || '',
-      logs: call.logs.map(log => ({
-        id: log.id,
-        message: log.message,
-        sender: log.sender,
-        timestamp: log.timestamp.toISOString()
-      }))
+      customerName: call.customerName,
+      customerEmail: call.customerEmail,
+      customerPhone: call.customerPhone,
+      customerAddress: call.customerAddress,
+      transcript: call.transcript,
+      summary: call.summary,
+      intent: call.intent,
+      callType: call.callType,
+      status: call.status,
+      duration: call.duration,
+      audioFileUrl: call.audioFileUrl,
+      twilioCallSid: call.twilioCallSid,
+      businessId: call.businessId,
+      createdAt: call.createdAt,
+      updatedAt: call.updatedAt,
+      logs: call.logs || []
     }))
-  }
+  }, [])
 
   const fetchCalls = useCallback(async () => {
     if (!session?.user?.businessId) return
     
     try {
-      const result = await getCalls(session.user.businessId, currentPage, itemsPerPage)
+      const result = await api.callsExtended.list(currentPage, itemsPerPage)
       
       // Transform the API data to match your CallEntry interface
       const transformedCalls = transformApiData(result.calls)
@@ -62,7 +65,7 @@ export default function CallsPage() {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [session?.user?.businessId, currentPage])
+    }, [currentPage, session?.user?.businessId, transformApiData])
 
   useEffect(() => {
     fetchCalls()

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -30,26 +31,15 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phoneNumber: formData.phoneNumber,
-          password: formData.password,
-        }),
+      await api.auth.signup({
+        name: formData.name,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        password: formData.password,
       });
 
-      if (response.ok) {
-        toast.success("Account created successfully");
-        router.push("/signin");
-      } else {
-        const error = await response.json();
-        toast.error(error.message || "Failed to create account");
-      }
+      toast.success("Account created successfully");
+      router.push("/signin");
     } catch (error) {
       toast.error("An error occurred");
     } finally {

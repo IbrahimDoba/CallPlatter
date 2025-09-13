@@ -1,18 +1,20 @@
 export interface CallEntry {
   id: string
-  contact: string
-  duration: string
-  timestamp: string
-  status: "TEST" | "COMPLETED" | "MISSED" | "IN_PROGRESS"
-  summary?: string
-  transcript?: Array<{
-    speaker: "agent" | "caller"
-    message: string
-    timestamp?: string
-  }>
-  customerPhone?: string
-  customerName?: string
-  audioFileUrl?: string  // Added this field
+  customerName?: string | null
+  customerEmail?: string | null
+  customerPhone?: string | null
+  customerAddress?: string | null
+  transcript?: string | null
+  summary?: string | null
+  intent?: string | null
+  callType: "PHONE" | "VIDEO" | "TEST"
+  status: "COMPLETED" | "MISSED" | "IN_PROGRESS" | "TEST"
+  duration: number
+  audioFileUrl?: string | null
+  twilioCallSid?: string
+  businessId: string
+  createdAt: string
+  updatedAt: string
   logs?: Array<{
     id: string
     message: string
@@ -20,5 +22,4 @@ export interface CallEntry {
     audioChunk?: string
     createdAt?: string
   }>
-  createdAt?: string  // Also added this for consistency with CallDetailPanel
 }

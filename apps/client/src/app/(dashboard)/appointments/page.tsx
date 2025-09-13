@@ -14,7 +14,7 @@ import { Calendar as CalendarIcon, Plus, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { createAppointment } from "@/app/actions/GenerateAppointment";
-import { updateAppointmentStatus } from "@/app/actions/appointments";
+import { api } from "@/lib/api";
 
 import type { Appointment } from "@/types/appointment";
 import { AppointmentDetailsSlider } from "@/components/module/Appointment/AppointmentDetailsSlider";
@@ -41,11 +41,8 @@ export default function AppointmentsPage() {
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
-        const response = await fetch("/api/appointments");
-        if (response.ok) {
-          const data = await response.json();
-          setAppointments(data.appointments);
-        }
+        const data = await api.appointments.list();
+        setAppointments(data.appointments);
       } catch (error) {
         console.error("Error fetching appointments:", error);
       } finally {
@@ -60,7 +57,7 @@ export default function AppointmentsPage() {
 
   const handleStatusChange = async (appointmentId: string, newStatus: string) => {
     try {
-      const result = await updateAppointmentStatus(appointmentId, newStatus);
+      const result = await api.appointmentsExtended.updateStatus(appointmentId, newStatus);
       
       if (result.success) {
         toast.success(`Appointment marked as ${newStatus.toLowerCase()}`);
@@ -95,10 +92,11 @@ export default function AppointmentsPage() {
     if (result.success) {
       toast.success("Appointment created successfully");
       // Refresh appointments list
-      const response = await fetch("/api/appointments");
-      if (response.ok) {
-        const data = await response.json();
+      try {
+        const data = await api.appointments.list();
         setAppointments(data.appointments);
+      } catch (error) {
+        console.error("Error refreshing appointments:", error);
       }
       setIsDialogOpen(false);
       setNewAppointment({

@@ -41,6 +41,9 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
     let temperature: number | undefined = 0.7; // Lower temperature for more predictable responses
     let firstMessage: string | null | undefined = undefined;
 
+    // Create a mutable copy of the instructions
+    const sessionInstructions = [...instructions];
+
     let usedConfig = false;
     if (typeof businessId === "string" && businessId.trim()) {
       try {
@@ -131,9 +134,6 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
         }
 
         if (cfg) {
-          // Create a mutable copy of the instructions
-          const sessionInstructions = [...instructions];
-          
           if (cfg.voice) sessionVoice = cfg.voice;
           if (cfg.systemPrompt) sessionInstructions.push(`\n\n${cfg.systemPrompt}`);
           if (cfg.agentLLM) sessionInstructions.push(`\n\nBusiness memory/context:\n${cfg.agentLLM}`);
@@ -181,7 +181,7 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
             silence_duration_ms: 800, // Longer silence before ending turn (1.2 seconds)
           },
           // Enhanced session configuration
-          instructions,
+          instructions: sessionInstructions.join('\n'),
           temperature: temperature || 0.6, // Lower temperature for consistency
           max_response_output_tokens: 350, // Shorter responses to prevent cutoffs
 

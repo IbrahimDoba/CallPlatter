@@ -19,13 +19,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { X, Trash2, Star, User, Loader2, Calendar } from "lucide-react";
+import { X, Trash2, Star, User, Loader2, Calendar, PhoneOff } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { deleteCall } from "@/app/actions/callLogs";
 import { format } from "date-fns";
 import { AudioPlayer } from "../audio/AudioPlayer";
 import { generateAppointmentFromSummary } from "@/app/actions/GenerateAppointment";
+import { formatPhoneNumber } from "@/lib/phoneUtils";
 
 interface CallDetailPanelProps {
   isOpen: boolean;
@@ -33,18 +34,14 @@ interface CallDetailPanelProps {
   call: {
     id: string;
     contact?: string;
-    customerName?: string;
-    customerPhone?: string;
+    customerName?: string | null;
+    customerPhone?: string | null;
     duration: string | number;
     timestamp?: string;
     createdAt?: string;
     status: "TEST" | "COMPLETED" | "MISSED" | "IN_PROGRESS";
-    summary?: string;
-    transcript?: Array<{
-      speaker: "agent" | "caller";
-      message: string;
-      timestamp?: string;
-    }>;
+    summary?: string | null;
+    transcript?: string | null;
     logs?: Array<{
       id: string;
       message: string;
@@ -52,7 +49,7 @@ interface CallDetailPanelProps {
       audioChunk?: string;
       createdAt?: string;
     }>;
-    audioFileUrl?: string;
+    audioFileUrl?: string | null;
   } | null;
 }
 
@@ -188,12 +185,13 @@ export function CallDetailPanel({
     }
   };
 
+
   const getDisplayName = () => {
     if (!call) {
       console.warn("[CallDetails] No call data available for display name");
       return "Unknown Caller";
     }
-    const name = call.customerName || call.customerPhone || "Unknown Caller";
+    const name = call.customerName || formatPhoneNumber(call.customerPhone || '') || "Unknown Caller";
     console.log(`[CallDetails] Generated display name: ${name}`);
     return name;
   };
@@ -213,15 +211,21 @@ export function CallDetailPanel({
       return [];
     }
 
-    // Add transcript messages
-    if (call.transcript && Array.isArray(call.transcript)) {
-      call.transcript.forEach((entry, index) => {
-        messages.push({
-          id: `transcript-${index}`,
-          message: entry.message,
-          speaker: entry.speaker,
-          timestamp: entry.timestamp,
-        });
+    // Add transcript messages (transcript is stored as a string, not array)
+    if (call.transcript && typeof call.transcript === 'string') {
+      // Parse the transcript string into individual messages
+      const transcriptLines = call.transcript.split('\n').filter(line => line.trim());
+      transcriptLines.forEach((line, index) => {
+        const match = line.match(/^(AI|HUMAN|USER):\s*(.+)$/);
+        if (match && match[1] && match[2]) {
+          const [, speaker, message] = match;
+          messages.push({
+            id: `transcript-${index}`,
+            message: message.trim(),
+            speaker: speaker === 'AI' ? 'agent' : 'caller',
+            timestamp: undefined,
+          });
+        }
       });
     }
 
@@ -232,7 +236,7 @@ export function CallDetailPanel({
           id: log.id,
           message: log.message,
           speaker:
-            log.sender === "ai" ? "agent" : ("caller" as "agent" | "caller"),
+            log.sender === "ai" ? "agent" : "caller",
           timestamp: log.createdAt,
           audioChunk: log.audioChunk,
         });
@@ -350,7 +354,7 @@ export function CallDetailPanel({
                 Call Recording
               </h3>
               <AudioPlayer
-                audioUrl={call.audioFileUrl}
+                audioUrl={call.audioFileUrl || undefined}
                 callDuration={call.duration}
               />
             </div>
@@ -421,6 +425,14 @@ export function CallDetailPanel({
                     </div>
                   </div>
                 ))}
+
+                {/* Call ended indicator */}
+                <div className="flex justify-center pt-4">
+                  <div className="flex items-center gap-2 text-red-500">
+                    <PhoneOff className="h-5 w-5" />
+                    <span className="text-sm font-medium">Call Ended</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
