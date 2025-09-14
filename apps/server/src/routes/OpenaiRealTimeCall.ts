@@ -516,7 +516,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
         const recording = await client.calls(twilioCallSid).recordings.create({
           // recordingChannels: "dual", // Records each party separately
           // recordingTrack: "both", // Records both inbound and outbound audio
-          recordingStatusCallback: `${process.env.BASE_URL || "https://dbefb855fb70.ngrok-free.app"}/api/webhooks/recording-status`,
+          recordingStatusCallback: `${process.env.BASE_URL || "https://callplatterserver.onrender.com"}/api/webhooks/recording-status`,
           // recordingStatusCallbackEvent: ["in-progress", "completed"],
           // recordingStatusCallbackMethod: "POST"
         });
