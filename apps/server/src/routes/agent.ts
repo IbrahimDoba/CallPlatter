@@ -3,7 +3,6 @@ import { db } from "@repo/db";
 import { z } from "zod";
 import { validateSession, SessionAuthenticatedRequest } from "../middleware/sessionAuth";
 import { logger } from "../utils/logger";
-import type { Prisma } from "@prisma/client";
 
 const router: Router = Router();
 
@@ -84,7 +83,7 @@ router.post("/config", async (req: SessionAuthenticatedRequest, res) => {
     const body = agentConfigSchema.parse(req.body);
 
     // Prepare data for upsert
-    const data: Prisma.AIAgentConfigUncheckedUpdateInput = {
+    const data = {
       firstMessage: body.firstMessage,
       systemPrompt: body.systemPrompt,
       voice: body.voice ?? undefined,
@@ -93,14 +92,14 @@ router.post("/config", async (req: SessionAuthenticatedRequest, res) => {
       enableServerVAD: body.enableServerVAD ?? undefined,
       turnDetection: body.turnDetection ?? undefined,
       temperature: body.temperature,
-      settings: body.settings as Prisma.InputJsonValue,
+      settings: body.settings as any,
     };
 
     // Upsert the configuration
     const config = await db.aIAgentConfig.upsert({
       where: { businessId },
       update: { ...data },
-      create: { businessId, ...data } as Prisma.AIAgentConfigUncheckedCreateInput,
+      create: { businessId, ...data },
     });
 
     logger.info("Saved agent config", { 

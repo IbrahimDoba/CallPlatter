@@ -19,7 +19,9 @@ import { AIReceptionistService } from "./services/aiReceptionistService";
 import type { AgentRuntimeConfig } from "./services/aiReceptionistService";
 import { db } from "@repo/db";
 
-import openaiRealtimeRoutes, { setupOpenAIRealtimeWebSocket } from "./routes/OpenaiRealTimeCall";
+import openaiRealtimeRoutes, {
+  setupOpenAIRealtimeWebSocket,
+} from "./routes/OpenaiRealTimeCall";
 import uploadthingRoutes from "./routes/uploadthing";
 
 // Load environment variables
@@ -148,7 +150,6 @@ io.on("connection", (socket) => {
                 responseModel: "gpt-4o-realtime-preview-2024-12-17",
                 transcriptionModel: "whisper-1",
                 systemPrompt: null,
-                agentLLM: null,
                 firstMessage: null,
               },
             });
@@ -181,7 +182,6 @@ io.on("connection", (socket) => {
         responseModel: cfg.responseModel ?? undefined,
         voice: cfg.voice ?? undefined,
         firstMessage: cfg.firstMessage ?? null,
-        agentLLM: cfg.agentLLM ?? null,
         systemPrompt: cfg.systemPrompt ?? null,
         temperature: cfg.temperature ?? null,
       };

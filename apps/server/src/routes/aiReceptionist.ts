@@ -111,7 +111,6 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
                   responseModel: "gpt-4o-realtime-preview-2024-12-17",
                   transcriptionModel: transcriptionModel || "whisper-1",
                   systemPrompt: null,
-                  agentLLM: null,
                   firstMessage: null,
                   temperature: 0.7,
                 },
@@ -135,10 +134,12 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
 
         if (cfg) {
           if (cfg.voice) sessionVoice = cfg.voice;
-          if (cfg.systemPrompt) sessionInstructions.push(`\n\n${cfg.systemPrompt}`);
-          if (cfg.agentLLM) sessionInstructions.push(`\n\nBusiness memory/context:\n${cfg.agentLLM}`);
+          if (cfg.systemPrompt)
+            sessionInstructions.push(`\n\n${cfg.systemPrompt}`);
           if (cfg.firstMessage) {
-            sessionInstructions.push(`\n\nWhen the call starts, greet the caller with: "${cfg.firstMessage}"`);
+            sessionInstructions.push(
+              `\n\nWhen the call starts, greet the caller with: "${cfg.firstMessage}"`
+            );
             firstMessage = cfg.firstMessage;
           }
           if (cfg.transcriptionModel)
@@ -181,7 +182,7 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
             silence_duration_ms: 800, // Longer silence before ending turn (1.2 seconds)
           },
           // Enhanced session configuration
-          instructions: sessionInstructions.join('\n'),
+          instructions: sessionInstructions.join("\n"),
           temperature: temperature || 0.6, // Lower temperature for consistency
           max_response_output_tokens: 350, // Shorter responses to prevent cutoffs
 
@@ -196,13 +197,11 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
         status: response.status,
         body: text,
       });
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Failed to mint ephemeral token",
-          details: text,
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to mint ephemeral token",
+        details: text,
+      });
     }
 
     const data = await response.json();
