@@ -1,6 +1,6 @@
 import { getSession } from "next-auth/react";
 
-const SERVER_BASE_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001';
+const SERVER_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface ApiRequestOptions extends RequestInit {
   requireAuth?: boolean;
