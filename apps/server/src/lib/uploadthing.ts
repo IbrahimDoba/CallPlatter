@@ -8,7 +8,7 @@ const f = createUploadthing();
 // Your file router configuration
 export const ourFileRouter: FileRouter = {
   audioUploader: f({ audio: { maxFileSize: "32MB" } })
-    .middleware(async ({ req }) => {
+    .middleware(async () => {
       // Add any middleware logic here
       return { userId: "system" };
     })
@@ -49,8 +49,8 @@ export async function uploadWithUploadThingSDK(
       contentType
     });
 
-    // Create file from buffer
-    const file = new File([buffer], filename, { type: contentType });
+    // Create file from buffer - convert Buffer to Uint8Array for proper BlobPart compatibility
+    const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
     
     logger.info("Created file object for upload", {
       filename: file.name,
@@ -125,8 +125,8 @@ export async function uploadFileToUploadThing(
     
     const utapi = new UTApi({ token });
     
-    // Create file from buffer
-    const file = new File([buffer], filename, { type: contentType });
+    // Create file from buffer - convert Buffer to Uint8Array for proper BlobPart compatibility
+    const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
     
     // Use the SDK method as fallback since direct API is more complex
     const response = await utapi.uploadFiles(file);
@@ -257,7 +257,7 @@ export async function downloadAndUploadToUploadThing(
   try {
     logger.info("Starting download and upload process", { url, filename });
     
-    let response;
+    let response: Response;
     if (url.includes('api.twilio.com')) {
       const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
       const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;

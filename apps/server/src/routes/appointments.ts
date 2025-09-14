@@ -232,7 +232,7 @@ router.post("/generate-from-call", async (req: SessionAuthenticatedRequest, res)
 
     // Format the conversation for OpenAI
     const conversationText = call.logs
-      .map(log => `${log.sender.toUpperCase()}: ${log.message}`)
+      .map((log: any) => `${log.sender.toUpperCase()}: ${log.message}`)
       .join('\n\n');
 
     // Get current date information for accurate relative date calculation
