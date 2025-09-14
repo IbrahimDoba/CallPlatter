@@ -300,7 +300,6 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
     // Pass businessId and caller info via Twilio's customParameters instead of URL query params
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
             <Response>
-              
                 <Connect>
                     <Stream url="${websocketUrl}">
                         <Parameter name="businessId" value="${businessConfig.businessId}" />
@@ -752,7 +751,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                   role: "assistant",
                   content: [
                     {
-                      type: "text", // Changed from "output_text" to "text"
+                      type: "output_text",
                       text: firstMessage,
                     },
                   ],

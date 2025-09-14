@@ -39,7 +39,7 @@ export default function DashboardLayout({
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const [businessInfo, setBusinessInfo] = useState<{id: string; name: string} | null>(null);
+  const [businessInfo, setBusinessInfo] = useState<{id: string; name: string; phoneNumber: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export default function DashboardLayout({
       try {
         const result = await getBusinessInfo();
         if (result.success) {
-          setBusinessInfo(result.business || null);
+          setBusinessInfo(result.business ? { ...result.business, phoneNumber: (result.business as any).phoneNumber || '' } : null);
           console.log('Business info fetched:', result.business);
         } else {
           console.error('Error fetching business info:', result.error);
@@ -87,6 +87,7 @@ export default function DashboardLayout({
 
   const businessId = businessInfo?.id || '';
   const businessName = businessInfo?.name || 'Your Business';
+  const businessPhoneNumber = businessInfo?.phoneNumber || '';
 
   // Redirect to signin if not authenticated
   if (status === 'unauthenticated') {
@@ -112,6 +113,7 @@ export default function DashboardLayout({
           pageTitle={pageTitle}
           businessName={businessName}
           businessId={businessId}
+          businessPhoneNumber={businessPhoneNumber}
           headerActions={headerActions}
           searchPlaceholder={searchPlaceholder}
         />
