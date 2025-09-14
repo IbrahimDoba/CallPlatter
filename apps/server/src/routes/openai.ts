@@ -83,7 +83,7 @@ router.post("/generate-summary", async (req: SessionAuthenticatedRequest, res) =
 
     // Format the conversation for OpenAI
     const conversationText = call.logs
-      .map((log) => `${log.sender.toUpperCase()}: ${log.message}`)
+      .map((log: any) => `${log.sender.toUpperCase()}: ${log.message}`)
       .join("\n\n");
 
     // Create the prompt for summary generation
@@ -92,21 +92,7 @@ router.post("/generate-summary", async (req: SessionAuthenticatedRequest, res) =
 Conversation:
 ${conversationText}
 
-Please create a comprehensive and well-organized call summary that captures all essential information from this conversation. The summary should include complete customer details such as their name, 
-contact information, and any identifying information they provided during the call. 
-Document the primary purpose of the call including the reason they contacted us and any specific 
-products or services that were discussed. Cover all key discussion points that arose during the 
-conversation including main topics covered, specific requests made by the customer, any concerns or
- issues they raised, and complaints if applicable. Detail any actions that were taken during the call 
- such as steps completed to assist the customer, information that was provided to them, and any 
- promises or commitments made by our team. Clearly outline the next steps that need to be taken 
- including any required follow-ups, pending actions that need completion, scheduled appointments, 
- or callbacks. Include additional relevant notes such as special instructions from the customer, 
- their preferences or requirements, and any other details that may be important for future reference.
- Please ensure that all customer-provided information is included in the summary regardless of 
- how minor it may seem, as even small details can be crucial for maintaining excellent customer 
- service and building strong relationships. Format the summary in clear, well-organized sections
-  that make it easy to quickly find and reference specific information.`;
+Create a comprehensive call summary that captures all essential information including customer details (name, contact info, identifying information), the call purpose and products/services discussed, key discussion points and requests, any concerns or complaints raised, actions taken and information provided, next steps and follow-ups needed, and any special instructions or preferences. Format the summary in clear, organized sections for easy reference.`;
 
     // Generate summary using OpenAI
     const openai = getOpenAIClient();

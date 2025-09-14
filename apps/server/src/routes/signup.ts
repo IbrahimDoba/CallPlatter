@@ -44,7 +44,7 @@ router.post("/", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create business and user in a transaction
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: any) => {
       // Create business first
       const business = await tx.business.create({
         data: {

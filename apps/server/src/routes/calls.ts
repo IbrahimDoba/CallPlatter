@@ -7,8 +7,8 @@ import { logger } from "../utils/logger";
 const router: Router = Router();
 
 const paginationSchema = z.object({
-  page: z.string().optional().transform(val => val ? parseInt(val) : 1),
-  limit: z.string().optional().transform(val => val ? parseInt(val) : 10),
+  page: z.string().optional().transform(val => val ? Number.parseInt(val) : 1),
+  limit: z.string().optional().transform(val => val ? Number.parseInt(val) : 10),
 });
 
 export type CallWithLogs = {
@@ -73,7 +73,7 @@ router.get("/", async (req: SessionAuthenticatedRequest, res) => {
 
     // Ensure customerPhone is never null and return paginated results
     const result: PaginatedCalls = {
-      calls: calls.map(call => ({
+      calls: calls.map((call: any) => ({
         ...call,
         customerPhone: call.customerPhone || 'Unknown'
       })) as CallWithLogs[],
