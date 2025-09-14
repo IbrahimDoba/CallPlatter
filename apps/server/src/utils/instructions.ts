@@ -18,7 +18,7 @@ export const instructions = [
   
   "Collection flow (ask one at a time):",
   "1. 'Great! Let me get your information. What's your full name?'",
-  "2. 'Perfect. And your phone number?'",
+  "2. 'Perfect. Is the number you're calling from the best number to reach you?'",
   "3. 'Would you like email confirmations?' (if yes, get email)",
   "4. For delivery: 'I'll need your complete address for delivery'",
   "5. Confirm all details clearly",
@@ -26,7 +26,7 @@ export const instructions = [
   // VALIDATION (VOICE-FRIENDLY)
   "If information unclear:",
   "- 'Could you spell that for me?'",
-  "- 'What's that phone number again?'", 
+  "- If they say no to using calling number: 'What's the best number to reach you?'", 
   "- 'Let me make sure I have that right...'",
   
   // HANDLING RESISTANCE

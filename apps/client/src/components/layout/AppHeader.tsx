@@ -10,6 +10,7 @@ interface DashboardHeaderProps {
   pageTitle: string;
   businessName: string;
   businessId: string;
+  businessPhoneNumber?: string;
   headerActions?: ReactNode;
   searchPlaceholder?: string;
 }
@@ -18,6 +19,7 @@ export default function DashboardHeader({
   pageTitle,
   businessName,
   businessId,
+  businessPhoneNumber,
   headerActions,
   searchPlaceholder = "Search...",
 }: DashboardHeaderProps) {
@@ -33,7 +35,12 @@ export default function DashboardHeader({
             <h2 className="text-2xl font-semibold text-foreground">
               {pageTitle}
             </h2>
-            <div className="flex items-center ">
+            <div className="flex items-center gap-3">
+              {businessPhoneNumber && (
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium">Your number:</span> {businessPhoneNumber}
+                </div>
+              )}
               <Button
                 variant="outline"
                 size="sm"

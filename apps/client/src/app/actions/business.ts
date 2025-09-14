@@ -20,6 +20,7 @@ export async function getBusinessInfo() {
           select: {
             id: true,
             name: true,
+            phoneNumber: true,
           }
         }
       }

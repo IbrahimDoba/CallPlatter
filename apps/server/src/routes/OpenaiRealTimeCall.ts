@@ -294,13 +294,12 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
       businessId: businessConfig.businessId,
       websocketUrl,
     });
-
+    // <Say voice="Google.en-US-Chirp3-HD-Aoede">Please wait while we connect your call to ${businessConfig.businessName}</Say>
+    // <Pause length="1"/>
+    // <Say voice="Google.en-US-Chirp3-HD-Aoede">O.K. you can start talking!</Say>
     // Pass businessId and caller info via Twilio's customParameters instead of URL query params
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
             <Response>
-                <Say voice="Google.en-US-Chirp3-HD-Aoede">Please wait while we connect your call to ${businessConfig.businessName}</Say>
-                <Pause length="1"/>
-                <Say voice="Google.en-US-Chirp3-HD-Aoede">O.K. you can start talking!</Say>
                 <Connect>
                     <Stream url="${websocketUrl}">
                         <Parameter name="businessId" value="${businessConfig.businessId}" />
@@ -752,7 +751,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                   role: "assistant",
                   content: [
                     {
-                      type: "text", // Changed from "output_text" to "text"
+                      type: "output_text",
                       text: firstMessage,
                     },
                   ],
