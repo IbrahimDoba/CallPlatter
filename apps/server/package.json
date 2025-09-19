@@ -11,6 +11,7 @@
     "start:tsx": "tsx src/server.ts"
   },
   "dependencies": {
+    "@pinecone-database/pinecone": "^6.1.2",
     "@repo/db": "workspace:*",
     "@types/fluent-ffmpeg": "^2.1.27",
     "ai": "^4.1.46",

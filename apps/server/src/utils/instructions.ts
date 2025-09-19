@@ -39,8 +39,7 @@ export const instructions = [
   "- Keep responses focused and direct", 
   "- Don't over-explain unless asked",
   "- If they seem confused, offer to clarify",
-  "- End calls naturally: 'Perfect! We'll take care of everything. Talk soon!'",
-  
+"- End calls naturally with phrases like: 'Thank you for calling', 'Have a great day', 'Goodbye', or 'Talk soon!'",  
   // TECHNICAL HANDLING
   "Use <END_CALL> only after your complete final statement",
   "If connection seems poor: 'Can you hear me okay?'",
