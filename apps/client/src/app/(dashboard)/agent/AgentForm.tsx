@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Bot, Save, RefreshCcw, MessageSquare, Headphones, Settings, ChevronDown, Plus, Trash2, Edit } from "lucide-react";
+import { Bot, Save, RefreshCcw, MessageSquare, Headphones, Settings, ChevronDown, Plus, Trash2, Edit, Database } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import CRMDocumentUpload from "./CRMDocumentUpload";
+import CRMSearchTest from "./CRMSearchTest";
 
 interface BusinessMemory {
   id?: string;
@@ -220,13 +223,31 @@ export default function AgentForm() {
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
             <Bot className="h-7 w-7" /> Agent Configuration
           </h1>
-          <p className="text-gray-600 mt-2">Manage the AI agent voice, prompts and realtime settings</p>
+          <p className="text-gray-600 mt-2">Manage the AI agent voice, prompts, CRM data and realtime settings</p>
         </div>
         <Button onClick={saveAgentConfig} disabled={isSaving}>
           <Save className="h-4 w-4 mr-2" />
           {isSaving ? "Saving..." : "Save"}
         </Button>
       </div>
+
+      <Tabs defaultValue="agent" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="agent" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Agent Settings
+          </TabsTrigger>
+          <TabsTrigger value="crm" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            CRM Data
+          </TabsTrigger>
+          <TabsTrigger value="search" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            Search Test
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="agent" className="space-y-6">
 
       <Card>
         <CardHeader>
@@ -409,55 +430,77 @@ export default function AgentForm() {
         </CardContent>
       </Card>
 
-      {/* Memory Edit Modal */}
-      {editingMemory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">
-              {editingMemory.id ? 'Edit Memory' : 'Add Memory'}
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor={ids.memoryTitle}>Title</Label>
-                <Input
-                  id={ids.memoryTitle}
-                  value={editingMemory.title}
-                  onChange={(e) => setEditingMemory({...editingMemory, title: e.target.value})}
-                  placeholder="e.g., Business Hours, Location, Services"
-                />
-              </div>
-              <div>
-                <Label htmlFor={ids.memoryContent}>Content</Label>
-                <Textarea
-                  id={ids.memoryContent}
-                  value={editingMemory.content}
-                  onChange={(e) => setEditingMemory({...editingMemory, content: e.target.value})}
-                  placeholder="Describe the information..."
-                  rows={4}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={editingMemory.isActive}
-                  onCheckedChange={(checked) => setEditingMemory({...editingMemory, isActive: checked})}
-                />
-                <Label>Active</Label>
+          {/* Memory Edit Modal */}
+          {editingMemory && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                <h3 className="text-lg font-semibold mb-4">
+                  {editingMemory.id ? 'Edit Memory' : 'Add Memory'}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor={ids.memoryTitle}>Title</Label>
+                    <Input
+                      id={ids.memoryTitle}
+                      value={editingMemory.title}
+                      onChange={(e) => setEditingMemory({...editingMemory, title: e.target.value})}
+                      placeholder="e.g., Business Hours, Location, Services"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={ids.memoryContent}>Content</Label>
+                    <Textarea
+                      id={ids.memoryContent}
+                      value={editingMemory.content}
+                      onChange={(e) => setEditingMemory({...editingMemory, content: e.target.value})}
+                      placeholder="Describe the information..."
+                      rows={4}
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={editingMemory.isActive}
+                      onCheckedChange={(checked) => setEditingMemory({...editingMemory, isActive: checked})}
+                    />
+                    <Label>Active</Label>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-6">
+                  <Button
+                    onClick={() => saveMemory(editingMemory)}
+                    disabled={!editingMemory.title.trim() || !editingMemory.content.trim()}
+                  >
+                    Save
+                  </Button>
+                  <Button onClick={cancelEdit} variant="outline">
+                    Cancel
+                  </Button>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2 mt-6">
-              <Button
-                onClick={() => saveMemory(editingMemory)}
-                disabled={!editingMemory.title.trim() || !editingMemory.content.trim()}
-              >
-                Save
-              </Button>
-              <Button onClick={cancelEdit} variant="outline">
-                Cancel
-              </Button>
+          )}
+        </TabsContent>
+
+      <TabsContent value="crm" className="space-y-6">
+          {businessId ? (
+            <CRMDocumentUpload businessId={businessId} />
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Please select a business to manage CRM data</p>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </TabsContent>
+
+        <TabsContent value="search" className="space-y-6">
+          {businessId ? (
+            <CRMSearchTest businessId={businessId} />
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Please select a business to test CRM search</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

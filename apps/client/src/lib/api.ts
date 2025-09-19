@@ -134,6 +134,11 @@ export const api = {
     deleteMemory: (id: string) => apiRequest(`/agent/memories/${id}`, {
       method: 'DELETE',
     }),
+    // CRM Imports
+    getCRMImports: () => apiRequest('/agent/crm-imports'),
+    deleteCRMImport: (id: string) => apiRequest(`/agent/crm-imports/${id}`, {
+      method: 'DELETE',
+    }),
   },
 
   // OpenAI services
@@ -166,4 +171,5 @@ export const api = {
       return apiRequest(`/calls${query}`);
     },
   },
+
 };
