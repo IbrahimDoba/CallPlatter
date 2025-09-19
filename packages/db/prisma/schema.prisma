@@ -1,54 +1,43 @@
-// Unified Prisma Schema for AI Receptionist Project
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-  // previewFeatures = ["driverAdapters"]
-}
-
-
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  password  String
-  role      String   @default("USER") // Changed from enum to string
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Business relationship
+  id         String    @id @default(cuid())
+  email      String    @unique
+  name       String?
+  password   String
+  role       String    @default("USER")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   businessId String?
+  sessions   Session[]
   business   Business? @relation(fields: [businessId], references: [id])
-
-  // Auth sessions
-  sessions Session[]
 
   @@map("users")
 }
 
 model Business {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  phoneNumber String
-  address     String?
-  website     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Users in this business
-  users User[]
-
-  // Business-specific data
-  calls         Call[]
-  appointments  Appointment[]
-  conversations Conversation[]
-  aiAgentConfig AIAgentConfig?
+  id               String             @id @default(cuid())
+  name             String
+  description      String?
+  phoneNumber      String
+  address          String?
+  website          String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  aiAgentConfig    AIAgentConfig?
+  appointments     Appointment[]
   businessMemories BusinessMemory[]
+  calls            Call[]
+  conversations    Conversation[]
+  crmImports       CRMImport[]
+  users            User[]
 
   @@map("businesses")
 }
@@ -64,37 +53,38 @@ model Session {
 }
 
 model Call {
-  id               String     @id @default(cuid())
-  customerName     String?
-  customerEmail    String?    
-  customerPhone    String?
-  customerAddress  String?    @db.Text 
-  transcript       String?    @db.Text
-  summary          String?    @db.Text 
-  intent           String?    
-  callType         String?    @default("WEB") // PHONE or WEB
-  status           String     @default("INCOMING") // INCOMING, IN_PROGRESS, COMPLETED, MISSED
-  duration         Int?       // Call duration in seconds
-  audioFileUrl     String?    // URL to the recorded call audio file
-  twilioCallSid    String?    // Twilio Call SID for webhook matching
-  businessId       String
-  business         Business   @relation(fields: [businessId], references: [id])
-  logs             CallLog[]
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id              String              @id @default(cuid())
+  customerName    String?
+  customerEmail   String?
+  customerPhone   String?
+  customerAddress String?
+  transcript      String?
+  summary         String?
+  intent          String?
+  callType        String?             @default("WEB")
+  status          String              @default("INCOMING")
+  duration        Int?
+  audioFileUrl    String?
+  businessId      String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  twilioCallSid   String?
+  logs            CallLog[]
+  business        Business            @relation(fields: [businessId], references: [id])
+  crmEnhancement  CRMCallEnhancement?
 
   @@map("calls")
 }
 
 model CallLog {
-  id          String   @id @default(cuid())
-  callId      String
-  call        Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
-  message     String   @db.Text
-  sender      String   // 'user' or 'ai'
-  timestamp   DateTime @default(now())
-  audioChunk  String?  // URL to the audio chunk for this message (if available)
-  metadata    Json?    // Additional metadata like sentiment, confidence, etc.
+  id         String   @id @default(cuid())
+  callId     String
+  message    String
+  sender     String
+  timestamp  DateTime @default(now())
+  audioChunk String?
+  metadata   Json?
+  call       Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
 
   @@index([callId])
   @@map("call_logs")
@@ -108,85 +98,114 @@ model Appointment {
   appointmentTime DateTime
   service         String?
   notes           String?
-  status          String   @default("PENDING") // Changed from enum to string
+  status          String   @default("PENDING")
   businessId      String
-  business        Business @relation(fields: [businessId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  business        Business @relation(fields: [businessId], references: [id])
 
   @@map("appointments")
 }
 
 model Conversation {
-  id          String   @id @default(cuid())
-  customerId  String?
-  messages    Message[]
-  businessId  String
-  business    Business @relation(fields: [businessId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String    @id @default(cuid())
+  customerId String?
+  businessId String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  business   Business  @relation(fields: [businessId], references: [id])
+  messages   Message[]
 
   @@map("conversations")
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   content        String
-  role           String   // Changed from enum to string
+  role           String
   conversationId String
-  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@map("messages")
 }
 
 /// Stores per-business AI agent configuration
 model AIAgentConfig {
-  id               String   @id @default(cuid())
-  businessId       String   @unique
-  business         Business @relation(fields: [businessId], references: [id])
-
-  // Core prompts/config
-  firstMessage     String?                
-  goodbyeMessage   String?                 
-  systemPrompt     String?  @db.Text       
-
-  // Voice & model settings
-  voice            String   @default("alloy")
-  responseModel    String   @default("gpt-4o-realtime-preview-2024-12-17")
-  transcriptionModel String @default("whisper-1")
-
-  // Realtime/VAD settings
-  enableServerVAD  Boolean  @default(true)
-  turnDetection    String   @default("server_vad")
-  temperature      Float?   // Optional generation temperature
-
-  // Question Collection Settings
-  askForName       Boolean?  @default(true)
-  askForPhone      Boolean?  @default(true)
-  askForCompany    Boolean?  @default(false)
-  askForEmail      Boolean?  @default(true)
-  askForAddress    Boolean?  @default(false)
-
-  // Misc toggles / extra JSON config
-  settings         Json?
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  businessId         String   @unique
+  firstMessage       String?
+  goodbyeMessage     String?
+  systemPrompt       String?
+  voice              String   @default("alloy")
+  responseModel      String   @default("gpt-4o-realtime-preview-2024-12-17")
+  transcriptionModel String   @default("whisper-1")
+  enableServerVAD    Boolean  @default(true)
+  turnDetection      String   @default("server_vad")
+  temperature        Float?
+  askForName         Boolean? @default(true)
+  askForPhone        Boolean? @default(true)
+  askForCompany      Boolean? @default(false)
+  askForEmail        Boolean? @default(true)
+  askForAddress      Boolean? @default(false)
+  settings           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  business           Business @relation(fields: [businessId], references: [id])
 
   @@map("ai_agent_configs")
 }
 
 /// Stores business-specific memory/context information
 model BusinessMemory {
-  id        String   @id @default(cuid())
-  title     String   // e.g., "Location", "Hours", "Menu_Info"
-  content   String   // The actual information
-  isActive  Boolean  @default(true)
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  isActive   Boolean  @default(true)
   businessId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
   business   Business @relation(fields: [businessId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
+
   @@map("business_memory")
+}
+
+/// Simple CRM import tracking - Pinecone handles the actual data
+model CRMImport {
+  id                    String          @id @default(cuid())
+  businessId            String
+  fileName              String
+  status                CRMImportStatus @default(PENDING)
+  recordsProcessed      Int?
+  phoneNumbersFound     Int?
+  errorMessage          String?
+  pineconeNamespace     String?         // Optional: group vectors by import
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  business              Business        @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([status])
+  @@map("crm_imports")
+}
+
+/// Optional: Track CRM-enhanced calls for analytics
+model CRMCallEnhancement {
+  id              String   @id @default(cuid())
+  callId          String   @unique
+  customerFound   Boolean  @default(false)
+  customerName    String?
+  similarityScore Float?
+  enhancedAt      DateTime @default(now())
+  call            Call     @relation(fields: [callId], references: [id])
+
+  @@index([callId])
+  @@map("crm_call_enhancements")
+}
+
+enum CRMImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
