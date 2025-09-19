@@ -23,6 +23,8 @@ import openaiRealtimeRoutes, {
   setupOpenAIRealtimeWebSocket,
 } from "./routes/OpenaiRealTimeCall";
 import uploadthingRoutes from "./routes/uploadthing";
+import embeddingsRoutes from "./routes/embeddings";
+import pineconeRoutes from "./routes/pinecone";
 
 // Load environment variables
 dotenv.config();
@@ -78,6 +80,8 @@ app.use("/api/webhooks", webhooksRoutes);
 app.use("/api/agent", agentRoutes);
 app.use("/api/openai", openaiRoutes);
 app.use("/api/uploadthing", uploadthingRoutes);
+app.use("/api/embeddings", embeddingsRoutes);
+app.use("/api/pinecone", pineconeRoutes);
 
 app.use("/api/openai-realtime", openaiRealtimeRoutes);
 // Setup Twilio media stream WebSocket handler

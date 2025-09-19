@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@repo/db";
 import { z } from "zod";
-import { validateSession, SessionAuthenticatedRequest } from "../middleware/sessionAuth";
+import { validateSession, type SessionAuthenticatedRequest } from "../middleware/sessionAuth";
 import { logger } from "../utils/logger";
 
 const router: Router = Router();
@@ -289,6 +289,87 @@ router.delete("/memories/:id", async (req: SessionAuthenticatedRequest, res) => 
     });
   } catch (error) {
     logger.error("Error deleting business memory:", error);
+    return res.status(500).json({ 
+      ok: false, 
+      error: "Internal server error" 
+    });
+  }
+});
+
+// GET /api/agent/crm-imports
+router.get("/crm-imports", async (req: SessionAuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.businessId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const businessId = req.user.businessId;
+
+    const imports = await db.cRMImport.findMany({
+      where: { businessId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    logger.info("Fetched CRM imports", { 
+      businessId, 
+      importCount: imports.length,
+      userId: req.user.id 
+    });
+
+    return res.json({
+      ok: true,
+      data: imports.map(imp => ({
+        id: imp.id,
+        fileName: imp.fileName,
+        status: imp.status,
+        recordsProcessed: imp.recordsProcessed || undefined,
+        phoneNumbersFound: imp.phoneNumbersFound || undefined,
+        errorMessage: imp.errorMessage || undefined,
+        pineconeNamespace: imp.pineconeNamespace || undefined,
+        createdAt: imp.createdAt.toISOString(),
+        updatedAt: imp.updatedAt.toISOString(),
+      }))
+    });
+  } catch (error) {
+    logger.error("Error fetching CRM imports:", error);
+    return res.status(500).json({ 
+      ok: false, 
+      error: "Internal server error" 
+    });
+  }
+});
+
+// DELETE /api/agent/crm-imports/:id
+router.delete("/crm-imports/:id", async (req: SessionAuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.businessId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const businessId = req.user.businessId;
+    const importId = req.params.id;
+
+    // TODO: Also delete from Pinecone namespace
+    // For now, just delete the import record
+    await db.cRMImport.delete({
+      where: { 
+        id: importId,
+        businessId // Ensure user can only delete their own business imports
+      }
+    });
+
+    logger.info("Deleted CRM import", { 
+      businessId, 
+      importId,
+      userId: req.user.id 
+    });
+
+    return res.json({
+      ok: true,
+      message: "Import deleted successfully"
+    });
+  } catch (error) {
+    logger.error("Error deleting CRM import:", error);
     return res.status(500).json({ 
       ok: false, 
       error: "Internal server error" 
