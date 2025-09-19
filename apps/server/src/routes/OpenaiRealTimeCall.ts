@@ -143,7 +143,7 @@ async function getBusinessMemories(businessId: string, callerPhoneNumber?: strin
     let memoryContent = "";
     if (memories.length > 0) {
       memoryContent = memories
-        .map((memory: any) => `${memory.title}: ${memory.content}`)
+        .map((memory: { title: string; content: string }) => `${memory.title}: ${memory.content}`)
         .join("\n");
     }
 
@@ -373,10 +373,9 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
     let businessId: string | null = null;
     let businessName: string | null = null;
     let callerNumber: string | null = null;
-    let currentTwilioCallSid: string | null = null;
 
     // Wait for the start event which contains customParameters
-    const handleStartEvent = async (data: any) => {
+    const handleStartEvent = async (data: { event: string; start?: { customParameters?: Record<string, string>; streamSid?: string } }) => {
       if (data.event === "start") {
         const customParameters = data.start?.customParameters || {};
         businessId = customParameters.businessId || null;
@@ -384,8 +383,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
         const twilioCallSid = customParameters.twilioCallSid || null;
         callerNumber = customParameters.callerNumber || null;
 
-        // Store the Twilio Call SID for later use
-        currentTwilioCallSid = twilioCallSid;
+        // Store the Twilio Call SID for later use (used in createCallRecord)
 
         logger.info("Extracted parameters from Twilio start event:", {
           businessId,
@@ -466,11 +464,61 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
         // Store business config for use in message handlers
         currentBusinessConfig = businessConfig;
 
+        // Configure session if not already configured and we have business config
+        if (businessConfig && !sessionConfigured && openAiWs.readyState === WebSocket.OPEN) {
+          const voice = businessConfig.voice || DEFAULT_VOICE;
+          const systemMessage = businessConfig.systemMessage || DEFAULT_SYSTEM_MESSAGE;
+          const enableServerVAD = businessConfig.enableServerVAD ?? true;
+          const turnDetection = businessConfig.turnDetection || "server_vad";
+
+          // Fetch business memories and customer context, then append to system message
+          getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+            .then((businessMemories) => {
+              const fullSystemMessage = systemMessage + businessMemories;
+
+              const sessionUpdate = {
+                type: "session.update",
+                session: {
+                  type: "realtime",
+                  output_modalities: ["audio"],
+                  audio: {
+                    input: {
+                      format: { type: "audio/pcmu" },
+                      turn_detection: enableServerVAD
+                        ? {
+                            type: turnDetection,
+                            threshold: 0.4,
+                            prefix_padding_ms: 300,
+                            silence_duration_ms: 800,
+                          }
+                        : null,
+                    },
+                    output: {
+                      format: { type: "audio/pcmu" },
+                      voice: voice,
+                    },
+                  },
+                  instructions: fullSystemMessage,
+                },
+              };
+
+              openAiWs.send(JSON.stringify(sessionUpdate));
+              sessionConfigured = true;
+              logger.info("Session configured after start event", {
+                voice,
+                turnDetection: enableServerVAD ? turnDetection : "disabled",
+              });
+            })
+            .catch((error) => {
+              logger.error("Error configuring session after start event", error);
+            });
+        }
+
         // Create call record with business context
         if (businessConfig) {
           await createCallRecord(
             businessConfig,
-            twilioCallSid,
+            twilioCallSid || undefined,
             callerNumber || undefined
           );
 
@@ -493,6 +541,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
     let lastAssistantItem: string | null = null;
     let markQueue: string[] = [];
     let responseStartTimestampTwilio: number | null = null;
+    let sessionConfigured = false;
 
     // Call recording state
     let callId: string | null = null;
@@ -615,14 +664,24 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       if (markQueue.length > 0 && responseStartTimestampTwilio !== null) {
         const elapsedTime = latestMediaTimestamp - responseStartTimestampTwilio;
 
-        if (lastAssistantItem) {
+        // Only attempt truncation if we have a valid elapsed time and it's reasonable
+        if (lastAssistantItem && elapsedTime > 0 && elapsedTime < 5000) { // Max 5 seconds
           const truncateEvent = {
             type: "conversation.item.truncate",
             item_id: lastAssistantItem,
             content_index: 0,
             audio_end_ms: elapsedTime,
           };
-          openAiWs.send(JSON.stringify(truncateEvent));
+          
+          try {
+            openAiWs.send(JSON.stringify(truncateEvent));
+            logger.info("Sent truncate event", { 
+              item_id: lastAssistantItem, 
+              elapsedTime 
+            });
+          } catch (error) {
+            logger.error("Error sending truncate event", error);
+          }
         }
 
         ws.send(
@@ -656,8 +715,86 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       logger.info("Connected to OpenAI Realtime API");
 
       // Store reference for use in handleStartEvent
-      (ws as any).openAiSessionConfigured = false;
-      (ws as any).openAiWs = openAiWs;
+      (ws as WebSocket & { openAiSessionConfigured?: boolean; openAiWs?: WebSocket }).openAiSessionConfigured = false;
+      (ws as WebSocket & { openAiSessionConfigured?: boolean; openAiWs?: WebSocket }).openAiWs = openAiWs;
+      
+      // Send initial session configuration immediately after connection
+      if (currentBusinessConfig && !sessionConfigured) {
+        const voice = currentBusinessConfig.voice || DEFAULT_VOICE;
+        const systemMessage = currentBusinessConfig.systemMessage || DEFAULT_SYSTEM_MESSAGE;
+        const enableServerVAD = currentBusinessConfig.enableServerVAD ?? true;
+        const turnDetection = currentBusinessConfig.turnDetection || "server_vad";
+
+        // Fetch business memories and customer context, then append to system message
+        getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
+          .then((businessMemories) => {
+            const fullSystemMessage = systemMessage + businessMemories;
+
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                type: "realtime",
+                output_modalities: ["audio"],
+                audio: {
+                  input: {
+                    format: { type: "audio/pcmu" },
+                    turn_detection: enableServerVAD
+                      ? {
+                          type: turnDetection,
+                          threshold: 0.4,
+                          prefix_padding_ms: 300,
+                          silence_duration_ms: 800,
+                        }
+                      : null,
+                  },
+                  output: {
+                    format: { type: "audio/pcmu" },
+                    voice: voice,
+                  },
+                },
+                instructions: fullSystemMessage,
+              },
+            };
+
+            openAiWs.send(JSON.stringify(sessionUpdate));
+            sessionConfigured = true;
+            logger.info("Initial session update sent (audio only)", {
+              voice,
+              turnDetection: enableServerVAD ? turnDetection : "disabled",
+            });
+          })
+          .catch((error) => {
+            logger.error("Error fetching business memories for initial session update", error);
+            // Fallback to system message without memories
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                type: "realtime",
+                output_modalities: ["audio"],
+                audio: {
+                  input: {
+                    format: { type: "audio/pcmu" },
+                    turn_detection: enableServerVAD
+                      ? {
+                          type: turnDetection,
+                          threshold: 0.4,
+                          prefix_padding_ms: 300,
+                          silence_duration_ms: 800,
+                        }
+                      : null,
+                  },
+                  output: {
+                    format: { type: "audio/pcmu" },
+                    voice: voice,
+                  },
+                },
+                instructions: systemMessage,
+              },
+            };
+            openAiWs.send(JSON.stringify(sessionUpdate));
+            sessionConfigured = true;
+          });
+      }
     });
 
     openAiWs.on("message", (data) => {
@@ -675,93 +812,6 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
           response.type === "session.updated"
         ) {
           logger.info("Session status:", response.type);
-
-          // If session was just created, now send the session update with business config
-          if (response.type === "session.created") {
-            logger.info("Session created, updating with business config...");
-            // Send session update immediately if we have business config
-            if (currentBusinessConfig) {
-              const voice = currentBusinessConfig.voice || DEFAULT_VOICE;
-              const systemMessage =
-                currentBusinessConfig.systemMessage || DEFAULT_SYSTEM_MESSAGE;
-              const enableServerVAD =
-                currentBusinessConfig.enableServerVAD ?? true;
-              const turnDetection =
-                currentBusinessConfig.turnDetection || "server_vad";
-
-              // Fetch business memories and customer context, then append to system message
-              getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
-                .then((businessMemories) => {
-                  const fullSystemMessage = systemMessage + businessMemories;
-
-                  // Fix the session configuration - REMOVE "text" from output_modalities
-                  const sessionUpdate = {
-                    type: "session.update",
-                    session: {
-                      type: "realtime",
-                      output_modalities: ["audio"], // ← CRITICAL: Keep only audio for main session
-                      audio: {
-                        input: {
-                          format: { type: "audio/pcmu" },
-                          turn_detection: enableServerVAD
-                            ? {
-                                type: turnDetection,
-                                threshold: 0.4,
-                                prefix_padding_ms: 300,
-                                silence_duration_ms: 800,
-                              }
-                            : null,
-                        },
-                        output: {
-                          format: { type: "audio/pcmu" },
-                          voice: voice,
-                        },
-                      },
-                      instructions: fullSystemMessage,
-                    },
-                  };
-
-                  openAiWs.send(JSON.stringify(sessionUpdate));
-                  logger.info("Session update sent (audio only)", {
-                    voice,
-                    turnDetection: enableServerVAD ? turnDetection : "disabled",
-                  });
-                })
-                .catch((error) => {
-                  logger.error(
-                    "Error fetching business memories for session update",
-                    error
-                  );
-                  // Fallback to system message without memories
-                  const sessionUpdate = {
-                    type: "session.update",
-                    session: {
-                      type: "realtime",
-                      output_modalities: ["audio"],
-                      audio: {
-                        input: {
-                          format: { type: "audio/pcmu" },
-                          turn_detection: enableServerVAD
-                            ? {
-                                type: turnDetection,
-                                threshold: 0.4,
-                                prefix_padding_ms: 300,
-                                silence_duration_ms: 800,
-                              }
-                            : null,
-                        },
-                        output: {
-                          format: { type: "audio/pcmu" },
-                          voice: voice,
-                        },
-                      },
-                      instructions: systemMessage,
-                    },
-                  };
-                  openAiWs.send(JSON.stringify(sessionUpdate));
-                });
-            }
-          }
         }
 
         // If session was updated, now send the first message
@@ -782,7 +832,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                   role: "assistant",
                   content: [
                     {
-                      type: "text",
+                      type: "output_text",
                       text: firstMessage,
                     },
                   ],
@@ -815,6 +865,19 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
             param: response.error?.param,
             full_response: response,
           });
+
+          // Handle specific error types
+          if (response.error?.code === "cannot_update_voice") {
+            logger.warn("Voice update error - session may already be configured", {
+              sessionConfigured,
+              businessId: currentBusinessConfig?.businessId,
+            });
+          } else if (response.error?.code === "invalid_value" && 
+                     response.error?.message?.includes("Audio content")) {
+            logger.warn("Audio truncation error - skipping truncation", {
+              message: response.error.message,
+            });
+          }
         }
 
         if (response.type === "response.output_audio.delta" && response.delta) {
@@ -848,28 +911,30 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
     // Handle Twilio messages
     ws.on("message", async (message) => {
       try {
-        const data = JSON.parse(message.toString());
+        const data = JSON.parse(message.toString()) as { event: string; start?: { streamSid?: string; customParameters?: Record<string, string> }; media?: { timestamp: number; payload: string }; streamSid?: string };
 
         switch (data.event) {
           case "start":
             // Handle start event to get businessId from customParameters
             await handleStartEvent(data);
-            streamSid = data.start.streamSid;
+            streamSid = data.start?.streamSid || null;
             logger.info("Stream started:", {
               streamSid,
-              customParameters: data.start.customParameters,
+              customParameters: data.start?.customParameters,
             });
             responseStartTimestampTwilio = null;
             latestMediaTimestamp = 0;
             break;
           case "media":
-            latestMediaTimestamp = data.media.timestamp;
-            if (openAiWs.readyState === WebSocket.OPEN) {
-              const audioAppend = {
-                type: "input_audio_buffer.append",
-                audio: data.media.payload,
-              };
-              openAiWs.send(JSON.stringify(audioAppend));
+            if (data.media) {
+              latestMediaTimestamp = data.media.timestamp;
+              if (openAiWs.readyState === WebSocket.OPEN) {
+                const audioAppend = {
+                  type: "input_audio_buffer.append",
+                  audio: data.media.payload,
+                };
+                openAiWs.send(JSON.stringify(audioAppend));
+              }
             }
             break;
           case "mark":
@@ -908,7 +973,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       logger.error("Error details:", {
         message: error.message,
         stack: error.stack,
-        code: (error as any).code,
+        code: (error as Error & { code?: string }).code,
       });
     });
   });
