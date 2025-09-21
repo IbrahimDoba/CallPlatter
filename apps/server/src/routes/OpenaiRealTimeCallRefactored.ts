@@ -138,7 +138,8 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
             await handleStartEvent(data, stateService, businessConfigService, recordingService, connectionService);
             break;
           case "media":
-            await connectionService.handleTwilioMessage(message);
+            const buffer = message instanceof Buffer ? message : Buffer.from(message as ArrayBuffer);
+            await connectionService.handleTwilioMessage(buffer);
             break;
           case "mark":
             // Handled by MessageHandlers
