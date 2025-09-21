@@ -2,6 +2,7 @@
 
 import Header from "@/components/Homepage/header";
 import HeroSection from "@/components/Homepage/hero-section";
+import LogoCarousel from "@/components/Homepage/logo-carousel";
 import FeaturesSection from "@/components/Homepage/features-section";
 import HowItWorks from "@/components/Homepage/how-it-works";
 import PricingSection from "@/components/Homepage/pricing-section";
@@ -14,12 +15,14 @@ import BackgroundElements from "@/components/Homepage/background-elements";
 
 export default function CallPlatterLanding() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: '#343434' }}>
       <BackgroundElements />
 
       <Header />
 
       <HeroSection />
+
+      {/* <LogoCarousel /> */}
 
       <FeaturesSection />
 
@@ -29,11 +32,11 @@ export default function CallPlatterLanding() {
 
       <TestimonialsSection />
 
-      <FAQSection />
+      {/* <FAQSection /> */}
 
-      <AboutSection />
+      {/* <AboutSection />*/}
 
-      <CTASection />
+      <CTASection /> 
 
       <Footer />
     </div>

@@ -11,6 +11,7 @@ import {
 import DashboardHeader from "@/components/layout/AppHeader";
 import AppSidebar, { navigation } from "@/components/layout/Appsidebar";
 import { getBusinessInfo } from "@/app/actions/business";
+import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -19,16 +20,19 @@ interface DashboardLayoutProps {
   searchPlaceholder?: string;
 }
 
-function LoadingScreen() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"/>
-        <p className="mt-4 text-gray-600">Loading...</p>
-      </div>
-    </div>
-  );
+// Wrapper component to set business ID in context
+function BusinessIdProvider({ businessId, children }: { businessId: string; children: ReactNode }) {
+  const { setBusinessId } = useAgentContext();
+  
+  useEffect(() => {
+    if (businessId) {
+      setBusinessId(businessId);
+    }
+  }, [businessId, setBusinessId]);
+  
+  return <>{children}</>;
 }
+
 
 export default function DashboardLayout({
   children,
@@ -52,7 +56,7 @@ export default function DashboardLayout({
       try {
         const result = await getBusinessInfo();
         if (result.success) {
-          setBusinessInfo(result.business ? { ...result.business, phoneNumber: (result.business as any).phoneNumber || '' } : null);
+          setBusinessInfo(result.business ? { ...result.business, phoneNumber: (result.business as { phoneNumber?: string }).phoneNumber || '' } : null);
           console.log('Business info fetched:', result.business);
         } else {
           console.error('Error fetching business info:', result.error);
@@ -106,24 +110,28 @@ export default function DashboardLayout({
     "Dashboard";
 
   return (
-    <SidebarProvider>
-      <AppSidebar session={session} />
-      <SidebarInset>
-        <DashboardHeader
-          pageTitle={pageTitle}
-          businessName={businessName}
-          businessId={businessId}
-          businessPhoneNumber={businessPhoneNumber}
-          headerActions={headerActions}
-          searchPlaceholder={searchPlaceholder}
-        />
+    <AgentProvider>
+      <BusinessIdProvider businessId={businessId}>
+        <SidebarProvider>
+          <AppSidebar session={session as { user?: { name?: string; email?: string } }} />
+          <SidebarInset>
+            <DashboardHeader
+              pageTitle={pageTitle}
+              businessName={businessName}
+              businessId={businessId}
+              businessPhoneNumber={businessPhoneNumber}
+              headerActions={headerActions}
+              searchPlaceholder={searchPlaceholder}
+            />
 
-        <main className="flex-1 p-4 sm:p-6">
-          <div className="mx-auto w-full max-w-[1200px]">
-            {children}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+            <main className="flex-1 p-4 sm:p-6">
+              <div className="mx-auto w-full max-w-[1200px]">
+                {children}
+              </div>
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </BusinessIdProvider>
+    </AgentProvider>
   );
 }

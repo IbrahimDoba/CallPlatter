@@ -287,7 +287,7 @@ Only set shouldCreateAppointment to true if customer explicitly requested servic
     // Generate appointment data using OpenAI
     const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',

@@ -28,9 +28,9 @@ export default function DashboardHeader({
   return (
     <>
       {/* Header */}
-      <header className="border-b">
-        <div className="flex h-16 shrink-0 items-center gap-2 px-4 mx-auto w-full max-w-[1200px]">
-          <SidebarTrigger className="-ml-1" />
+      <header className="border-b relative">
+        <div className="flex h-16 shrink-0 items-center px-4 mx-auto w-full max-w-[1200px]">
+          <SidebarTrigger className="absolute left-4 -ml-1" />
           <div className="flex items-center justify-between w-full">
             <h2 className="text-2xl font-semibold text-foreground">
               {pageTitle}

@@ -13,9 +13,9 @@ const fadeInUp = {
 const faqs = [
   {
     id: "faq1",
-    question: "How does CallPlatter work with Nigerian phone numbers?",
+    question: "How does DailZero work with Nigerian phone numbers?",
     answer:
-      "CallPlatter integrates with Africa's Talking and other local telecom providers to ensure seamless connectivity with all Nigerian networks including MTN, Airtel, Glo, and 9mobile. We handle all the technical setup for you.",
+      "DailZero integrates with Africa's Talking and other local telecom providers to ensure seamless connectivity with all Nigerian networks including MTN, Airtel, Glo, and 9mobile. We handle all the technical setup for you.",
   },
   {
     id: "faq2",
@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     id: "faq3",
-    question: "How quickly can I set up CallPlatter for my business?",
+    question: "How quickly can I set up DailZero for my business?",
     answer:
       "Setup takes less than 5 minutes! Simply sign up, provide your business information, and we'll configure everything. Your AI receptionist will be ready to take calls immediately.",
   },
@@ -51,55 +51,57 @@ export default function FAQSection() {
   }
 
   return (
-    <section className="mb-32 container mx-auto px-6">
-      <div className="text-center mb-16">
-        <motion.h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6" {...fadeInUp}>
-          Frequently Asked{" "}
-          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Questions</span>
-        </motion.h2>
-        <motion.p
-          className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-        >
-          Everything you need to know about CallPlatter
-        </motion.p>
-      </div>
-
-      <div className="max-w-4xl mx-auto space-y-6">
-        {faqs.map((faq, index) => (
-          <motion.div
-            key={faq.id}
-            initial={{ opacity: 0, y: 20 }}
+    <section className="mb-32 py-20" style={{ backgroundColor: '#343434' }}>
+      <div className="container mx-auto px-6">
+        <div className="text-center mb-16">
+          <motion.h2 className="text-4xl md:text-6xl font-bold text-white mb-6" {...fadeInUp}>
+            Frequently Asked{" "}
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Questions</span>
+          </motion.h2>
+          <motion.p
+            className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1, duration: 0.6 }}
-            className="bg-white/80 backdrop-blur-lg rounded-2xl border border-white/20 overflow-hidden shadow-lg"
+            transition={{ delay: 0.1, duration: 0.6 }}
           >
-            <button
-              onClick={() => toggleFAQ(faq.id)}
-              className="w-full p-8 text-left flex items-center justify-between hover:bg-white/50 transition-colors"
+            Everything you need to know about DailZero
+          </motion.p>
+        </div>
+
+        <div className="max-w-4xl mx-auto space-y-6">
+          {faqs.map((faq, index) => (
+            <motion.div
+              key={faq.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1, duration: 0.6 }}
+              className="bg-gray-900/80 backdrop-blur-lg rounded-2xl border border-gray-800/50 overflow-hidden shadow-lg"
             >
-              <h3 className="text-xl font-bold text-gray-900">{faq.question}</h3>
-              <motion.div animate={{ rotate: openFAQ === faq.id ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                <ChevronDown className="w-6 h-6 text-gray-600" />
-              </motion.div>
-            </button>
-            <AnimatePresence>
-              {openFAQ === faq.id && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="px-8 pb-8"
-                >
-                  <p className="text-gray-600 text-lg leading-relaxed">{faq.answer}</p>
+              <button
+                onClick={() => toggleFAQ(faq.id)}
+                className="w-full p-8 text-left flex items-center justify-between hover:bg-gray-800/50 transition-colors"
+              >
+                <h3 className="text-xl font-bold text-white">{faq.question}</h3>
+                <motion.div animate={{ rotate: openFAQ === faq.id ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                  <ChevronDown className="w-6 h-6 text-gray-300" />
                 </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        ))}
+              </button>
+              <AnimatePresence>
+                {openFAQ === faq.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="px-8 pb-8"
+                  >
+                    <p className="text-gray-300 text-lg leading-relaxed">{faq.answer}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </section>
   )

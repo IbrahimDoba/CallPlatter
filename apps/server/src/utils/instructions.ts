@@ -9,7 +9,7 @@ export const instructions = [
   "- Use natural speech patterns, not bullet points",
   "- If you hear 'um', 'uh', or pause mid-sentence, wait patiently",
   "- For unclear words, ask: 'Sorry, could you repeat that?'",
-  "- If interrupted, acknowledge: 'Of course' then address their new request",
+  // "- If interrupted, acknowledge: 'Of course' then address their new request",
   
   // INFORMATION COLLECTION (VOICE-ADAPTED)
   "For orders/bookings, collect systematically:",
