@@ -35,6 +35,7 @@ interface BusinessConfig {
   goodbyeMessage?: string;
   enableServerVAD: boolean;
   turnDetection: string;
+  memoriesInjected?: boolean; // Track if memories have been injected to prevent duplicates
 }
 
 // Function to fetch business configuration by phone number
@@ -84,18 +85,7 @@ async function getBusinessConfig(
     if (aiConfig.systemPrompt) {
       sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
     }
-    // BusinessMemory will be handled separately in the session update
-    if (aiConfig.firstMessage) {
-      sessionInstructions.push(
-        `\n\nWhen the call starts, greet the caller with: "${aiConfig.firstMessage}"`
-      );
-    }
-    if (aiConfig.goodbyeMessage) {
-      sessionInstructions.push(
-        `\n\nWhen ending the call, use this goodbye message: "${aiConfig.goodbyeMessage}"`
-      );
-    }
-
+    
     // Add question collection instructions based on settings
     const questionsToAsk = [];
     if (aiConfig.askForName) questionsToAsk.push("name");
@@ -107,6 +97,18 @@ async function getBusinessConfig(
     if (questionsToAsk.length > 0) {
       sessionInstructions.push(
         `\n\nDuring the conversation, try to naturally collect the following information from the caller: ${questionsToAsk.join(", ")}. Ask for these details in a conversational way, not all at once.`
+      );
+    }
+
+    // BusinessMemory will be handled separately in the session update
+    if (aiConfig.firstMessage) {
+      sessionInstructions.push(
+        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${aiConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+      );
+    }
+    if (aiConfig.goodbyeMessage) {
+      sessionInstructions.push(
+        `\n\nWhen ending the call, use this goodbye message: "${aiConfig.goodbyeMessage}"`
       );
     }
 
@@ -224,18 +226,7 @@ async function getBusinessConfigById(
     if (aiConfig.systemPrompt) {
       sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
     }
-    // BusinessMemory will be handled separately in the session update
-    if (aiConfig.firstMessage) {
-      sessionInstructions.push(
-        `\n\nWhen the call starts, greet the caller with: "${aiConfig.firstMessage}"`
-      );
-    }
-    if (aiConfig.goodbyeMessage) {
-      sessionInstructions.push(
-        `\n\nWhen ending the call, use this goodbye message: "${aiConfig.goodbyeMessage}"`
-      );
-    }
-
+    
     // Add question collection instructions based on settings
     const questionsToAsk = [];
     if (aiConfig.askForName) questionsToAsk.push("name");
@@ -247,6 +238,18 @@ async function getBusinessConfigById(
     if (questionsToAsk.length > 0) {
       sessionInstructions.push(
         `\n\nDuring the conversation, try to naturally collect the following information from the caller: ${questionsToAsk.join(", ")}. Ask for these details in a conversational way, not all at once.`
+      );
+    }
+
+    // BusinessMemory will be handled separately in the session update
+    if (aiConfig.firstMessage) {
+      sessionInstructions.push(
+        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${aiConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+      );
+    }
+    if (aiConfig.goodbyeMessage) {
+      sessionInstructions.push(
+        `\n\nWhen ending the call, use this goodbye message: "${aiConfig.goodbyeMessage}"`
       );
     }
 
@@ -471,47 +474,166 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
           const enableServerVAD = businessConfig.enableServerVAD ?? true;
           const turnDetection = businessConfig.turnDetection || "server_vad";
 
-          // Fetch business memories and customer context, then append to system message
-          getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
-            .then((businessMemories) => {
-              const fullSystemMessage = systemMessage + businessMemories;
+          // For session configuration, don't include business memories if there's a first message
+          // This prevents the AI from being confused by business context when delivering the first message
+          const shouldIncludeMemories = !businessConfig.firstMessage;
+          
+          if (shouldIncludeMemories) {
+            // Fetch business memories and customer context, then append to system message
+            getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+              .then((businessMemories) => {
+                const fullSystemMessage = systemMessage + businessMemories;
 
-              const sessionUpdate = {
-                type: "session.update",
-                session: {
-                  type: "realtime",
-                  output_modalities: ["audio"],
-                  audio: {
-                    input: {
-                      format: { type: "audio/pcmu" },
-                      turn_detection: enableServerVAD
-                        ? {
-                            type: turnDetection,
-                            threshold: 0.4,
-                            prefix_padding_ms: 300,
-                            silence_duration_ms: 800,
-                          }
-                        : null,
+                const sessionUpdate = {
+                  type: "session.update",
+                  session: {
+                    type: "realtime",
+                    output_modalities: ["audio"],
+                    audio: {
+                      input: {
+                        format: { type: "audio/pcmu" },
+                        turn_detection: enableServerVAD
+                          ? {
+                              type: turnDetection,
+                              threshold: 0.4,
+                              prefix_padding_ms: 300,
+                              silence_duration_ms: 800,
+                            }
+                          : null,
+                      },
+                      output: {
+                        format: { type: "audio/pcmu" },
+                        voice: voice,
+                      },
                     },
-                    output: {
-                      format: { type: "audio/pcmu" },
-                      voice: voice,
-                    },
+                    instructions: fullSystemMessage,
                   },
-                  instructions: fullSystemMessage,
-                },
-              };
+                };
 
-              openAiWs.send(JSON.stringify(sessionUpdate));
-              sessionConfigured = true;
-              logger.info("Session configured after start event", {
-                voice,
-                turnDetection: enableServerVAD ? turnDetection : "disabled",
+                openAiWs.send(JSON.stringify(sessionUpdate));
+                sessionConfigured = true;
+                logger.info("Session configured after start event with business memories", {
+                  voice,
+                  turnDetection: enableServerVAD ? turnDetection : "disabled",
+                });
+              })
+              .catch((error) => {
+                logger.error("Error configuring session after start event", error);
               });
-            })
-            .catch((error) => {
-              logger.error("Error configuring session after start event", error);
-            });
+          } else {
+            // Check if this is an existing customer to determine the appropriate first message approach
+            getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+              .then((businessMemories) => {
+                // Check if customer context is present (existing customer)
+                const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
+                
+                let minimalInstructions;
+                
+                if (hasCustomerContext) {
+                  // For existing customers, use customer context instructions for personalized greeting
+                  minimalInstructions = [
+                    "You are a voice AI receptionist. Speak naturally and conversationally.",
+                    "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                    "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                    "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
+                    "",
+                    businessMemories // This includes the customer context with personalized greeting instructions
+                  ].join("\n");
+                  
+                  logger.info("Using personalized greeting for existing customer (start event)", {
+                    businessId: businessConfig.businessId,
+                    callerNumber: callerNumber || "Unknown"
+                  });
+                } else {
+                  // For new customers, use the business first message
+                  minimalInstructions = [
+                    "You are a voice AI receptionist. Speak naturally and conversationally.",
+                    "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                    "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                    `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${businessConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+                  ].join("\n");
+                  
+                  logger.info("Using business first message for new customer (start event)", {
+                    businessId: businessConfig.businessId,
+                    callerNumber: callerNumber || "Unknown"
+                  });
+                }
+
+                const sessionUpdate = {
+                  type: "session.update",
+                  session: {
+                    type: "realtime",
+                    output_modalities: ["audio"],
+                    audio: {
+                      input: {
+                        format: { type: "audio/pcmu" },
+                        turn_detection: enableServerVAD
+                          ? {
+                              type: turnDetection,
+                              threshold: 0.4,
+                              prefix_padding_ms: 300,
+                              silence_duration_ms: 800,
+                            }
+                          : null,
+                      },
+                      output: {
+                        format: { type: "audio/pcmu" },
+                        voice: voice,
+                      },
+                    },
+                    instructions: minimalInstructions,
+                  },
+                };
+
+                openAiWs.send(JSON.stringify(sessionUpdate));
+                sessionConfigured = true;
+                logger.info("Session configured after start event with appropriate greeting instructions", {
+                  voice,
+                  turnDetection: enableServerVAD ? turnDetection : "disabled",
+                  hasCustomerContext,
+                  greetingType: hasCustomerContext ? "personalized" : "business_first_message"
+                });
+              })
+              .catch((error) => {
+                logger.error("Error determining greeting approach (start event)", error);
+                // Fallback to business first message
+                const minimalInstructions = [
+                  "You are a voice AI receptionist. Speak naturally and conversationally.",
+                  "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                  "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                  `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${businessConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+                ].join("\n");
+
+                const sessionUpdate = {
+                  type: "session.update",
+                  session: {
+                    type: "realtime",
+                    output_modalities: ["audio"],
+                    audio: {
+                      input: {
+                        format: { type: "audio/pcmu" },
+                        turn_detection: enableServerVAD
+                          ? {
+                              type: turnDetection,
+                              threshold: 0.4,
+                              prefix_padding_ms: 300,
+                              silence_duration_ms: 800,
+                            }
+                          : null,
+                      },
+                      output: {
+                        format: { type: "audio/pcmu" },
+                        voice: voice,
+                      },
+                    },
+                    instructions: minimalInstructions,
+                  },
+                };
+
+                openAiWs.send(JSON.stringify(sessionUpdate));
+                sessionConfigured = true;
+              });
+          }
         }
 
         // Create call record with business context
@@ -725,75 +847,196 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
         const enableServerVAD = currentBusinessConfig.enableServerVAD ?? true;
         const turnDetection = currentBusinessConfig.turnDetection || "server_vad";
 
-        // Fetch business memories and customer context, then append to system message
-        getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
-          .then((businessMemories) => {
-            const fullSystemMessage = systemMessage + businessMemories;
+        // For initial session setup, don't include business memories if there's a first message
+        // This prevents the AI from being confused by business context when delivering the first message
+        const hasFirstMessage = currentBusinessConfig.firstMessage;
+        const shouldIncludeMemories = !hasFirstMessage;
+        
+        if (shouldIncludeMemories) {
+          // Fetch business memories and customer context, then append to system message
+          getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
+            .then((businessMemories) => {
+              const fullSystemMessage = systemMessage + businessMemories;
 
-            const sessionUpdate = {
-              type: "session.update",
-              session: {
-                type: "realtime",
-                output_modalities: ["audio"],
-                audio: {
-                  input: {
-                    format: { type: "audio/pcmu" },
-                    turn_detection: enableServerVAD
-                      ? {
-                          type: turnDetection,
-                          threshold: 0.4,
-                          prefix_padding_ms: 300,
-                          silence_duration_ms: 800,
-                        }
-                      : null,
+              const sessionUpdate = {
+                type: "session.update",
+                session: {
+                  type: "realtime",
+                  output_modalities: ["audio"],
+                  audio: {
+                    input: {
+                      format: { type: "audio/pcmu" },
+                      turn_detection: enableServerVAD
+                        ? {
+                            type: turnDetection,
+                            threshold: 0.4,
+                            prefix_padding_ms: 300,
+                            silence_duration_ms: 800,
+                          }
+                        : null,
+                    },
+                    output: {
+                      format: { type: "audio/pcmu" },
+                      voice: voice,
+                    },
                   },
-                  output: {
-                    format: { type: "audio/pcmu" },
-                    voice: voice,
-                  },
+                  instructions: fullSystemMessage,
                 },
-                instructions: fullSystemMessage,
-              },
-            };
+              };
 
-            openAiWs.send(JSON.stringify(sessionUpdate));
-            sessionConfigured = true;
-            logger.info("Initial session update sent (audio only)", {
-              voice,
-              turnDetection: enableServerVAD ? turnDetection : "disabled",
+              openAiWs.send(JSON.stringify(sessionUpdate));
+              sessionConfigured = true;
+              logger.info("Initial session update sent with business memories", {
+                voice,
+                turnDetection: enableServerVAD ? turnDetection : "disabled",
+              });
+            })
+            .catch((error) => {
+              logger.error("Error fetching business memories for initial session update", error);
+              // Fallback to system message without memories
+              const sessionUpdate = {
+                type: "session.update",
+                session: {
+                  type: "realtime",
+                  output_modalities: ["audio"],
+                  audio: {
+                    input: {
+                      format: { type: "audio/pcmu" },
+                      turn_detection: enableServerVAD
+                        ? {
+                            type: turnDetection,
+                            threshold: 0.4,
+                            prefix_padding_ms: 300,
+                            silence_duration_ms: 800,
+                          }
+                        : null,
+                    },
+                    output: {
+                      format: { type: "audio/pcmu" },
+                      voice: voice,
+                    },
+                  },
+                  instructions: systemMessage,
+                },
+              };
+              openAiWs.send(JSON.stringify(sessionUpdate));
+              sessionConfigured = true;
             });
-          })
-          .catch((error) => {
-            logger.error("Error fetching business memories for initial session update", error);
-            // Fallback to system message without memories
-            const sessionUpdate = {
-              type: "session.update",
-              session: {
-                type: "realtime",
-                output_modalities: ["audio"],
-                audio: {
-                  input: {
-                    format: { type: "audio/pcmu" },
-                    turn_detection: enableServerVAD
-                      ? {
-                          type: turnDetection,
-                          threshold: 0.4,
-                          prefix_padding_ms: 300,
-                          silence_duration_ms: 800,
-                        }
-                      : null,
+        } else {
+          // Check if this is an existing customer to determine the appropriate first message approach
+          const businessConfig = currentBusinessConfig; // Store reference to avoid null checks
+          getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+            .then((businessMemories) => {
+              // Check if customer context is present (existing customer)
+              const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
+              
+              let minimalInstructions;
+              
+              if (hasCustomerContext) {
+                // For existing customers, use customer context instructions for personalized greeting
+                minimalInstructions = [
+                  "You are a voice AI receptionist. Speak naturally and conversationally.",
+                  "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                  "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                  "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
+                  "",
+                  businessMemories // This includes the customer context with personalized greeting instructions
+                ].join("\n");
+                
+                logger.info("Using personalized greeting for existing customer", {
+                  businessId: businessConfig.businessId,
+                  callerNumber: callerNumber || "Unknown"
+                });
+              } else {
+                // For new customers, use the business first message
+                minimalInstructions = [
+                  "You are a voice AI receptionist. Speak naturally and conversationally.",
+                  "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                  "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                  `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${businessConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+                ].join("\n");
+                
+                logger.info("Using business first message for new customer", {
+                  businessId: businessConfig.businessId,
+                  callerNumber: callerNumber || "Unknown"
+                });
+              }
+
+              const sessionUpdate = {
+                type: "session.update",
+                session: {
+                  type: "realtime",
+                  output_modalities: ["audio"],
+                  audio: {
+                    input: {
+                      format: { type: "audio/pcmu" },
+                      turn_detection: enableServerVAD
+                        ? {
+                            type: turnDetection,
+                            threshold: 0.4,
+                            prefix_padding_ms: 300,
+                            silence_duration_ms: 800,
+                          }
+                        : null,
+                    },
+                    output: {
+                      format: { type: "audio/pcmu" },
+                      voice: voice,
+                    },
                   },
-                  output: {
-                    format: { type: "audio/pcmu" },
-                    voice: voice,
-                  },
+                  instructions: minimalInstructions,
                 },
-                instructions: systemMessage,
-              },
-            };
-            openAiWs.send(JSON.stringify(sessionUpdate));
-            sessionConfigured = true;
-          });
+              };
+
+              openAiWs.send(JSON.stringify(sessionUpdate));
+              sessionConfigured = true;
+              logger.info("Initial session update sent with appropriate greeting instructions", {
+                voice,
+                turnDetection: enableServerVAD ? turnDetection : "disabled",
+                hasCustomerContext,
+                greetingType: hasCustomerContext ? "personalized" : "business_first_message"
+              });
+            })
+            .catch((error) => {
+              logger.error("Error determining greeting approach", error);
+              // Fallback to business first message
+              const minimalInstructions = [
+                "You are a voice AI receptionist. Speak naturally and conversationally.",
+                "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${businessConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+              ].join("\n");
+
+              const sessionUpdate = {
+                type: "session.update",
+                session: {
+                  type: "realtime",
+                  output_modalities: ["audio"],
+                  audio: {
+                    input: {
+                      format: { type: "audio/pcmu" },
+                      turn_detection: enableServerVAD
+                        ? {
+                            type: turnDetection,
+                            threshold: 0.4,
+                            prefix_padding_ms: 300,
+                            silence_duration_ms: 800,
+                          }
+                        : null,
+                    },
+                    output: {
+                      format: { type: "audio/pcmu" },
+                      voice: voice,
+                    },
+                  },
+                  instructions: minimalInstructions,
+                },
+              };
+
+              openAiWs.send(JSON.stringify(sessionUpdate));
+              sessionConfigured = true;
+            });
+        }
       }
     });
 
@@ -814,41 +1057,74 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
           logger.info("Session status:", response.type);
         }
 
-        // If session was updated, now send the first message
+        // If session was updated and we have a first message, the AI should deliver it automatically
+        // from the minimal instructions we provided. We may need to inject additional business memories after.
         if (
           response.type === "session.updated" &&
-          currentBusinessConfig?.firstMessage
+          currentBusinessConfig?.firstMessage &&
+          !currentBusinessConfig.memoriesInjected // Only inject once
         ) {
-          logger.info("Session updated, sending first message...");
-          const firstMessage = currentBusinessConfig.firstMessage;
+          logger.info("Session updated, AI will deliver first message from instructions");
 
+          // Mark that we're about to inject memories to prevent duplicate injections
+          currentBusinessConfig.memoriesInjected = true;
+
+          // After a delay, check if we need to inject additional business memories
           setTimeout(() => {
-            if (openAiWs.readyState === WebSocket.OPEN) {
-              // Add the assistant's first message directly without a user prompt
-              const addFirstMessage = {
-                type: "conversation.item.create",
-                item: {
-                  type: "message",
-                  role: "assistant",
-                  content: [
-                    {
-                      type: "output_text",
-                      text: firstMessage,
-                    },
-                  ],
-                },
-              };
-              openAiWs.send(JSON.stringify(addFirstMessage));
+            if (openAiWs.readyState === WebSocket.OPEN && currentBusinessConfig) {
+              const businessConfig = currentBusinessConfig; // Store reference to avoid null checks
+              getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+                .then((businessMemories) => {
+                  // Check if customer context is present (existing customer)
+                  const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
+                  
+                  if (hasCustomerContext) {
+                    // For existing customers, memories are already included in initial instructions
+                    // No need to inject additional memories
+                    logger.info("Existing customer - memories already included in initial instructions", {
+                      businessId: businessConfig.businessId,
+                      callerNumber: callerNumber || "Unknown"
+                    });
+                  } else if (businessMemories) {
+                    // For new customers, inject business memories for future responses
+                    const sessionUpdate = {
+                      type: "session.update",
+                      session: {
+                        type: "realtime",
+                        output_modalities: ["audio"],
+                        audio: {
+                          input: {
+                            format: { type: "audio/pcmu" },
+                            turn_detection: businessConfig.enableServerVAD
+                              ? {
+                                  type: businessConfig.turnDetection,
+                                  threshold: 0.4,
+                                  prefix_padding_ms: 300,
+                                  silence_duration_ms: 800,
+                                }
+                              : null,
+                          },
+                          output: {
+                            format: { type: "audio/pcmu" },
+                            voice: businessConfig.voice,
+                          },
+                        },
+                        instructions: businessConfig.systemMessage + businessMemories,
+                      },
+                    };
 
-              // Create response to generate audio
-              const createResponse = {
-                type: "response.create",
-              };
-              openAiWs.send(JSON.stringify(createResponse));
-
-              logger.info("First message sent:", { firstMessage });
+                    openAiWs.send(JSON.stringify(sessionUpdate));
+                    logger.info("Business memories injected once after first message for new customer", {
+                      businessId: businessConfig.businessId,
+                      memoriesLength: businessMemories.length,
+                    });
+                  }
+                })
+                .catch((error) => {
+                  logger.error("Error checking business memories after first message", error);
+                });
             }
-          }, 500);
+          }, 3000); // Wait 3 seconds for first message to be delivered
         }
 
         if (LOG_EVENT_TYPES.includes(response.type)) {

@@ -1,103 +1,141 @@
-"use client"
+"use client";
 
-import { motion } from "framer-motion"
-import { Star } from "lucide-react"
-
-const fadeInUp = {
-  initial: { opacity: 0, y: 30 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, ease: "easeOut" as const },
-}
-
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-}
+import { motion } from "framer-motion";
+import { Card } from "@/components/ui/card";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import { useEffect, useState } from "react";
 
 const testimonials = [
-  {
-    name: "Adaora Okechukwu",
-    role: "CEO, Lagos Medical Center",
-    content:
-      "CallPlatter has been a game-changer for our clinic. We never miss patient appointments anymore, and the AI understands medical terminology perfectly. Our patient satisfaction has improved significantly.",
-    avatar: "A",
-    gradient: "from-blue-500 to-purple-600",
-  },
   {
     name: "Emeka Okafor",
     role: "Owner, AutoFix Nigeria",
     content:
       "As a small auto repair business, I couldn't afford a full-time receptionist. CallPlatter handles all my appointment bookings professionally. My revenue has increased by 40% since implementation.",
-    avatar: "E",
-    gradient: "from-green-500 to-blue-600",
   },
   {
     name: "Fatima Ibrahim",
     role: "Director, Abuja Beauty Spa",
     content:
       "The setup was incredibly easy and the AI sounds so natural. Our clients can't tell the difference between our AI receptionist and a human. It's perfect for our beauty spa business.",
-    avatar: "F",
-    gradient: "from-purple-500 to-pink-600",
   },
-]
+  {
+    name: "Chinedu Nwosu",
+    role: "Manager, Lagos Restaurant",
+    content:
+      "CallPlatter handles our reservation system flawlessly. Customers love the natural conversation flow, and we've seen a 60% increase in bookings since implementing the service.",
+  },
+  {
+    name: "Aisha Mohammed",
+    role: "Owner, Kano Fashion Boutique",
+    content:
+      "The AI receptionist understands our local customers perfectly and can handle inquiries in multiple languages. It's been a game-changer for our boutique's customer service.",
+  },
+  {
+    name: "Oluwaseun Adebayo",
+    role: "CEO, Port Harcourt Tech Hub",
+    content:
+      "CallPlatter's integration with our CRM system is seamless. The AI captures all customer information accurately and our team can focus on what matters most - building relationships.",
+  },
+];
 
-export default function TestimonialsSection() {
+const TestimonialsSection = () => {
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    setCount(api.scrollSnapList().length);
+    setCurrent(api.selectedScrollSnap() + 1);
+
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap() + 1);
+    });
+  }, [api]);
+
+  useEffect(() => {
+    if (!api) return;
+
+    const interval = setInterval(() => {
+      api.scrollNext();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [api]);
+
   return (
-    <section id="testimonials" className="mb-32 container mx-auto px-6">
-      <div className="text-center mb-16">
-        <motion.h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6" {...fadeInUp}>
-          What Our{" "}
-          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Customers</span>{" "}
-          Say
-        </motion.h2>
-        <motion.p
-          className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-        >
-          Join thousands of Nigerian businesses that trust CallPlatter
-        </motion.p>
-      </div>
-
-      <motion.div
-        className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
-        variants={staggerContainer}
-        initial="initial"
-        animate="animate"
+    <section
+        id="testimonials"
+        className="py-20 overflow-hidden"
+        style={{ backgroundColor: "#343434" }}
       >
-        {testimonials.map((testimonial, index) => (
+        <div className="container px-4 mx-auto">
           <motion.div
-            key={index}
-            variants={fadeInUp}
-            whileHover={{ y: -10, rotateX: 5 }}
-            className="bg-white/90 backdrop-blur-lg rounded-3xl p-8 border border-white/30 shadow-lg hover:shadow-xl transition-all duration-300"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="text-center mb-16"
           >
-            <div className="flex items-center mb-6">
-              <div
-                className={`w-12 h-12 bg-gradient-to-r ${testimonial.gradient} rounded-full flex items-center justify-center mr-4`}
-              >
-                <span className="text-white font-bold text-lg">{testimonial.avatar}</span>
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-900">{testimonial.name}</h4>
-                <p className="text-gray-600">{testimonial.role}</p>
-              </div>
-            </div>
-            <div className="mb-4">
-              <div className="flex text-yellow-400">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-5 h-5 fill-current" />
-                ))}
-              </div>
-            </div>
-            <p className="text-gray-700 text-lg leading-relaxed">{testimonial.content}</p>
+            <h2 className="text-5xl font-normal mb-4 text-white">
+              Trusted by{" "}
+              <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Nigerian Businesses
+              </span>
+            </h2>
+            <p className="text-gray-300 text-lg">
+              Join thousands of satisfied businesses using DailZero
+            </p>
           </motion.div>
-        ))}
-      </motion.div>
-    </section>
-  )
-}
+        </div>
+
+        <div className="w-full mx-auto px-4">
+          <Carousel
+            setApi={setApi}
+            opts={{
+              align: "start",
+              loop: true,
+            }}
+            className="w-full"
+          >
+            <CarouselContent className="-ml-4">
+              {testimonials.map((testimonial) => (
+                <CarouselItem
+                  key={testimonial.name}
+                  className="pl-4 sm:basis-1/2 md:basis-1/3 lg:basis-1/4"
+                >
+                  <Card className="h-full bg-white/10 backdrop-blur-xl border-white/20 hover:border-white/30 transition-all duration-300 p-8 hover:scale-105">
+                    <div className="mb-6">
+                      <h4 className="font-medium text-white/90 text-lg">
+                        {testimonial.name}
+                      </h4>
+                      <p className="text-sm text-white/60">
+                        {testimonial.role}
+                      </p>
+                    </div>
+                    <p className="text-white/70 leading-relaxed">
+                      {testimonial.content}
+                    </p>
+                  </Card>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="left-4 bg-white/10 border-white/20 text-white hover:bg-white/20" />
+            <CarouselNext className="right-4 bg-white/10 border-white/20 text-white hover:bg-white/20" />
+          </Carousel>
+        </div>
+      </section>
+  );
+};
+
+export default TestimonialsSection;

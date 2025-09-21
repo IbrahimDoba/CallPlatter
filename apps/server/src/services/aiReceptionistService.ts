@@ -107,7 +107,7 @@ export class AIReceptionistService {
       ].filter(Boolean).join('\n\n');
 
       // Use a chat model, not realtime model for text generation
-      const chatModel = cfg?.responseModel?.includes('realtime') ? 'gpt-4o-mini' : (cfg?.responseModel || 'gpt-4o-mini');
+      const chatModel = cfg?.responseModel?.includes('realtime') ? 'gpt-3.5-turbo' : (cfg?.responseModel || 'gpt-3.5-turbo');
       
       const completion = await getOpenAIClient().chat.completions.create({
         model: chatModel,

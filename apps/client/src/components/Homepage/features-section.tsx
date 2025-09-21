@@ -1,110 +1,92 @@
 "use client"
-
-import { motion } from "framer-motion"
-import { Phone, Calendar, BarChart3, Globe, Clock, Shield } from "lucide-react"
-
-const fadeInUp = {
-  initial: { opacity: 0, y: 30 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, ease: "easeOut" as const },
-}
-
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-}
+import { Phone, Calendar, BarChart3, Shield } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FeatureTab } from "./FeatureTab"
+import { FeatureContent } from "./FeatureContent"
 
 const features = [
   {
-    icon: Phone,
+    icon: <Phone className="w-6 h-6" />,
     title: "AI Voice Assistant",
-    description:
-      "Natural conversation handling with advanced speech recognition. Our AI understands Nigerian accents and local business contexts.",
-    gradient: "from-blue-500 to-blue-600",
+    description: "Natural conversation handling with advanced speech recognition. Our AI understands Nigerian accents and local business contexts.",
+    image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
   },
   {
-    icon: Calendar,
+    icon: <Calendar className="w-6 h-6" />,
     title: "Smart Appointment Booking",
-    description:
-      "Automatically schedule appointments during calls. Integrates with your calendar and sends reminders to customers.",
-    gradient: "from-green-500 to-green-600",
+    description: "Automatically schedule appointments during calls. Integrates with your calendar and sends reminders to customers.",
+    image: "https://images.unsplash.com/photo-1611224923853-80b023f02d71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
   },
   {
-    icon: BarChart3,
+    icon: <BarChart3 className="w-6 h-6" />,
     title: "Business Dashboard",
-    description:
-      "Track calls, appointments, and customer interactions. Get insights into your business communications patterns.",
-    gradient: "from-purple-500 to-purple-600",
+    description: "Track calls, appointments, and customer interactions. Get insights into your business communications patterns.",
+    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
   },
   {
-    icon: Globe,
-    title: "Africa's Talking Integration",
-    description:
-      "Optimized for Nigerian telecom networks with better pricing and regulatory compliance than international alternatives.",
-    gradient: "from-orange-500 to-orange-600",
-  },
-  {
-    icon: Clock,
-    title: "24/7 Availability",
-    description:
-      "Never miss a customer call again. Our AI works around the clock to ensure your business never loses potential customers.",
-    gradient: "from-red-500 to-red-600",
-  },
-  {
-    icon: Shield,
-    title: "Multi-Tenant Security",
+    icon: <Shield className="w-6 h-6" />,
+    title: "Enterprise Security",
     description: "Enterprise-grade security with complete data isolation. Your business data is protected and private.",
-    gradient: "from-indigo-500 to-indigo-600",
-  },
+    image: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
+  }
 ]
 
 export default function FeaturesSection() {
   return (
-    <section id="features" className="mb-32 container mx-auto px-6">
-      <div className="text-center mb-16">
-        <motion.h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6" {...fadeInUp}>
-          Why Choose{" "}
-          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            CallPlatter
-          </span>
-          ?
-        </motion.h2>
-        <motion.p
-          className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-        >
-          Built specifically for Nigerian businesses with local network optimization and regulatory compliance.
-        </motion.p>
-      </div>
+    <section id="features" className="py-24" style={{ backgroundColor: '#343434' }}>
+      <div className="container px-4 mx-auto max-w-6xl">
+        {/* Header Section */}
+        <div className="max-w-2xl mb-20">
+          <h2 className="text-5xl md:text-6xl font-normal mb-6 tracking-tight text-left text-white">
+            Advanced AI
+            <br />
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent font-medium">Features & Tools</span>
+          </h2>
+          <p className="text-lg md:text-xl text-gray-300 text-left">
+            Experience professional-grade AI tools and features designed specifically for Nigerian businesses and their communication needs.
+          </p>
+        </div>
 
-      <motion.div
-        className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
-        variants={staggerContainer}
-        initial="initial"
-        animate="animate"
-      >
-        {features.map((feature, index) => (
-          <motion.div
-            key={index}
-            variants={fadeInUp}
-            whileHover={{ y: -10, rotateX: 5 }}
-            className="bg-white/80 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            <div
-              className={`w-16 h-16 bg-gradient-to-r ${feature.gradient} rounded-2xl flex items-center justify-center mb-6 shadow-lg`}
-            >
-              <feature.icon className="w-8 h-8 text-white" />
+        <Tabs defaultValue={features[0]?.title || "AI Voice Assistant"} className="w-full">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+            {/* Left side - Tab triggers */}
+            <div className="md:col-span-5 space-y-3">
+              <TabsList className="flex flex-col w-full bg-transparent h-auto p-0 space-y-3">
+                {features.map((feature) => (
+                  <TabsTrigger
+                    key={feature.title}
+                    value={feature.title}
+                    className="w-full data-[state=active]:shadow-none data-[state=active]:bg-transparent"
+                  >
+                    <FeatureTab
+                      title={feature.title}
+                      description={feature.description}
+                      icon={feature.icon}
+                      isActive={false}
+                    />
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">{feature.title}</h3>
-            <p className="text-gray-600 text-lg leading-relaxed">{feature.description}</p>
-          </motion.div>
-        ))}
-      </motion.div>
+
+            {/* Right side - Tab content with images */}
+            <div className="md:col-span-7">
+              {features.map((feature) => (
+                <TabsContent
+                  key={feature.title}
+                  value={feature.title}
+                  className="mt-0 h-full"
+                >
+                  <FeatureContent
+                    image={feature.image}
+                    title={feature.title}
+                  />
+                </TabsContent>
+              ))}
+            </div>
+          </div>
+        </Tabs>
+      </div>
     </section>
   )
 }
