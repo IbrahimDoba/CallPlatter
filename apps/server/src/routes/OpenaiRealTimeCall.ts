@@ -35,14 +35,7 @@ interface BusinessConfig {
   goodbyeMessage?: string;
   enableServerVAD: boolean;
   turnDetection: string;
-  memoriesInjected?: boolean;
-}
-
-// Interface for enhanced context (loaded asynchronously)
-interface EnhancedContext {
-  businessMemories: string;
-  customerContext?: string;
-  isExistingCustomer: boolean;
+  memoriesInjected?: boolean; // Track if memories have been injected to prevent duplicates
 }
 
 // Function to fetch business configuration by phone number
@@ -107,6 +100,7 @@ async function getBusinessConfig(
       );
     }
 
+    // BusinessMemory will be handled separately in the session update
     if (aiConfig.firstMessage) {
       sessionInstructions.push(
         `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${aiConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
@@ -135,25 +129,18 @@ async function getBusinessConfig(
   }
 }
 
-// Function to fetch business memories and customer context (async)
-async function getEnhancedContext(businessId: string, callerPhoneNumber?: string): Promise<EnhancedContext> {
+// Function to fetch business memories and customer context
+async function getBusinessMemories(businessId: string, callerPhoneNumber?: string): Promise<string> {
   try {
-    // Run both queries in parallel for speed
-    const [memories, callContext] = await Promise.all([
-      db.businessMemory.findMany({
-        where: {
-          businessId: businessId,
-          isActive: true,
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
-      }),
-      callerPhoneNumber ? lookupCallerContext(businessId, callerPhoneNumber).catch((error) => {
-        logger.error("Error looking up customer context", { businessId, callerPhoneNumber, error });
-        return { isExistingCustomer: false, contextInstructions: null, customer: null };
-      }) : Promise.resolve({ isExistingCustomer: false, contextInstructions: null, customer: null })
-    ]);
+    const memories = await db.businessMemory.findMany({
+      where: {
+        businessId: businessId,
+        isActive: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
 
     let memoryContent = "";
     if (memories.length > 0) {
@@ -162,30 +149,34 @@ async function getEnhancedContext(businessId: string, callerPhoneNumber?: string
         .join("\n");
     }
 
+    // Add customer context if caller phone number is provided
+    let customerContext = "";
+    if (callerPhoneNumber) {
+      try {
+        logger.info("Looking up customer context for caller", { businessId, callerPhoneNumber });
+        const callContext = await lookupCallerContext(businessId, callerPhoneNumber);
+        
+        if (callContext.isExistingCustomer && callContext.contextInstructions) {
+          customerContext = `\n\n${callContext.contextInstructions}`;
+          logger.info("Customer context found and added to instructions", {
+            businessId,
+            callerPhoneNumber,
+            customerName: callContext.customer?.name,
+          });
+        } else {
+          logger.info("No customer context found - new customer", { businessId, callerPhoneNumber });
+        }
+      } catch (error) {
+        logger.error("Error looking up customer context", { businessId, callerPhoneNumber, error });
+        // Continue without customer context if lookup fails
+      }
+    }
+
     const businessMemories = memoryContent ? `\n\nBusiness Context & Memory:\n${memoryContent}` : "";
-    const customerContext = (callContext.isExistingCustomer && callContext.contextInstructions) 
-      ? `\n\n${callContext.contextInstructions}` 
-      : "";
-
-    logger.info("Enhanced context loaded", {
-      businessId,
-      callerPhoneNumber: callerPhoneNumber || "Unknown",
-      isExistingCustomer: callContext.isExistingCustomer,
-      hasBusinessMemories: memoryContent.length > 0,
-      hasCustomerContext: customerContext.length > 0,
-    });
-
-    return {
-      businessMemories: businessMemories + customerContext,
-      customerContext: callContext.contextInstructions || undefined,
-      isExistingCustomer: callContext.isExistingCustomer
-    };
+    return businessMemories + customerContext;
   } catch (error) {
-    logger.error("Error fetching enhanced context", { businessId, error });
-    return {
-      businessMemories: "",
-      isExistingCustomer: false
-    };
+    logger.error("Error fetching business memories", { businessId, error });
+    return "";
   }
 }
 
@@ -250,6 +241,7 @@ async function getBusinessConfigById(
       );
     }
 
+    // BusinessMemory will be handled separately in the session update
     if (aiConfig.firstMessage) {
       sessionInstructions.push(
         `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${aiConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
@@ -316,9 +308,11 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
       temperature: businessConfig.temperature,
     });
 
+    // Use the improved WebSocket URL construction
     const { constructWebSocketUrl } = await import("../utils/helpers.js");
     const websocketUrl = constructWebSocketUrl(req);
 
+    // Log the constructed URL for debugging
     logger.info("Constructed WebSocket URL:", {
       host: req.headers.host,
       forwardedHost: req.headers['x-forwarded-host'],
@@ -328,7 +322,10 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
       businessId: businessConfig.businessId,
       websocketUrl,
     });
-
+    // <Say voice="Google.en-US-Chirp3-HD-Aoede">Please wait while we connect your call to ${businessConfig.businessName}</Say>
+    // <Pause length="1"/>
+    // <Say voice="Google.en-US-Chirp3-HD-Aoede">O.K. you can start talking!</Say>
+    // Pass businessId and caller info via Twilio's customParameters instead of URL query params
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
             <Response>
                 <Connect>
@@ -377,6 +374,374 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       method: req.method,
     });
 
+    let businessId: string | null = null;
+    let businessName: string | null = null;
+    let callerNumber: string | null = null;
+
+    // Wait for the start event which contains customParameters
+    const handleStartEvent = async (data: { event: string; start?: { customParameters?: Record<string, string>; streamSid?: string } }) => {
+      if (data.event === "start") {
+        const customParameters = data.start?.customParameters || {};
+        businessId = customParameters.businessId || null;
+        businessName = customParameters.businessName || null;
+        const twilioCallSid = customParameters.twilioCallSid || null;
+        callerNumber = customParameters.callerNumber || null;
+
+        // Store the Twilio Call SID for later use (used in createCallRecord)
+
+        logger.info("Extracted parameters from Twilio start event:", {
+          businessId,
+          businessName,
+          twilioCallSid,
+          callerNumber,
+          customParameters,
+          streamSid: data.start?.streamSid,
+        });
+
+        // Debug: Check if twilioCallSid is being passed correctly
+        if (!twilioCallSid) {
+          logger.warn("No twilioCallSid found in customParameters:", {
+            customParameters,
+          });
+        }
+
+        // Now fetch business configuration
+        let businessConfig: BusinessConfig | null = null;
+        if (businessId) {
+          logger.info("Attempting to fetch business config for:", businessId);
+          try {
+            businessConfig = await getBusinessConfigById(businessId);
+            logger.info("Business config fetch result:", {
+              businessId,
+              configFound: !!businessConfig,
+              businessName: businessConfig?.businessName,
+            });
+          } catch (error) {
+            logger.error("Error fetching business config:", {
+              businessId,
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+          }
+        } else {
+          logger.warn(
+            "No businessId found in customParameters, using default configuration"
+          );
+        }
+
+        // Use business config or defaults
+        const voice = businessConfig?.voice || DEFAULT_VOICE;
+        const temperature = businessConfig?.temperature || DEFAULT_TEMPERATURE;
+        const systemMessage =
+          businessConfig?.systemMessage || DEFAULT_SYSTEM_MESSAGE;
+        const enableServerVAD = businessConfig?.enableServerVAD ?? true;
+        const turnDetection = businessConfig?.turnDetection || "server_vad";
+
+        logger.info("WebSocket connection initialized with config:", {
+          businessId,
+          businessName: businessConfig?.businessName,
+          voice,
+          temperature,
+          enableServerVAD,
+          turnDetection,
+          systemMessageLength: systemMessage.length,
+          businessConfigExists: !!businessConfig,
+          businessConfigSystemMessage: businessConfig?.systemMessage
+            ? "Present"
+            : "Not present",
+          businessConfigSystemMessageLength:
+            businessConfig?.systemMessage?.length || 0,
+          usingFallback: !businessConfig?.systemMessage,
+        });
+
+        // Store business config for session update (will be sent when session is created)
+        logger.info("Business config ready for session update:", {
+          businessId,
+          businessName: businessConfig?.businessName,
+          voice,
+          temperature,
+          enableServerVAD,
+          turnDetection,
+          systemMessageLength: systemMessage.length,
+        });
+
+        // Store business config for use in message handlers
+        currentBusinessConfig = businessConfig;
+
+        // Configure session if not already configured and we have business config
+        logger.info("Checking session configuration conditions:", {
+          hasBusinessConfig: !!businessConfig,
+          sessionConfigured,
+          openAiWsReady: openAiWs.readyState === WebSocket.OPEN,
+          openAiWsState: openAiWs.readyState
+        });
+        
+        if (businessConfig && !sessionConfigured && openAiWs.readyState === WebSocket.OPEN) {
+          logger.info("Starting session configuration");
+          // Set sessionConfigured immediately to prevent race conditions
+          sessionConfigured = true;
+          const voice = businessConfig.voice || DEFAULT_VOICE;
+          const systemMessage = businessConfig.systemMessage || DEFAULT_SYSTEM_MESSAGE;
+          const enableServerVAD = businessConfig.enableServerVAD ?? true;
+          const turnDetection = businessConfig.turnDetection || "server_vad";
+
+          // For session configuration, don't include business memories if there's a first message
+          // This prevents the AI from being confused by business context when delivering the first message
+          const shouldIncludeMemories = !businessConfig.firstMessage;
+          
+          logger.info("Session configuration path decision:", {
+            hasFirstMessage: !!businessConfig.firstMessage,
+            shouldIncludeMemories,
+            firstMessage: businessConfig.firstMessage
+          });
+          
+          if (shouldIncludeMemories) {
+            // Fetch business memories and customer context, then append to system message
+            getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+              .then((businessMemories) => {
+                const fullSystemMessage = systemMessage + businessMemories;
+
+                const sessionUpdate = {
+                  type: "session.update",
+                  session: {
+                    type: "realtime",
+                    output_modalities: ["audio"],
+                    audio: {
+                      input: {
+                        format: { type: "audio/pcmu" },
+                        turn_detection: enableServerVAD
+                          ? {
+                              type: turnDetection,
+                              threshold: 0.4,
+                              prefix_padding_ms: 300,
+                              silence_duration_ms: 800,
+                            }
+                          : null,
+                      },
+                      output: {
+                        format: { type: "audio/pcmu" },
+                        voice: voice,
+                      },
+                    },
+                    instructions: fullSystemMessage,
+                  },
+                };
+
+                openAiWs.send(JSON.stringify(sessionUpdate));
+                sessionConfigured = true;
+                logger.info("Session configured after start event with business memories", {
+                  voice,
+                  turnDetection: enableServerVAD ? turnDetection : "disabled",
+                });
+              })
+              .catch((error) => {
+                logger.error("Error configuring session after start event", error);
+                // Retry session configuration once after a short delay
+                setTimeout(() => {
+                  if (openAiWs.readyState === WebSocket.OPEN && !sessionConfigured) {
+                    logger.info("Retrying session configuration after error");
+                    const retrySessionUpdate = {
+                      type: "session.update",
+                      session: {
+                        type: "realtime",
+                        output_modalities: ["audio"],
+                        audio: {
+                          input: {
+                            format: { type: "audio/pcmu" },
+                            turn_detection: enableServerVAD
+                              ? {
+                                  type: turnDetection,
+                                  threshold: 0.4,
+                                  prefix_padding_ms: 300,
+                                  silence_duration_ms: 800,
+                                }
+                              : null,
+                          },
+                          output: {
+                            format: { type: "audio/pcmu" },
+                            voice: voice,
+                          },
+                        },
+                        instructions: systemMessage,
+                      },
+                    };
+                    openAiWs.send(JSON.stringify(retrySessionUpdate));
+                    sessionConfigured = true;
+                    logger.info("Retry session configuration sent");
+                  }
+                }, 1000);
+              });
+          } else {
+            // Check if this is an existing customer to determine the appropriate first message approach
+            getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+              .then((businessMemories) => {
+                // Check if customer context is present (existing customer)
+                const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
+                
+                let minimalInstructions;
+                
+                if (hasCustomerContext) {
+                  // For existing customers, use customer context instructions for personalized greeting
+                  minimalInstructions = [
+                    "You are a voice AI receptionist. Speak naturally and conversationally.",
+                    "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                    "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                    "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
+                    "",
+                    businessMemories // This includes the customer context with personalized greeting instructions
+                  ].join("\n");
+                  
+                  logger.info("Using personalized greeting for existing customer (start event)", {
+                    businessId: businessConfig.businessId,
+                    callerNumber: callerNumber || "Unknown"
+                  });
+                } else {
+                  // For new customers, use the business first message
+                  minimalInstructions = [
+                    "You are a voice AI receptionist. Speak naturally and conversationally.",
+                    "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                    "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                    `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${businessConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+                  ].join("\n");
+                  
+                  logger.info("Using business first message for new customer (start event)", {
+                    businessId: businessConfig.businessId,
+                    callerNumber: callerNumber || "Unknown"
+                  });
+                }
+
+                const sessionUpdate = {
+                  type: "session.update",
+                  session: {
+                    type: "realtime",
+                    output_modalities: ["audio"],
+                    audio: {
+                      input: {
+                        format: { type: "audio/pcmu" },
+                        turn_detection: enableServerVAD
+                          ? {
+                              type: turnDetection,
+                              threshold: 0.4,
+                              prefix_padding_ms: 300,
+                              silence_duration_ms: 800,
+                            }
+                          : null,
+                      },
+                      output: {
+                        format: { type: "audio/pcmu" },
+                        voice: voice,
+                      },
+                    },
+                    instructions: minimalInstructions,
+                  },
+                };
+
+                openAiWs.send(JSON.stringify(sessionUpdate));
+                sessionConfigured = true;
+                logger.info("Session configured after start event with appropriate greeting instructions", {
+                  voice,
+                  turnDetection: enableServerVAD ? turnDetection : "disabled",
+                  hasCustomerContext,
+                  greetingType: hasCustomerContext ? "personalized" : "business_first_message"
+                });
+                
+                // Trigger AI to start speaking immediately after session configuration
+                if (hasCustomerContext) {
+                  if (openAiWs && openAiWs.readyState === WebSocket.OPEN) {
+                    const conversationItem = {
+                      type: "conversation.item.create",
+                      item: {
+                        type: "message",
+                        role: "user",
+                        content: [
+                          {
+                            type: "input_text",
+                            text: "Start the call"
+                          }
+                        ]
+                      }
+                    };
+                    openAiWs.send(JSON.stringify(conversationItem));
+                    logger.info("Triggered AI to start speaking for existing customer");
+                  }
+                }
+              })
+              .catch((error) => {
+                logger.error("Error determining greeting approach (s  tart event)", error);
+                // Retry session configuration once after a short delay
+                setTimeout(() => {
+                  if (openAiWs.readyState === WebSocket.OPEN && !sessionConfigured) {
+                    logger.info("Retrying session configuration after greeting approach error");
+                    const minimalInstructions = [
+                      "You are a voice AI receptionist. Speak naturally and conversationally.",
+                      "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                      "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                      `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${businessConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+                    ].join("\n");
+
+                    const retrySessionUpdate = {
+                      type: "session.update",
+                      session: {
+                        type: "realtime",
+                        output_modalities: ["audio"],
+                        audio: {
+                          input: {
+                            format: { type: "audio/pcmu" },
+                            turn_detection: enableServerVAD
+                              ? {
+                                  type: turnDetection,
+                                  threshold: 0.4,
+                                  prefix_padding_ms: 300,
+                                  silence_duration_ms: 800,
+                                }
+                              : null,
+                          },
+                          output: {
+                            format: { type: "audio/pcmu" },
+                            voice: voice,
+                          },
+                        },
+                        instructions: minimalInstructions,
+                      },
+                    };
+
+                    openAiWs.send(JSON.stringify(retrySessionUpdate));
+                    sessionConfigured = true;
+                    logger.info("Retry session configuration sent (greeting approach)");
+                  }
+                }, 1000);
+              });
+          }
+        } else {
+          logger.warn("Session configuration skipped:", {
+            hasBusinessConfig: !!businessConfig,
+            sessionConfigured,
+            openAiWsReady: openAiWs.readyState === WebSocket.OPEN,
+            openAiWsState: openAiWs.readyState
+          });
+        }
+
+        // Create call record with business context
+        if (businessConfig) {
+          await createCallRecord(
+            businessConfig,
+            twilioCallSid || undefined,
+            callerNumber || undefined
+          );
+
+          // Start recording the call after a short delay to ensure call is established
+          if (twilioCallSid) {
+            setTimeout(async () => {
+              await startCallRecording(twilioCallSid);
+            }, 3000); // Wait 3 seconds for call to be fully established
+          }
+        }
+      }
+    };
+
+    // Store the business config for use throughout the connection
+    let currentBusinessConfig: BusinessConfig | null = null;
+
     // Connection state
     let streamSid: string | null = null;
     let latestMediaTimestamp = 0;
@@ -384,13 +749,6 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
     let markQueue: string[] = [];
     let responseStartTimestampTwilio: number | null = null;
     let sessionConfigured = false;
-    let enhancedContextLoaded = false;
-
-    // Business context
-    let businessId: string | null = null;
-    let businessName: string | null = null;
-    let callerNumber: string | null = null;
-    let currentBusinessConfig: BusinessConfig | null = null;
 
     // Call recording state
     let callId: string | null = null;
@@ -437,8 +795,13 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
           process.env.TWILIO_AUTH_TOKEN
         );
 
+        // Create a recording for the call
         const recording = await client.calls(twilioCallSid).recordings.create({
+          // recordingChannels: "dual", // Records each party separately
+          // recordingTrack: "both", // Records both inbound and outbound audio
           recordingStatusCallback: `${process.env.BASE_URL || "https://callplatterserver.onrender.com"}/api/webhooks/recording-status`,
+          // recordingStatusCallbackEvent: ["in-progress", "completed"],
+          // recordingStatusCallbackMethod: "POST"
         });
 
         logger.info("Started call recording via API:", {
@@ -446,6 +809,8 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
           recordingSid: recording.sid,
           status: recording.status,
         });
+
+        logger.info("Recording started successfully");
 
         return recording;
       } catch (error) {
@@ -481,6 +846,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       }
     };
 
+
     const { OPENAI_API_KEY } = process.env;
     if (!OPENAI_API_KEY) {
       logger.error("Missing OpenAI API key");
@@ -505,7 +871,8 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       if (markQueue.length > 0 && responseStartTimestampTwilio !== null) {
         const elapsedTime = latestMediaTimestamp - responseStartTimestampTwilio;
 
-        if (lastAssistantItem && elapsedTime > 0 && elapsedTime < 5000) {
+        // Only attempt truncation if we have a valid elapsed time and it's reasonable
+        if (lastAssistantItem && elapsedTime > 0 && elapsedTime < 5000) { // Max 5 seconds
           const truncateEvent = {
             type: "conversation.item.truncate",
             item_id: lastAssistantItem,
@@ -550,205 +917,133 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       }
     };
 
-    // Configure initial session immediately when OpenAI WebSocket is ready
-    const configureInitialSession = async () => {
-      if (sessionConfigured || !currentBusinessConfig || openAiWs.readyState !== WebSocket.OPEN) {
+    // Function to configure session when OpenAI WebSocket becomes ready
+    const configureSessionNow = () => {
+      if (!currentBusinessConfig || sessionConfigured || openAiWs.readyState !== WebSocket.OPEN) {
         return;
       }
 
+      logger.info("Configuring session now with business config");
       sessionConfigured = true;
       
       const voice = currentBusinessConfig.voice || DEFAULT_VOICE;
+      const systemMessage = currentBusinessConfig.systemMessage || DEFAULT_SYSTEM_MESSAGE;
       const enableServerVAD = currentBusinessConfig.enableServerVAD ?? true;
       const turnDetection = currentBusinessConfig.turnDetection || "server_vad";
 
-      // Create minimal instructions for immediate response
-      // Include business name since we already have it without DB delay
-      let minimalInstructions;
+      const shouldIncludeMemories = !currentBusinessConfig.firstMessage;
       
-      if (currentBusinessConfig.firstMessage) {
-        minimalInstructions = [
-          "You are a voice AI receptionist. Speak naturally and conversationally.",
-          "Keep responses brief (1-2 sentences) but don't sound robotic.",
-          "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
-          `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${currentBusinessConfig.firstMessage}". Do not use any other greeting.`
-        ].join("\n");
-      } else {
-        // Fallback greeting with business name
-        minimalInstructions = [
-          "You are a voice AI receptionist. Speak naturally and conversationally.",
-          "Keep responses brief (1-2 sentences) but don't sound robotic.",
-          "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
-          `IMPORTANT: When the call starts, greet the caller by saying "Hello, thank you for calling ${currentBusinessConfig.businessName}. How can I help you today?"`
-        ].join("\n");
-      }
-
-      const sessionUpdate = {
-        type: "session.update",
-        session: {
-          type: "realtime",
-          output_modalities: ["audio"],
-          audio: {
-            input: {
-              format: { type: "audio/pcmu" },
-              turn_detection: enableServerVAD
-                ? {
-                    type: turnDetection,
-                    threshold: 0.4,
-                    prefix_padding_ms: 300,
-                    silence_duration_ms: 800,
-                  }
-                : null,
-            },
-            output: {
-              format: { type: "audio/pcmu" },
-              voice: voice,
-            },
-          },
-          instructions: minimalInstructions,
-        },
-      };
-
-      openAiWs.send(JSON.stringify(sessionUpdate));
-      logger.info("Initial session configured immediately", {
-        businessId: currentBusinessConfig.businessId,
-        businessName: currentBusinessConfig.businessName,
-        voice,
-        hasFirstMessage: !!currentBusinessConfig.firstMessage,
-        instructionsLength: minimalInstructions.length,
-      });
-
-      // Load enhanced context asynchronously after initial session is configured
-      if (!enhancedContextLoaded) {
-        enhancedContextLoaded = true;
-        loadEnhancedContextAsync();
-      }
-    };
-
-    // Load enhanced context and update session asynchronously
-    const loadEnhancedContextAsync = async () => {
-      if (!currentBusinessConfig) return;
-
-      try {
-        logger.info("Loading enhanced context asynchronously", {
-          businessId: currentBusinessConfig.businessId,
-          callerNumber: callerNumber || "Unknown",
-        });
-
-        const enhancedContext = await getEnhancedContext(
-          currentBusinessConfig.businessId, 
-          callerNumber || undefined
-        );
-
-        // Update session with full instructions including business context
-        if (openAiWs.readyState === WebSocket.OPEN && enhancedContext.businessMemories) {
-          const fullInstructions = currentBusinessConfig.systemMessage + enhancedContext.businessMemories;
-
-          const sessionUpdate = {
-            type: "session.update",
-            session: {
-              type: "realtime",
-              output_modalities: ["audio"],
-              audio: {
-                input: {
-                  format: { type: "audio/pcmu" },
-                  turn_detection: currentBusinessConfig.enableServerVAD
-                    ? {
-                        type: currentBusinessConfig.turnDetection,
-                        threshold: 0.4,
-                        prefix_padding_ms: 300,
-                        silence_duration_ms: 800,
-                      }
-                    : null,
+      if (shouldIncludeMemories) {
+        // Fetch business memories and customer context
+        getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
+          .then((businessMemories) => {
+            const fullSystemMessage = systemMessage + businessMemories;
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                type: "realtime",
+                output_modalities: ["audio"],
+                audio: {
+                  input: {
+                    format: { type: "audio/pcmu" },
+                    turn_detection: enableServerVAD
+                      ? {
+                          type: turnDetection,
+                          threshold: 0.4,
+                          prefix_padding_ms: 300,
+                          silence_duration_ms: 800,
+                        }
+                      : null,
+                  },
+                  output: {
+                    format: { type: "audio/pcmu" },
+                    voice: voice,
+                  },
                 },
-                output: {
-                  format: { type: "audio/pcmu" },
-                  voice: currentBusinessConfig.voice,
-                },
+                instructions: fullSystemMessage,
               },
-              instructions: fullInstructions,
-            },
-          };
-
-          openAiWs.send(JSON.stringify(sessionUpdate));
-          logger.info("Enhanced context injected asynchronously", {
-            businessId: currentBusinessConfig.businessId,
-            isExistingCustomer: enhancedContext.isExistingCustomer,
-            businessMemoriesLength: enhancedContext.businessMemories.length,
-            fullInstructionsLength: fullInstructions.length,
+            };
+            openAiWs.send(JSON.stringify(sessionUpdate));
+            logger.info("Session configured with business memories (fallback)");
+          })
+          .catch((error) => {
+            logger.error("Error configuring session (fallback)", error);
           });
-        }
-      } catch (error) {
-        logger.error("Error loading enhanced context asynchronously", {
-          businessId: currentBusinessConfig?.businessId,
-          error,
-        });
-      }
-    };
-
-    // Handle Twilio start event to extract business parameters
-    const handleStartEvent = async (data: { event: string; start?: { customParameters?: Record<string, string>; streamSid?: string } }) => {
-      if (data.event === "start") {
-        const customParameters = data.start?.customParameters || {};
-        businessId = customParameters.businessId || null;
-        businessName = customParameters.businessName || null;
-        const twilioCallSid = customParameters.twilioCallSid || null;
-        callerNumber = customParameters.callerNumber || null;
-
-        logger.info("Extracted parameters from Twilio start event:", {
-          businessId,
-          businessName,
-          twilioCallSid,
-          callerNumber,
-          streamSid: data.start?.streamSid,
-        });
-
-        // Fetch business configuration quickly (single DB query)
-        if (businessId) {
-          try {
-            currentBusinessConfig = await getBusinessConfigById(businessId);
-            logger.info("Business config loaded for immediate session setup:", {
-              businessId,
-              configFound: !!currentBusinessConfig,
-              businessName: currentBusinessConfig?.businessName,
-            });
-
-            // Configure session immediately if OpenAI WebSocket is ready
-            if (openAiWs.readyState === WebSocket.OPEN) {
-              await configureInitialSession();
+      } else {
+        // Use first message approach
+        getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
+          .then((businessMemories) => {
+            const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
+            
+            let minimalInstructions;
+            
+            if (hasCustomerContext) {
+              minimalInstructions = [
+                "You are a voice AI receptionist. Speak naturally and conversationally.",
+                "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
+                "",
+                businessMemories
+              ].join("\n");
+            } else {
+              minimalInstructions = [
+                "You are a voice AI receptionist. Speak naturally and conversationally.",
+                "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${currentBusinessConfig?.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+              ].join("\n");
             }
 
-            // Create call record and start recording
-            if (currentBusinessConfig) {
-              await createCallRecord(
-                currentBusinessConfig,
-                twilioCallSid || undefined,
-                callerNumber || undefined
-              );
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                type: "realtime",
+                output_modalities: ["audio"],
+                audio: {
+                  input: {
+                    format: { type: "audio/pcmu" },
+                    turn_detection: enableServerVAD
+                      ? {
+                          type: turnDetection,
+                          threshold: 0.4,
+                          prefix_padding_ms: 300,
+                          silence_duration_ms: 800,
+                        }
+                      : null,
+                  },
+                  output: {
+                    format: { type: "audio/pcmu" },
+                    voice: voice,
+                  },
+                },
+                instructions: minimalInstructions,
+              },
+            };
 
-              if (twilioCallSid) {
-                setTimeout(async () => {
-                  await startCallRecording(twilioCallSid);
-                }, 3000);
-              }
-            }
-          } catch (error) {
-            logger.error("Error fetching business config in start event:", {
-              businessId,
-              error,
-            });
-          }
-        }
+            openAiWs.send(JSON.stringify(sessionUpdate));
+            logger.info("Session configured with first message approach (fallback)");
+          })
+          .catch((error) => {
+            logger.error("Error configuring session (fallback)", error);
+          });
       }
     };
 
     // OpenAI WebSocket handlers
-    openAiWs.on("open", async () => {
+    openAiWs.on("open", () => {
       logger.info("Connected to OpenAI Realtime API");
+
+      // Store reference for use in handleStartEvent
+      (ws as WebSocket & { openAiSessionConfigured?: boolean; openAiWs?: WebSocket }).openAiSessionConfigured = false;
+      (ws as WebSocket & { openAiSessionConfigured?: boolean; openAiWs?: WebSocket }).openAiWs = openAiWs;
       
-      // Configure session immediately if we have business config
+      // If we have business config but session wasn't configured yet, configure it now
       if (currentBusinessConfig && !sessionConfigured) {
-        await configureInitialSession();
+        logger.info("OpenAI WebSocket ready - configuring session now");
+        configureSessionNow();
+      } else {
+        logger.info("OpenAI WebSocket connected - session will be configured in handleStartEvent");
       }
     });
 
@@ -756,18 +1051,98 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       try {
         const response = JSON.parse(data.toString());
 
+        // Check for errors
         if (response.type === "error") {
           logger.error("OpenAI ERROR:", response);
         }
 
-        if (response.type === "session.created" || response.type === "session.updated") {
+        // Check session status
+        if (
+          response.type === "session.created" ||
+          response.type === "session.updated"
+        ) {
           logger.info("Session status:", response.type);
+        }
+
+        // If session was updated and we have a first message, the AI should deliver it automatically
+        // from the minimal instructions we provided. We may need to inject additional business memories after.
+        if (
+          response.type === "session.updated" &&
+          currentBusinessConfig?.firstMessage &&
+          !currentBusinessConfig.memoriesInjected // Only inject once
+        ) {
+          logger.info("Session updated, AI will deliver first message from instructions");
+
+          // Mark that we're about to inject memories to prevent duplicate injections
+          currentBusinessConfig.memoriesInjected = true;
+
+          // After a delay, check if we need to inject additional business memories
+          setTimeout(() => {
+            if (openAiWs.readyState === WebSocket.OPEN && currentBusinessConfig) {
+              const businessConfig = currentBusinessConfig; // Store reference to avoid null checks
+              getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
+                .then((businessMemories) => {
+                  // Check if customer context is present (existing customer)
+                  const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
+                  
+                  if (hasCustomerContext) {
+                    // For existing customers, memories are already included in initial instructions
+                    // No need to inject additional memories
+                    logger.info("Existing customer - memories already included in initial instructions", {
+                      businessId: businessConfig.businessId,
+                      callerNumber: callerNumber || "Unknown"
+                    });
+                    
+                    // For existing customers, the AI should start speaking automatically
+                    // based on the personalized instructions already configured
+                    logger.info("AI should start speaking automatically with personalized greeting");
+                  } else if (businessMemories) {
+                    // For new customers, inject business memories for future responses
+                    const sessionUpdate = {
+                      type: "session.update",
+                      session: {
+                        type: "realtime",
+                        output_modalities: ["audio"],
+                        audio: {
+                          input: {
+                            format: { type: "audio/pcmu" },
+                            turn_detection: businessConfig.enableServerVAD
+                              ? {
+                                  type: businessConfig.turnDetection,
+                                  threshold: 0.4,
+                                  prefix_padding_ms: 300,
+                                  silence_duration_ms: 800,
+                                }
+                              : null,
+                          },
+                          output: {
+                            format: { type: "audio/pcmu" },
+                            voice: businessConfig.voice,
+                          },
+                        },
+                        instructions: businessConfig.systemMessage + businessMemories,
+                      },
+                    };
+
+                    openAiWs.send(JSON.stringify(sessionUpdate));
+                    logger.info("Business memories injected once after first message for new customer", {
+                      businessId: businessConfig.businessId,
+                      memoriesLength: businessMemories.length,
+                    });
+                  }
+                })
+                .catch((error) => {
+                  logger.error("Error checking business memories after first message", error);
+                });
+            }
+          }, 1000); // Wait 1 second for first message to be delivered
         }
 
         if (LOG_EVENT_TYPES.includes(response.type)) {
           logger.info(`OpenAI event: ${response.type}`);
         }
 
+        // Enhanced error logging
         if (response.type === "error") {
           logger.error("OpenAI Realtime API error:", {
             error: response.error,
@@ -777,6 +1152,19 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
             param: response.error?.param,
             full_response: response,
           });
+
+          // Handle specific error types
+          if (response.error?.code === "cannot_update_voice") {
+            logger.warn("Voice update error - session may already be configured", {
+              sessionConfigured,
+              businessId: currentBusinessConfig?.businessId,
+            });
+          } else if (response.error?.code === "invalid_value" && 
+                     response.error?.message?.includes("Audio content")) {
+            logger.warn("Audio truncation error - skipping truncation", {
+              message: response.error.message,
+            });
+          }
         }
 
         if (response.type === "response.output_audio.delta" && response.delta) {
@@ -814,10 +1202,12 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
 
         switch (data.event) {
           case "start":
+            // Handle start event to get businessId from customParameters
             await handleStartEvent(data);
             streamSid = data.start?.streamSid || null;
             logger.info("Stream started:", {
               streamSid,
+              customParameters: data.start?.customParameters,
             });
             responseStartTimestampTwilio = null;
             latestMediaTimestamp = 0;
