@@ -26,26 +26,38 @@ export class WebSocketConnectionService {
       throw new Error("OpenAI API key not configured");
     }
 
-    logger.info("Using OpenAI API key:", {
+    logger.info("Initializing OpenAI WebSocket connection:", {
       keyPrefix: OPENAI_API_KEY.substring(0, 7) + "...",
       keyLength: OPENAI_API_KEY.length,
+      businessId: businessConfig.businessId,
+      callerNumber: callerNumber || "Unknown",
+      environment: process.env.NODE_ENV,
     });
 
-    this.openAiWs = new WebSocket(
-      "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
-      {
-        headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      }
-    );
+    try {
+      this.openAiWs = new WebSocket(
+        "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
+        {
+          headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+        }
+      );
 
-    this.messageHandlers = new MessageHandlers(
-      this.openAiWs,
-      null as any, // Will be set when Twilio connection is established
-      this.stateService,
-      this.sessionConfigService
-    );
+      this.messageHandlers = new MessageHandlers(
+        this.openAiWs,
+        null as any, // Will be set when Twilio connection is established
+        this.stateService,
+        this.sessionConfigService
+      );
 
-    this.setupOpenAIEventHandlers(businessConfig, callerNumber);
+      this.setupOpenAIEventHandlers(businessConfig, callerNumber);
+    } catch (error) {
+      logger.error("Failed to initialize OpenAI WebSocket connection:", {
+        error: error instanceof Error ? error.message : String(error),
+        businessId: businessConfig.businessId,
+        callerNumber: callerNumber || "Unknown",
+      });
+      throw error;
+    }
   }
 
   /**
@@ -93,14 +105,26 @@ export class WebSocketConnectionService {
     if (!this.openAiWs) return;
 
     this.openAiWs.on("open", () => {
-      logger.info("Connected to OpenAI Realtime API");
+      logger.info("Connected to OpenAI Realtime API", {
+        businessId: businessConfig.businessId,
+        callerNumber: callerNumber || "Unknown",
+        environment: process.env.NODE_ENV,
+      });
       this.configureSessionForFirstMessage(businessConfig, callerNumber);
     });
 
     this.openAiWs.on("message", (data) => {
-      if (this.messageHandlers) {
-        const buffer = data instanceof Buffer ? data : Buffer.from(data as ArrayBuffer);
-        this.messageHandlers.handleOpenAIMessage(buffer);
+      try {
+        if (this.messageHandlers) {
+          const buffer = data instanceof Buffer ? data : Buffer.from(data as ArrayBuffer);
+          this.messageHandlers.handleOpenAIMessage(buffer);
+        }
+      } catch (error) {
+        logger.error("Error handling OpenAI message:", {
+          error: error instanceof Error ? error.message : String(error),
+          businessId: businessConfig.businessId,
+          dataSize: data instanceof Buffer ? data.length : (data as ArrayBuffer).byteLength,
+        });
       }
     });
 
@@ -109,15 +133,20 @@ export class WebSocketConnectionService {
         code,
         reason: reason.toString(),
         timestamp: new Date().toISOString(),
+        businessId: businessConfig.businessId,
+        callerNumber: callerNumber || "Unknown",
+        environment: process.env.NODE_ENV,
       });
     });
 
     this.openAiWs.on("error", (error) => {
-      logger.error("OpenAI WebSocket error:", error);
-      logger.error("Error details:", {
-        message: error.message,
-        stack: error.stack,
+      logger.error("OpenAI WebSocket error:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         code: (error as Error & { code?: string }).code,
+        businessId: businessConfig.businessId,
+        callerNumber: callerNumber || "Unknown",
+        environment: process.env.NODE_ENV,
       });
     });
   }

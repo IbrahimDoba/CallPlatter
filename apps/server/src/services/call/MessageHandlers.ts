@@ -76,6 +76,13 @@ export class MessageHandlers {
         streamSid?: string;
       };
 
+      logger.debug("Received Twilio message:", {
+        event: data.event,
+        streamSid: data.streamSid || data.start?.streamSid,
+        hasMedia: !!data.media,
+        messageSize: message.length,
+      });
+
       switch (data.event) {
         case "start":
           await this.handleStartEvent(data);
@@ -89,9 +96,15 @@ export class MessageHandlers {
         case "stop":
           this.handleStopEvent();
           break;
+        default:
+          logger.warn("Unknown Twilio event type:", { event: data.event });
       }
     } catch (error) {
-      logger.error("Error parsing Twilio message:", error);
+      logger.error("Error parsing Twilio message:", {
+        error: error instanceof Error ? error.message : String(error),
+        messageSize: message.length,
+        messagePreview: message.toString().substring(0, 200),
+      });
     }
   }
 
@@ -130,11 +143,31 @@ export class MessageHandlers {
       this.stateService.set("latestMediaTimestamp", data.media.timestamp);
       
       if (this.openAiWs.readyState === WebSocket.OPEN) {
-        const audioAppend = {
-          type: "input_audio_buffer.append",
-          audio: data.media.payload,
-        };
-        this.openAiWs.send(JSON.stringify(audioAppend));
+        try {
+          const audioAppend = {
+            type: "input_audio_buffer.append",
+            audio: data.media.payload,
+          };
+          this.openAiWs.send(JSON.stringify(audioAppend));
+          
+          logger.debug("Sent audio to OpenAI:", {
+            timestamp: data.media.timestamp,
+            payloadSize: data.media.payload.length,
+            openAiReady: this.openAiWs.readyState === WebSocket.OPEN,
+          });
+        } catch (error) {
+          logger.error("Error sending audio to OpenAI:", {
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: data.media.timestamp,
+            payloadSize: data.media.payload.length,
+            openAiReady: this.openAiWs.readyState === WebSocket.OPEN,
+          });
+        }
+      } else {
+        logger.warn("OpenAI WebSocket not ready for audio:", {
+          readyState: this.openAiWs.readyState,
+          timestamp: data.media.timestamp,
+        });
       }
     }
   }
@@ -160,23 +193,45 @@ export class MessageHandlers {
   private handleAudioDelta(response: any): void {
     const state = this.stateService.getState();
     
-    const audioDelta = {
-      event: "media",
-      streamSid: state.streamSid,
-      media: { payload: response.delta },
-    };
-    
-    this.twilioWs.send(JSON.stringify(audioDelta));
+    try {
+      const audioDelta = {
+        event: "media",
+        streamSid: state.streamSid,
+        media: { payload: response.delta },
+      };
+      
+      if (this.twilioWs.readyState === WebSocket.OPEN) {
+        this.twilioWs.send(JSON.stringify(audioDelta));
+        
+        logger.debug("Sent audio delta to Twilio:", {
+          streamSid: state.streamSid,
+          deltaSize: response.delta.length,
+          itemId: response.item_id,
+        });
+      } else {
+        logger.warn("Twilio WebSocket not ready for audio delta:", {
+          readyState: this.twilioWs.readyState,
+          streamSid: state.streamSid,
+        });
+      }
 
-    if (!state.responseStartTimestampTwilio) {
-      this.stateService.set("responseStartTimestampTwilio", state.latestMediaTimestamp);
+      if (!state.responseStartTimestampTwilio) {
+        this.stateService.set("responseStartTimestampTwilio", state.latestMediaTimestamp);
+      }
+
+      if (response.item_id) {
+        this.stateService.set("lastAssistantItem", response.item_id);
+      }
+
+      this.sendMark();
+    } catch (error) {
+      logger.error("Error handling audio delta:", {
+        error: error instanceof Error ? error.message : String(error),
+        streamSid: state.streamSid,
+        deltaSize: response.delta?.length,
+        itemId: response.item_id,
+      });
     }
-
-    if (response.item_id) {
-      this.stateService.set("lastAssistantItem", response.item_id);
-    }
-
-    this.sendMark();
   }
 
   /**

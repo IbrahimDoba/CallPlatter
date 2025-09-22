@@ -48,14 +48,16 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
       temperature: businessConfig.temperature,
     });
 
-    // Use the base WebSocket URL without query parameters
-    const host = req.headers.host;
-    const protocol = req.secure || req.headers["x-forwarded-proto"] === "https" ? "wss" : "ws";
-    const websocketUrl = `${protocol}://${host}/api/openai-realtime/media-stream`;
+    // Use the improved WebSocket URL construction
+    const { constructWebSocketUrl } = await import("../utils/helpers.js");
+    const websocketUrl = constructWebSocketUrl(req);
 
     logger.info("Constructed WebSocket URL:", {
-      host,
-      protocol,
+      host: req.headers.host,
+      forwardedHost: req.headers['x-forwarded-host'],
+      forwardedProto: req.headers['x-forwarded-proto'],
+      secure: req.secure,
+      baseUrl: process.env.BASE_URL,
       businessId: businessConfig.businessId,
       websocketUrl,
     });
