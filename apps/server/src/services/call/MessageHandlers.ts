@@ -8,7 +8,7 @@ import { lookupCallerContext } from "../callLookupService";
 export class MessageHandlers {
   constructor(
     private openAiWs: WebSocket,
-    private twilioWs: WebSocket,
+    private twilioWs: WebSocket | null,
     private stateService: CallStateService,
     private sessionConfigService: SessionConfigService
   ) {}
@@ -76,12 +76,6 @@ export class MessageHandlers {
         streamSid?: string;
       };
 
-      logger.debug("Received Twilio message:", {
-        event: data.event,
-        streamSid: data.streamSid || data.start?.streamSid,
-        hasMedia: !!data.media,
-        messageSize: message.length,
-      });
 
       switch (data.event) {
         case "start":
@@ -150,11 +144,6 @@ export class MessageHandlers {
           };
           this.openAiWs.send(JSON.stringify(audioAppend));
           
-          logger.debug("Sent audio to OpenAI:", {
-            timestamp: data.media.timestamp,
-            payloadSize: data.media.payload.length,
-            openAiReady: this.openAiWs.readyState === WebSocket.OPEN,
-          });
         } catch (error) {
           logger.error("Error sending audio to OpenAI:", {
             error: error instanceof Error ? error.message : String(error),
@@ -200,17 +189,11 @@ export class MessageHandlers {
         media: { payload: response.delta },
       };
       
-      if (this.twilioWs.readyState === WebSocket.OPEN) {
+      if (this.twilioWs && this.twilioWs.readyState === WebSocket.OPEN) {
         this.twilioWs.send(JSON.stringify(audioDelta));
-        
-        logger.debug("Sent audio delta to Twilio:", {
-          streamSid: state.streamSid,
-          deltaSize: response.delta.length,
-          itemId: response.item_id,
-        });
       } else {
         logger.warn("Twilio WebSocket not ready for audio delta:", {
-          readyState: this.twilioWs.readyState,
+          readyState: this.twilioWs?.readyState,
           streamSid: state.streamSid,
         });
       }
@@ -262,12 +245,14 @@ export class MessageHandlers {
         }
       }
 
-      this.twilioWs.send(
-        JSON.stringify({
-          event: "clear",
-          streamSid: state.streamSid,
-        })
-      );
+      if (this.twilioWs && this.twilioWs.readyState === WebSocket.OPEN) {
+        this.twilioWs.send(
+          JSON.stringify({
+            event: "clear",
+            streamSid: state.streamSid,
+          })
+        );
+      }
 
       this.stateService.clearMarkQueue();
       this.stateService.set("lastAssistantItem", null);
@@ -288,13 +273,16 @@ export class MessageHandlers {
         mark: { name: "responsePart" },
       };
       
-      this.twilioWs.send(JSON.stringify(markEvent));
-      this.stateService.addToMarkQueue("responsePart");
+      if (this.twilioWs && this.twilioWs.readyState === WebSocket.OPEN) {
+        this.twilioWs.send(JSON.stringify(markEvent));
+        this.stateService.addToMarkQueue("responsePart");
+      }
     }
   }
 
   /**
    * Handle session update for first message delivery
+   * NOTE: Customer lookup is now handled in WebSocketConnectionService to avoid duplicates
    */
   private async handleSessionUpdate(): Promise<void> {
     const state = this.stateService.getState();
@@ -304,40 +292,8 @@ export class MessageHandlers {
     // Mark memories as injected to prevent duplicate processing
     this.stateService.markMemoriesInjected();
 
-    // After a delay, check if we need to inject additional business memories
-    setTimeout(async () => {
-      if (this.openAiWs.readyState === WebSocket.OPEN && state.businessId) {
-        try {
-          const callContext = await lookupCallerContext(state.businessId, state.callerNumber || "");
-          const businessMemories = callContext.contextInstructions || "";
-          
-          // Check if customer context is present (existing customer)
-          const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
-          
-          if (hasCustomerContext) {
-            // For existing customers, memories are already included in initial instructions
-            logger.info("Existing customer - memories already included in initial instructions", {
-              businessId: state.businessId,
-              callerNumber: state.callerNumber || "Unknown"
-            });
-          } else if (businessMemories) {
-            // For new customers, inject business memories for future responses
-            const sessionUpdate = this.sessionConfigService.buildFullSessionConfig(
-              { systemMessage: "", voice: "", enableServerVAD: true, turnDetection: "server_vad" } as any,
-              businessMemories
-            );
-
-            this.openAiWs.send(JSON.stringify(sessionUpdate));
-            logger.info("Business memories injected once after first message for new customer", {
-              businessId: state.businessId,
-              memoriesLength: businessMemories.length,
-            });
-          }
-        } catch (error) {
-          logger.error("Error checking business memories after first message", error);
-        }
-      }
-    }, 3000);
+    // Customer lookup is now handled in WebSocketConnectionService
+    // No need to do duplicate lookup here
   }
 
   /**

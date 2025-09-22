@@ -19,7 +19,7 @@ export class WebSocketConnectionService {
   /**
    * Initialize OpenAI WebSocket connection
    */
-  async initializeOpenAIConnection(businessConfig: BusinessConfig, callerNumber?: string): Promise<void> {
+  async initializeOpenAIConnection(businessConfig: BusinessConfig, callerNumber?: string, customerLookupPromise?: Promise<any>): Promise<void> {
     const { OPENAI_API_KEY } = process.env;
     if (!OPENAI_API_KEY) {
       logger.error("Missing OpenAI API key");
@@ -44,12 +44,12 @@ export class WebSocketConnectionService {
 
       this.messageHandlers = new MessageHandlers(
         this.openAiWs,
-        null as any, // Will be set when Twilio connection is established
+        null, // Will be set when Twilio connection is established
         this.stateService,
         this.sessionConfigService
       );
 
-      this.setupOpenAIEventHandlers(businessConfig, callerNumber);
+      this.setupOpenAIEventHandlers(businessConfig, callerNumber, customerLookupPromise);
     } catch (error) {
       logger.error("Failed to initialize OpenAI WebSocket connection:", {
         error: error instanceof Error ? error.message : String(error),
@@ -73,35 +73,95 @@ export class WebSocketConnectionService {
   /**
    * Configure session for first message delivery
    */
-  async configureSessionForFirstMessage(businessConfig: BusinessConfig, callerNumber?: string): Promise<void> {
+  async configureSessionForFirstMessage(businessConfig: BusinessConfig, callerNumber?: string, customerLookupPromise?: Promise<any>): Promise<void> {
     if (!this.openAiWs || this.openAiWs.readyState !== WebSocket.OPEN) {
       logger.warn("OpenAI WebSocket not ready for session configuration");
       return;
     }
 
     try {
-      const { config, isExistingCustomer } = await this.sessionConfigService.buildAppropriateSessionConfig(
-        businessConfig,
-        callerNumber
-      );
-
-      this.openAiWs.send(JSON.stringify(config));
+      // If we have a customer lookup promise, wait for it to complete before configuring session
+      if (customerLookupPromise) {
+        const callContext = await customerLookupPromise;
+        
+        if (callContext.isExistingCustomer && callContext.contextInstructions) {
+          // Use personalized greeting for existing customer
+          const personalizedConfig = this.sessionConfigService.buildSessionConfigWithCustomerContext(
+            businessConfig,
+            callContext.contextInstructions
+          );
+          this.openAiWs.send(JSON.stringify(personalizedConfig));
+          
+          logger.info("Session configured with personalized greeting", {
+            businessId: businessConfig.businessId,
+            customerName: callContext.customer?.name
+          });
+        } else {
+          // Use minimal config for new customer
+          const minimalConfig = this.sessionConfigService.buildMinimalSessionConfig(businessConfig);
+          this.openAiWs.send(JSON.stringify(minimalConfig));
+          
+          logger.info("Session configured with minimal config for new customer", {
+            businessId: businessConfig.businessId
+          });
+        }
+      } else if (callerNumber) {
+        // Fallback to doing lookup now
+        const callContext = await this.lookupCustomerContext(businessConfig.businessId, callerNumber);
+        
+        if (callContext.isExistingCustomer && callContext.contextInstructions) {
+          const personalizedConfig = this.sessionConfigService.buildSessionConfigWithCustomerContext(
+            businessConfig,
+            callContext.contextInstructions
+          );
+          this.openAiWs.send(JSON.stringify(personalizedConfig));
+          
+          logger.info("Session configured with personalized greeting (fallback)", {
+            businessId: businessConfig.businessId,
+            customerName: callContext.customer?.name
+          });
+        } else {
+          const minimalConfig = this.sessionConfigService.buildMinimalSessionConfig(businessConfig);
+          this.openAiWs.send(JSON.stringify(minimalConfig));
+          
+          logger.info("Session configured with minimal config (fallback)", {
+            businessId: businessConfig.businessId
+          });
+        }
+      } else {
+        // No caller number, use minimal config
+        const minimalConfig = this.sessionConfigService.buildMinimalSessionConfig(businessConfig);
+        this.openAiWs.send(JSON.stringify(minimalConfig));
+        
+        logger.info("Session configured with minimal config (no caller)", {
+          businessId: businessConfig.businessId
+        });
+      }
+      
       this.stateService.markSessionConfigured();
-
-      logger.info("Session configured for first message delivery", {
-        businessId: businessConfig.businessId,
-        isExistingCustomer,
-        greetingType: isExistingCustomer ? "personalized" : "business_first_message"
-      });
     } catch (error) {
       logger.error("Error configuring session for first message", error);
     }
   }
 
   /**
+   * Helper method to lookup customer context
+   */
+  private async lookupCustomerContext(businessId: string, callerNumber: string): Promise<any> {
+    try {
+      const { lookupCallerContext } = await import("../callLookupService.js");
+      return await lookupCallerContext(businessId, callerNumber);
+    } catch (error) {
+      logger.error("Error looking up customer context", { businessId, callerNumber, error });
+      return { isExistingCustomer: false };
+    }
+  }
+
+
+  /**
    * Setup OpenAI event handlers
    */
-  private setupOpenAIEventHandlers(businessConfig: BusinessConfig, callerNumber?: string): void {
+  private setupOpenAIEventHandlers(businessConfig: BusinessConfig, callerNumber?: string, customerLookupPromise?: Promise<any>): void {
     if (!this.openAiWs) return;
 
     this.openAiWs.on("open", () => {
@@ -110,7 +170,7 @@ export class WebSocketConnectionService {
         callerNumber: callerNumber || "Unknown",
         environment: process.env.NODE_ENV,
       });
-      this.configureSessionForFirstMessage(businessConfig, callerNumber);
+      this.configureSessionForFirstMessage(businessConfig, callerNumber, customerLookupPromise);
     });
 
     this.openAiWs.on("message", (data) => {
