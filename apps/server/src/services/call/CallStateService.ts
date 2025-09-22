@@ -58,7 +58,6 @@ export class CallStateService {
    */
   set<K extends keyof CallState>(key: K, value: CallState[K]): void {
     this.state[key] = value;
-    logger.debug("Call state property updated", { key, value });
   }
 
   /**

@@ -37,11 +37,13 @@ export class SessionConfigService {
   /**
    * Build personalized instructions for existing customers
    */
-  buildPersonalizedInstructions(customerContext: string): string {
+  buildPersonalizedInstructions(businessSystemMessage: string, customerContext: string): string {
     return [
       "You are a voice AI receptionist. Speak naturally and conversationally.",
       "Keep responses brief (1-2 sentences) but don't sound robotic.",
       "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+      businessSystemMessage, // Include full business context
+      "",
       "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
       "",
       customerContext
@@ -164,5 +166,81 @@ export class SessionConfigService {
       
       return { config, isExistingCustomer: false };
     }
+  }
+
+  /**
+   * Build minimal session config (for immediate setup)
+   */
+  buildMinimalSessionConfig(businessConfig: BusinessConfig): SessionConfig {
+    const voice = businessConfig.voice || "alloy";
+    const enableServerVAD = businessConfig.enableServerVAD ?? true;
+    const turnDetection = businessConfig.turnDetection || "server_vad";
+    
+    const instructions = businessConfig.firstMessage 
+      ? this.buildMinimalInstructions(businessConfig.firstMessage)
+      : "You are a voice AI receptionist. Speak naturally and conversationally.";
+    
+    return {
+      type: "session.update",
+      session: {
+        type: "realtime",
+        output_modalities: ["audio"],
+        audio: {
+          input: {
+            format: { type: "audio/pcmu" },
+            turn_detection: enableServerVAD
+              ? {
+                  type: turnDetection,
+                  threshold: 0.4,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 800,
+                }
+              : null,
+          },
+          output: {
+            format: { type: "audio/pcmu" },
+            voice: voice,
+          },
+        },
+        instructions: instructions,
+      },
+    };
+  }
+
+  /**
+   * Build session config with customer context (for updates)
+   */
+  buildSessionConfigWithCustomerContext(businessConfig: BusinessConfig, customerContext: string): SessionConfig {
+    const voice = businessConfig.voice || "alloy";
+    const enableServerVAD = businessConfig.enableServerVAD ?? true;
+    const turnDetection = businessConfig.turnDetection || "server_vad";
+    
+    const instructions = this.buildPersonalizedInstructions(businessConfig.systemMessage, customerContext);
+    
+    return {
+      type: "session.update",
+      session: {
+        type: "realtime",
+        output_modalities: ["audio"],
+        audio: {
+          input: {
+            format: { type: "audio/pcmu" },
+            turn_detection: enableServerVAD
+              ? {
+                  type: turnDetection,
+                  threshold: 0.4,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 800,
+                }
+              : null,
+          },
+          output: {
+            format: { type: "audio/pcmu" },
+            voice: voice,
+          },
+        },
+        instructions: instructions,
+      },
+    };
   }
 }

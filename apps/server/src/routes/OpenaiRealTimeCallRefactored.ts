@@ -39,28 +39,11 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
                 </Response>`);
     }
 
-    logger.info("Incoming call for business", {
-      calledNumber,
-      callerNumber,
-      businessId: businessConfig.businessId,
-      businessName: businessConfig.businessName,
-      voice: businessConfig.voice,
-      temperature: businessConfig.temperature,
-    });
 
     // Use the improved WebSocket URL construction
     const { constructWebSocketUrl } = await import("../utils/helpers.js");
     const websocketUrl = constructWebSocketUrl(req);
 
-    logger.info("Constructed WebSocket URL:", {
-      host: req.headers.host,
-      forwardedHost: req.headers['x-forwarded-host'],
-      forwardedProto: req.headers['x-forwarded-proto'],
-      secure: req.secure,
-      baseUrl: process.env.BASE_URL,
-      businessId: businessConfig.businessId,
-      websocketUrl,
-    });
 
     // Pass businessId and caller info via Twilio's customParameters
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
@@ -75,12 +58,6 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
                 </Connect>
             </Response>`;
 
-    logger.info("Sending TwiML response with custom parameters:", {
-      businessId: businessConfig.businessId,
-      businessName: businessConfig.businessName,
-      websocketUrl,
-      twimlLength: twimlResponse.length,
-    });
 
     res.type("text/xml").send(twimlResponse);
   } catch (error) {
@@ -101,15 +78,6 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
   });
 
   wss.on("connection", async (ws: WebSocket, req) => {
-    logger.info("OpenAI Realtime client connected", {
-      url: req.url,
-      headers: {
-        host: req.headers.host,
-        origin: req.headers.origin,
-        "user-agent": req.headers["user-agent"],
-      },
-      method: req.method,
-    });
 
     // Initialize services
     const stateService = new CallStateService();
@@ -121,9 +89,6 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       recordingService,
       sessionConfigService
     );
-
-    // Setup Twilio connection
-    connectionService.setupTwilioConnection(ws);
 
     // Handle Twilio messages
     ws.on("message", async (message) => {
@@ -137,7 +102,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
 
         switch (data.event) {
           case "start":
-            await handleStartEvent(data, stateService, businessConfigService, recordingService, connectionService);
+            await handleStartEvent(data, stateService, businessConfigService, recordingService, connectionService, ws);
             break;
           case "media":
             const buffer = message instanceof Buffer ? message : Buffer.from(message as ArrayBuffer);
@@ -159,7 +124,6 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
     ws.on("close", () => {
       connectionService.closeConnections();
       handleStopEvent(stateService, recordingService);
-      logger.info("Client disconnected");
     });
   });
 
@@ -174,7 +138,8 @@ async function handleStartEvent(
   stateService: CallStateService,
   businessConfigService: BusinessConfigService,
   recordingService: CallRecordingService,
-  connectionService: WebSocketConnectionService
+  connectionService: WebSocketConnectionService,
+  ws: WebSocket
 ): Promise<void> {
   const customParameters = data.start?.customParameters || {};
   const businessId = customParameters.businessId || null;
@@ -189,14 +154,6 @@ async function handleStartEvent(
     streamSid: data.start?.streamSid || null,
   });
 
-  logger.info("Extracted parameters from Twilio start event:", {
-    businessId,
-    businessName,
-    twilioCallSid,
-    callerNumber,
-    customParameters,
-    streamSid: data.start?.streamSid,
-  });
 
   if (!businessId) {
     logger.warn("No businessId found in customParameters");
@@ -211,14 +168,25 @@ async function handleStartEvent(
       return;
     }
 
-    logger.info("Business config fetch result:", {
-      businessId,
-      configFound: !!businessConfig,
-      businessName: businessConfig.businessName,
-    });
+    // Start parallel customer lookup immediately (non-blocking)
+    let customerLookupPromise: Promise<any> | undefined = undefined;
+    if (callerNumber && businessId) {
+      const { lookupCallerContext } = await import("../services/callLookupService.js");
+      customerLookupPromise = lookupCallerContext(businessId, callerNumber)
+        .then((result) => {
+          return result;
+        })
+        .catch((error) => {
+          logger.error("Parallel customer lookup failed", { businessId, callerPhoneNumber: callerNumber, error });
+          return { isExistingCustomer: false };
+        });
+    }
 
     // Initialize OpenAI connection
-    await connectionService.initializeOpenAIConnection(businessConfig, callerNumber);
+    await connectionService.initializeOpenAIConnection(businessConfig, callerNumber, customerLookupPromise);
+    
+    // Setup Twilio connection after MessageHandlers is created
+    connectionService.setupTwilioConnection(ws);
 
     // Create call record
     const callId = await recordingService.createCallRecord(
