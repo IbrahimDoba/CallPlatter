@@ -17,7 +17,10 @@ export function validateEnvironment(): void {
 
   const optionalEnvVars = [
     'UPLOADTHING_SECRET',
-    'UPLOADTHING_APP_ID'
+    'UPLOADTHING_APP_ID',
+    'BASE_URL',
+    'TWILIO_ACCOUNT_SID',
+    'TWILIO_AUTH_TOKEN'
   ];
 
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -30,6 +33,12 @@ export function validateEnvironment(): void {
   const missingOptional = optionalEnvVars.filter(varName => !process.env[varName]);
   if (missingOptional.length > 0) {
     console.warn(`Missing optional environment variables: ${missingOptional.join(', ')}`);
+    if (missingOptional.includes('BASE_URL')) {
+      console.warn('BASE_URL not set - WebSocket URLs may not work correctly in production');
+    }
+    if (missingOptional.includes('TWILIO_ACCOUNT_SID') || missingOptional.includes('TWILIO_AUTH_TOKEN')) {
+      console.warn('Twilio credentials missing - call recording may not work');
+    }
     console.warn('UploadThing functionality may not work without these variables');
   }
 }
@@ -71,4 +80,28 @@ export function getAudioMimeType(format: string): string {
   };
   
   return mimeTypes[format.toLowerCase()] || 'audio/webm';
+}
+
+/**
+ * Construct WebSocket URL for production environments
+ * Handles proxy headers and SSL termination properly
+ */
+export function constructWebSocketUrl(req: { headers: Record<string, string | string[] | undefined>; secure?: boolean }, path: string = '/api/openai-realtime/media-stream'): string {
+  // In production, prefer BASE_URL if set
+  if (process.env.BASE_URL) {
+    const baseUrl = process.env.BASE_URL.replace(/^http/, 'ws');
+    return `${baseUrl}${path}`;
+  }
+
+  // Fallback to dynamic construction with better proxy support
+  const host = req.headers.host;
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const forwardedHost = req.headers['x-forwarded-host'];
+  const isSecure = req.secure || forwardedProto === 'https';
+  
+  // Use forwarded host if available (common in production)
+  const finalHost = forwardedHost || host;
+  const protocol = isSecure ? 'wss' : 'ws';
+  
+  return `${protocol}://${finalHost}${path}`;
 }
