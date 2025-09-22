@@ -136,7 +136,7 @@ export class SessionConfigService {
       
       if (hasCustomerContext) {
         // Existing customer - use personalized greeting
-        const instructions = this.buildPersonalizedInstructions(businessMemories);
+        const instructions = this.buildPersonalizedInstructions(businessConfig.systemMessage, businessMemories);
         const config = this.buildFirstMessageSessionConfig(businessConfig, instructions);
         
         logger.info("Using personalized greeting for existing customer", {
