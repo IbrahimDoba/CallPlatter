@@ -21,7 +21,7 @@ import { db } from "@repo/db";
 
 import openaiRealtimeRoutes, {
   setupOpenAIRealtimeWebSocket,
-} from "./routes/OpenaiRealTimeCallRefactored";
+} from "./routes/OpenaiRealTimeCall";
 import uploadthingRoutes from "./routes/uploadthing";
 import embeddingsRoutes from "./routes/embeddings";
 import pineconeRoutes from "./routes/pinecone";

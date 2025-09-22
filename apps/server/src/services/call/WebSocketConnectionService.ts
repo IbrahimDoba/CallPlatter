@@ -80,29 +80,30 @@ export class WebSocketConnectionService {
     }
 
     try {
-      // If we have a customer lookup promise, wait for it to complete before configuring session
+      // Send minimal session configuration immediately to get AI speaking
+      const minimalConfig = this.sessionConfigService.buildMinimalSessionConfig(businessConfig);
+      this.openAiWs.send(JSON.stringify(minimalConfig));
+      this.stateService.markSessionConfigured();
+      
+      logger.info("Session configured with minimal config", {
+        businessId: businessConfig.businessId
+      });
+
+      // Then update with customer context if available
       if (customerLookupPromise) {
         const callContext = await customerLookupPromise;
         
         if (callContext.isExistingCustomer && callContext.contextInstructions) {
-          // Use personalized greeting for existing customer
+          // Update with personalized greeting for existing customer
           const personalizedConfig = this.sessionConfigService.buildSessionConfigWithCustomerContext(
             businessConfig,
             callContext.contextInstructions
           );
           this.openAiWs.send(JSON.stringify(personalizedConfig));
           
-          logger.info("Session configured with personalized greeting", {
+          logger.info("Session updated with personalized greeting", {
             businessId: businessConfig.businessId,
             customerName: callContext.customer?.name
-          });
-        } else {
-          // Use minimal config for new customer
-          const minimalConfig = this.sessionConfigService.buildMinimalSessionConfig(businessConfig);
-          this.openAiWs.send(JSON.stringify(minimalConfig));
-          
-          logger.info("Session configured with minimal config for new customer", {
-            businessId: businessConfig.businessId
           });
         }
       } else if (callerNumber) {
@@ -116,29 +117,12 @@ export class WebSocketConnectionService {
           );
           this.openAiWs.send(JSON.stringify(personalizedConfig));
           
-          logger.info("Session configured with personalized greeting (fallback)", {
+          logger.info("Session updated with personalized greeting (fallback)", {
             businessId: businessConfig.businessId,
             customerName: callContext.customer?.name
           });
-        } else {
-          const minimalConfig = this.sessionConfigService.buildMinimalSessionConfig(businessConfig);
-          this.openAiWs.send(JSON.stringify(minimalConfig));
-          
-          logger.info("Session configured with minimal config (fallback)", {
-            businessId: businessConfig.businessId
-          });
         }
-      } else {
-        // No caller number, use minimal config
-        const minimalConfig = this.sessionConfigService.buildMinimalSessionConfig(businessConfig);
-        this.openAiWs.send(JSON.stringify(minimalConfig));
-        
-        logger.info("Session configured with minimal config (no caller)", {
-          businessId: businessConfig.businessId
-        });
       }
-      
-      this.stateService.markSessionConfigured();
     } catch (error) {
       logger.error("Error configuring session for first message", error);
     }
