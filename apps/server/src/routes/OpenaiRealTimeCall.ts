@@ -646,25 +646,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                 });
                 
                 // Trigger AI to start speaking immediately after session configuration
-                if (hasCustomerContext) {
-                  if (openAiWs && openAiWs.readyState === WebSocket.OPEN) {
-                    const conversationItem = {
-                      type: "conversation.item.create",
-                      item: {
-                        type: "message",
-                        role: "user",
-                        content: [
-                          {
-                            type: "input_text",
-                            text: "Start the call"
-                          }
-                        ]
-                      }
-                    };
-                    openAiWs.send(JSON.stringify(conversationItem));
-                    logger.info("Triggered AI to start speaking for existing customer");
-                  }
-                }
+                triggerAI("start_event_with_first_message");
               })
               .catch((error) => {
                 logger.error("Error determining greeting approach (s  tart event)", error);
@@ -708,6 +690,9 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                     openAiWs.send(JSON.stringify(retrySessionUpdate));
                     sessionConfigured = true;
                     logger.info("Retry session configuration sent (greeting approach)");
+                    
+                    // Trigger AI to start speaking for retry configuration
+                    triggerAI("retry_configuration");
                   }
                 }, 1000);
               });
@@ -749,6 +734,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
     let markQueue: string[] = [];
     let responseStartTimestampTwilio: number | null = null;
     let sessionConfigured = false;
+    let aiTriggered = false; // Prevent multiple AI triggers
 
     // Call recording state
     let callId: string | null = null;
@@ -917,6 +903,46 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       }
     };
 
+    // Centralized function to trigger AI (prevents overlaps)
+    const triggerAI = (context: string) => {
+      if (aiTriggered || !openAiWs || openAiWs.readyState !== WebSocket.OPEN) {
+        logger.info("AI trigger skipped", { 
+          context, 
+          aiTriggered, 
+          openAiWsReady: openAiWs?.readyState === WebSocket.OPEN 
+        });
+        return;
+      }
+
+      aiTriggered = true;
+      
+      const conversationItem = {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: "Start the call"
+            }
+          ]
+        }
+      };
+      
+      const responseCreate = {
+        type: "response.create"
+      };
+      
+      openAiWs.send(JSON.stringify(conversationItem));
+      openAiWs.send(JSON.stringify(responseCreate));
+      
+      logger.info("AI triggered successfully", {
+        context,
+        businessId: currentBusinessConfig?.businessId
+      });
+    };
+
     // Function to configure session when OpenAI WebSocket becomes ready
     const configureSessionNow = () => {
       if (!currentBusinessConfig || sessionConfigured || openAiWs.readyState !== WebSocket.OPEN) {
@@ -965,6 +991,9 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
             };
             openAiWs.send(JSON.stringify(sessionUpdate));
             logger.info("Session configured with business memories (fallback)");
+            
+            // Trigger AI to start speaking for business memories configuration
+            triggerAI("business_memories_configuration");
           })
           .catch((error) => {
             logger.error("Error configuring session (fallback)", error);
@@ -1023,6 +1052,9 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
 
             openAiWs.send(JSON.stringify(sessionUpdate));
             logger.info("Session configured with first message approach (fallback)");
+            
+            // Trigger AI to start speaking for fallback configuration
+            triggerAI("fallback_configuration");
           })
           .catch((error) => {
             logger.error("Error configuring session (fallback)", error);
