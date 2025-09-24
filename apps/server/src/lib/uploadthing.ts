@@ -2,6 +2,12 @@
 
 import { createUploadthing, type FileRouter } from "uploadthing/server";
 import { logger } from "../utils/logger";
+import crypto from "node:crypto";
+
+// Polyfill for Node.js < 20
+if (!globalThis.crypto) {
+  (globalThis as any).crypto = crypto;
+}
 
 const f = createUploadthing();
 
@@ -33,15 +39,13 @@ export async function uploadWithUploadThingSDK(
   try {
     const { UTApi } = await import("uploadthing/server");
     
-    const token = process.env.UPLOADTHING_TOKEN;
+    const token = process.env.UPLOADTHING_SECRET;
     
     if (!token) {
-      throw new Error("Missing UPLOADTHING_TOKEN environment variable");
+      throw new Error("Missing UPLOADTHING_SECRET environment variable");
     }
     
-    const utapi = new UTApi({
-      token: token, // Use the token directly
-    });
+    const utapi = new UTApi(); // UTApi should automatically pick up UPLOADTHING_SECRET
     
     logger.info("Uploading with UploadThing SDK", {
       filename,
@@ -121,13 +125,13 @@ export async function uploadFileToUploadThing(
     });
 
     const { UTApi } = await import("uploadthing/server");
-    const token = process.env.UPLOADTHING_TOKEN;
+    const token = process.env.UPLOADTHING_SECRET;
     
     if (!token) {
-      throw new Error("Missing UPLOADTHING_TOKEN environment variable");
+      throw new Error("Missing UPLOADTHING_SECRET environment variable");
     }
     
-    const utapi = new UTApi({ token });
+    const utapi = new UTApi(); // UTApi should automatically pick up UPLOADTHING_SECRET
     
     // Create Blob-like object for Node.js compatibility
     const blob = new Blob([new Uint8Array(buffer)], { type: contentType });
