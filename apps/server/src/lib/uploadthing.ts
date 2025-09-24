@@ -49,8 +49,12 @@ export async function uploadWithUploadThingSDK(
       contentType
     });
 
-    // Create file from buffer - convert Buffer to Uint8Array for proper BlobPart compatibility
-    const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
+    // Create Blob-like object for Node.js compatibility
+    const blob = new Blob([new Uint8Array(buffer)], { type: contentType });
+    const file = Object.assign(blob, {
+      name: filename,
+      lastModified: Date.now()
+    });
     
     logger.info("Created file object for upload", {
       filename: file.name,
@@ -125,8 +129,12 @@ export async function uploadFileToUploadThing(
     
     const utapi = new UTApi({ token });
     
-    // Create file from buffer - convert Buffer to Uint8Array for proper BlobPart compatibility
-    const file = new File([new Uint8Array(buffer)], filename, { type: contentType });
+    // Create Blob-like object for Node.js compatibility
+    const blob = new Blob([new Uint8Array(buffer)], { type: contentType });
+    const file = Object.assign(blob, {
+      name: filename,
+      lastModified: Date.now()
+    });
     
     // Use the SDK method as fallback since direct API is more complex
     const response = await utapi.uploadFiles(file);
