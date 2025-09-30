@@ -1,4 +1,4 @@
-import { NextAuthOptions } from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { db } from "@repo/db";
@@ -12,8 +12,9 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      businessId: string;
+      businessId: string | null;
       role: string;
+      onboardingCompleted: boolean;
     }
   }
   
@@ -21,15 +22,17 @@ declare module "next-auth" {
     id: string;
     email: string;
     name?: string | null;
-    businessId: string;
+    businessId: string | null;
     role: string;
+    onboardingCompleted: boolean;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    businessId: string;
+    businessId: string | null;
     role: string;
+    onboardingCompleted: boolean;
   }
 }
 
@@ -57,7 +60,7 @@ export const authOptions: NextAuthOptions = {
           }
         });
 
-        if (!user || !user.businessId) {
+        if (!user) {
           return null;
         }
 
@@ -72,8 +75,9 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           name: user.name,
-          businessId: user.businessId,
+          businessId: user.businessId || null,
           role: user.role,
+          onboardingCompleted: user.onboardingCompleted || false,
         };
       }
     })
@@ -86,14 +90,33 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.businessId = user.businessId;
         token.role = user.role;
+        token.onboardingCompleted = user.onboardingCompleted;
       }
+      
+      // Always fetch fresh data from database to ensure we have the latest values
+      if (token.sub) {
+        const freshUser = await db.user.findUnique({
+          where: { id: token.sub },
+          select: {
+            businessId: true,
+            onboardingCompleted: true,
+          }
+        });
+        
+        if (freshUser) {
+          token.businessId = freshUser.businessId;
+          token.onboardingCompleted = freshUser.onboardingCompleted ?? false;
+        }
+      }
+      
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.businessId = token.businessId;
         session.user.role = token.role;
-        session.user.id = token.sub!;
+        session.user.onboardingCompleted = token.onboardingCompleted;
+        session.user.id = token.sub || '';
       }
       return session;
     }

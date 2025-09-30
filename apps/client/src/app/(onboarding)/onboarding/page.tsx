@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { OnboardingStepper } from "./components/OnboardingStepper";
 import { BusinessDetailsStep } from "./components/BusinessDetailsStep";
 import { VoiceSelectionStep } from "./components/VoiceSelectionStep";
@@ -11,6 +12,7 @@ export interface OnboardingData {
   businessName: string;
   businessDescription: string;
   selectedVoice: string;
+  selectedAccent: string;
   greeting: string;
   recordingConsent: boolean;
   selectedPhoneNumber: string;
@@ -25,10 +27,12 @@ const STEPS = [
 
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({
     businessName: "",
     businessDescription: "",
     selectedVoice: "",
+    selectedAccent: "",
     greeting: "",
     recordingConsent: false,
     selectedPhoneNumber: "",
@@ -46,10 +50,36 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleFinish = () => {
-    // Handle onboarding completion
-    console.log("Onboarding completed:", onboardingData);
-    // Redirect to dashboard or next step
+  const handleFinish = async () => {
+    console.log('Onboarding - Final data being sent:', onboardingData);
+    setIsCompleting(true);
+    try {
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(onboardingData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to complete onboarding');
+      }
+
+      // Show success toast and redirect
+      toast.success('Onboarding completed successfully! Redirecting to your dashboard...');
+      
+      // Small delay to ensure session is updated, then redirect
+      setTimeout(() => {
+        window.location.href = '/calls';
+      }, 1000);
+    } catch (error) {
+      console.error('Onboarding completion error:', error);
+      toast.error('Failed to complete onboarding. Please try again.');
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const updateData = (updates: Partial<OnboardingData>) => {
@@ -91,6 +121,7 @@ export default function OnboardingPage() {
             onUpdate={updateData}
             onFinish={handleFinish}
             onBack={handleBack}
+            isCompleting={isCompleting}
           />
         );
       default:

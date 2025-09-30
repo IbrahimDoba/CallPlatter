@@ -51,12 +51,12 @@ export default function Footer() {
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     API
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Integrations
                   </a>
                 </li>
@@ -67,22 +67,22 @@ export default function Footer() {
               <h4 className="font-medium text-white">Support</h4>
               <ul className="space-y-2">
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Help Center
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Contact Us
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Documentation
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Status
                   </a>
                 </li>
@@ -98,17 +98,17 @@ export default function Footer() {
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Blog
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Careers
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">
+                  <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors">
                     Privacy Policy
                   </a>
                 </li>

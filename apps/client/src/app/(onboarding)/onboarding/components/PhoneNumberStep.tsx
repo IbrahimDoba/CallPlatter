@@ -4,58 +4,72 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { OnboardingData } from "../page";
+import type { OnboardingData } from "../page";
 
 interface PhoneNumberStepProps {
   data: OnboardingData;
   onUpdate: (updates: Partial<OnboardingData>) => void;
   onFinish: () => void;
   onBack: () => void;
+  isCompleting?: boolean;
 }
 
 // Mock data - in real implementation, this would come from an API
 const AVAILABLE_NUMBERS = [
   {
     id: "1",
-    number: "+1 (555) 123-4567",
+    displayNumber: "+1 (734) 415-6557",
+    cleanNumber: "+17344156557",
     location: "New York, NY",
-    areaCode: "555"
+    areaCode: "734"
   },
   {
     id: "2", 
-    number: "+1 (555) 234-5678",
+    displayNumber: "+1 (555) 234-5678",
+    cleanNumber: "+15552345678",
     location: "Los Angeles, CA",
     areaCode: "555"
   },
   {
     id: "3",
-    number: "+1 (555) 345-6789", 
+    displayNumber: "+1 (555) 345-6789", 
+    cleanNumber: "+15553456789",
     location: "Chicago, IL",
     areaCode: "555"
   },
   {
     id: "4",
-    number: "+1 (555) 456-7890",
+    displayNumber: "+1 (555) 456-7890",
+    cleanNumber: "+15554567890",
     location: "Houston, TX", 
     areaCode: "555"
   },
   {
     id: "5",
-    number: "+1 (555) 567-8901",
+    displayNumber: "+1 (555) 567-8901",
+    cleanNumber: "+15555678901",
     location: "Phoenix, AZ",
     areaCode: "555"
   }
 ];
 
-export function PhoneNumberStep({ data, onUpdate, onFinish, onBack }: PhoneNumberStepProps) {
+export function PhoneNumberStep({ data, onUpdate, onFinish, onBack, isCompleting = false }: PhoneNumberStepProps) {
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(data.selectedPhoneNumber);
 
   const handleFinish = () => {
-    onUpdate({ selectedPhoneNumber });
+    // Find the selected phone number and get its clean format
+    const selectedPhone = AVAILABLE_NUMBERS.find(phone => phone.id === selectedPhoneNumber);
+    const cleanPhoneNumber = selectedPhone?.cleanNumber || selectedPhoneNumber;
+    
+    console.log('PhoneNumberStep - Selected phone ID:', selectedPhoneNumber);
+    console.log('PhoneNumberStep - Selected phone object:', selectedPhone);
+    console.log('PhoneNumberStep - Clean phone number:', cleanPhoneNumber);
+    
+    onUpdate({ selectedPhoneNumber: cleanPhoneNumber });
     onFinish();
   };
 
-  const isFormValid = selectedPhoneNumber !== "";
+  const isFormValid = selectedPhoneNumber !== "" && selectedPhoneNumber !== undefined;
 
   return (
     <div className="space-y-6">
@@ -79,7 +93,7 @@ export function PhoneNumberStep({ data, onUpdate, onFinish, onBack }: PhoneNumbe
               {AVAILABLE_NUMBERS.map((phone) => (
                 <SelectItem key={phone.id} value={phone.id}>
                   <div className="flex flex-col">
-                    <span className="font-medium">{phone.number}</span>
+                    <span className="font-medium">{phone.displayNumber}</span>
                     <span className="text-sm text-gray-500">{phone.location}</span>
                   </div>
                 </SelectItem>
@@ -101,10 +115,10 @@ export function PhoneNumberStep({ data, onUpdate, onFinish, onBack }: PhoneNumbe
               </div>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-blue-800">
-                  Selected Number
+                  Select Number
                 </h3>
                 <div className="mt-1 text-sm text-blue-700">
-                  {AVAILABLE_NUMBERS.find(p => p.id === selectedPhoneNumber)?.number}
+                  {AVAILABLE_NUMBERS.find(p => p.id === selectedPhoneNumber)?.displayNumber}
                 </div>
               </div>
             </div>
@@ -122,10 +136,10 @@ export function PhoneNumberStep({ data, onUpdate, onFinish, onBack }: PhoneNumbe
         </Button>
         <Button
           onClick={handleFinish}
-          disabled={!isFormValid}
+          disabled={!isFormValid || isCompleting}
           className="px-8"
         >
-          Finish Setup
+          {isCompleting ? "Completing Setup..." : "Finish Setup"}
         </Button>
       </div>
     </div>

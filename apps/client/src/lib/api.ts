@@ -31,7 +31,7 @@ export async function apiRequest(
     headers['Authorization'] = `Bearer ${session.user.id}`; // Using user ID as token for now
     headers['x-user-id'] = session.user.id;
     headers['x-user-email'] = session.user.email || '';
-    headers['x-user-business-id'] = session.user.businessId;
+    headers['x-user-business-id'] = session.user.businessId || '';
     headers['x-user-role'] = session.user.role;
     headers['x-user-name'] = session.user.name || '';
   }
