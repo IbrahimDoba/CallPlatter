@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { siteConfig } from "@/lib/siteConfig";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,8 +23,48 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "DailZero - AI Receptionist SaaS",
-  description: "AI-powered receptionist that answers missed calls, books appointments, and manages your business communications 24/7. Perfect for Nigerian businesses.",
+  title: {
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  keywords: [
+    "AI receptionist",
+    "Nigerian AI",
+    "automated phone calls",
+    "appointment booking",
+    "business automation",
+    "call center AI",
+    "Nigerian accent AI",
+    "24/7 receptionist",
+    "CRM integration",
+    "call analytics",
+    "business communication",
+    "Nigerian business solutions",
+  ],
+  openGraph: {
+    type: "website",
+    locale: "en_NG",
+    url: siteConfig.url,
+    title: siteConfig.name,
+    description: siteConfig.description,
+    siteName: siteConfig.name,
+    images: [
+      {
+        url: siteConfig.ogImage,
+        width: 1200,
+        height: 630,
+        alt: siteConfig.name,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.name,
+    description: siteConfig.description,
+    images: [siteConfig.ogImage],
+    creator: siteConfig.links.twitter,
+  },
 };
 
 export default function RootLayout({
@@ -34,16 +76,21 @@ export default function RootLayout({
     <html lang="en" className={`${poppins.variable}`}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link 
-          href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" 
-          rel="stylesheet" 
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+          rel="stylesheet"
         />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
+          <Analytics />
           {children}
         </Providers>
       </body>
