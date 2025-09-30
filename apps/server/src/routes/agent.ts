@@ -10,6 +10,7 @@ const agentConfigSchema = z.object({
   firstMessage: z.string().optional().nullable(),
   systemPrompt: z.string().optional().nullable(),
   voice: z.string().optional().nullable(),
+  accent: z.string().optional().nullable(),
   responseModel: z.string().optional().nullable(),
   transcriptionModel: z.string().optional().nullable(),
   enableServerVAD: z.boolean().optional().nullable(),
@@ -87,6 +88,7 @@ router.post("/config", async (req: SessionAuthenticatedRequest, res) => {
       firstMessage: body.firstMessage,
       systemPrompt: body.systemPrompt,
       voice: body.voice ?? undefined,
+      accent: body.accent ?? undefined, // TODO: Uncomment after running database migration
       responseModel: body.responseModel ?? undefined,
       transcriptionModel: body.transcriptionModel ?? undefined,
       enableServerVAD: body.enableServerVAD ?? undefined,

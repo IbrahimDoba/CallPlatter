@@ -49,6 +49,7 @@ export default function AgentForm() {
   );
   const [systemPrompt, setSystemPrompt] = useState("");
   const [voice, setVoice] = useState("alloy");
+  const [accent, setAccent] = useState("");
   const [responseModel, setResponseModel] = useState(
     "gpt-4o-realtime-preview-2024-12-17"
   );
@@ -87,6 +88,7 @@ export default function AgentForm() {
         setBusinessMemories(memories || []);
         setSystemPrompt(config.systemPrompt ?? "");
         setVoice(config.voice ?? "alloy");
+        setAccent(config.accent ?? "");
         setResponseModel(
           config.responseModel ?? "gpt-4o-realtime-preview-2024-12-17"
         );
@@ -150,6 +152,7 @@ export default function AgentForm() {
         firstMessage: firstMessage || null,
         systemPrompt: systemPrompt || null,
         voice: voice || null,
+        accent: accent || null,
         responseModel: responseModel || null,
         transcriptionModel: transcriptionModel || null,
         enableServerVAD,
@@ -251,7 +254,7 @@ export default function AgentForm() {
         sage: "zyra-sage",
         coral: "cortana-coral",
         ballad: "silver-ballad",
-        alloy: "james-alloy",
+        alloy: "James-alloy",
       };
 
       const fileName = voiceFileMap[voice];
@@ -477,7 +480,21 @@ export default function AgentForm() {
                       Play Voice
                     </Button>
                   </div>
-                 
+                  
+                  <div className="space-y-4 mt-6">
+                    <Label htmlFor="accent" className="text-lg font-medium">
+                      Select Accent
+                    </Label>
+                    <Select value={accent} onValueChange={setAccent}>
+                      <SelectTrigger className="h-12 text-lg">
+                        <SelectValue placeholder="Select an accent" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="american">American</SelectItem>
+                        <SelectItem value="nigerian">Nigerian</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </CardContent>

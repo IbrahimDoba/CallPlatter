@@ -47,6 +47,7 @@ export default function Header() {
     { name: "Features", href: "#features", onClick: () => scrollToSection('features') },
     { name: "Pricing", href: "#pricing", onClick: () => scrollToSection('pricing') },
     { name: "Testimonials", href: "#testimonials", onClick: () => scrollToSection('testimonials') },
+    { name: "Contact", href: "/contact", onClick: null },
   ];
 
   return (
@@ -79,8 +80,8 @@ export default function Header() {
                 key={item.name}
                 href={item.href}
                 onClick={(e) => {
-                  e.preventDefault();
                   if (item.onClick) {
+                    e.preventDefault();
                     item.onClick();
                   }
                 }}
@@ -120,11 +121,11 @@ export default function Header() {
                       href={item.href}
                       className="text-lg text-white/80 hover:text-white transition-colors"
                       onClick={(e) => {
-                        e.preventDefault();
-                        setIsMobileMenuOpen(false);
                         if (item.onClick) {
+                          e.preventDefault();
                           item.onClick();
                         }
+                        setIsMobileMenuOpen(false);
                       }}
                     >
                       {item.name}

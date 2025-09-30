@@ -7,6 +7,7 @@ import { db } from "@repo/db";
 import { instructions } from "@/utils/instructions";
 import twilio from "twilio";
 import { lookupCallerContext } from "../services/callLookupService";
+import { getAccentInstructions } from "../utils/accentInstructions";
 
 const router: Router = Router();
 
@@ -14,6 +15,7 @@ const DEFAULT_VOICE = "alloy";
 const DEFAULT_TEMPERATURE = 0.6;
 const DEFAULT_SYSTEM_MESSAGE =
   "You are a helpful and bubbly AI assistant who loves to chat about anything the user is interested about and is prepared to offer them facts. You have a penchant for dad jokes, owl jokes, and rickrolling – subtly. Always stay positive, but work in a joke when appropriate.";
+
 
 const LOG_EVENT_TYPES = [
   "error",
@@ -29,6 +31,7 @@ interface BusinessConfig {
   businessId: string;
   businessName: string;
   voice: string;
+  accent?: string;
   temperature: number;
   systemMessage: string;
   firstMessage?: string;
@@ -82,6 +85,18 @@ async function getBusinessConfig(
 
     const sessionInstructions = [...instructions];
 
+    // Add accent instructions if accent is specified - PUT THIS FIRST FOR MAXIMUM IMPACT
+    if (aiConfig.accent) {
+      const accentInstructions = getAccentInstructions(aiConfig.accent);
+      // Insert accent instructions at the beginning for maximum impact
+      sessionInstructions.unshift(accentInstructions);
+      logger.info("Added accent instructions to session", {
+        businessId: business.id,
+        accent: aiConfig.accent,
+        instructionsLength: accentInstructions.length
+      });
+    }
+
     if (aiConfig.systemPrompt) {
       sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
     }
@@ -112,12 +127,21 @@ async function getBusinessConfig(
       );
     }
 
+    const finalSystemMessage = sessionInstructions.join("\n");
+    logger.info("Final system message constructed (getBusinessConfig)", {
+      businessId: business.id,
+      accent: aiConfig.accent,
+      systemMessageLength: finalSystemMessage.length,
+      hasAccentInstructions: finalSystemMessage.includes("Accent/Affect:")
+    });
+
     return {
       businessId: business.id,
       businessName: business.name,
       voice: aiConfig.voice || DEFAULT_VOICE,
+      accent: aiConfig.accent || undefined,
       temperature: aiConfig.temperature || DEFAULT_TEMPERATURE,
-      systemMessage: sessionInstructions.join("\n"),
+      systemMessage: finalSystemMessage,
       firstMessage: aiConfig.firstMessage || undefined,
       goodbyeMessage: aiConfig.goodbyeMessage || undefined,
       enableServerVAD: aiConfig.enableServerVAD,
@@ -223,6 +247,18 @@ async function getBusinessConfigById(
 
     const sessionInstructions = [...instructions];
 
+    // Add accent instructions if accent is specified - PUT THIS FIRST FOR MAXIMUM IMPACT
+    if (aiConfig.accent) {
+      const accentInstructions = getAccentInstructions(aiConfig.accent);
+      // Insert accent instructions at the beginning for maximum impact
+      sessionInstructions.unshift(accentInstructions);
+      logger.info("Added accent instructions to session (getBusinessConfigById)", {
+        businessId: business.id,
+        accent: aiConfig.accent,
+        instructionsLength: accentInstructions.length
+      });
+    }
+
     if (aiConfig.systemPrompt) {
       sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
     }
@@ -253,12 +289,21 @@ async function getBusinessConfigById(
       );
     }
 
+    const finalSystemMessage = sessionInstructions.join("\n");
+    logger.info("Final system message constructed", {
+      businessId: business.id,
+      accent: aiConfig.accent,
+      systemMessageLength: finalSystemMessage.length,
+      hasAccentInstructions: finalSystemMessage.includes("Accent/Affect:")
+    });
+
     return {
       businessId: business.id,
       businessName: business.name,
       voice: aiConfig.voice || DEFAULT_VOICE,
+      accent: aiConfig.accent || undefined,
       temperature: aiConfig.temperature || DEFAULT_TEMPERATURE,
-      systemMessage: sessionInstructions.join("\n"),
+      systemMessage: finalSystemMessage,
       firstMessage: aiConfig.firstMessage || undefined,
       goodbyeMessage: aiConfig.goodbyeMessage || undefined,
       enableServerVAD: aiConfig.enableServerVAD,
@@ -499,7 +544,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
             // Fetch business memories and customer context, then append to system message
             getBusinessMemories(businessConfig.businessId, callerNumber || undefined)
               .then((businessMemories) => {
-                const fullSystemMessage = systemMessage + businessMemories;
+                const fullSystemMessage = businessConfig.systemMessage + businessMemories;
 
                 const sessionUpdate = {
                   type: "session.update",
@@ -578,18 +623,20 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                 // Check if customer context is present (existing customer)
                 const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
                 
-                let minimalInstructions;
+                let minimalInstructions: string;
                 
                 if (hasCustomerContext) {
                   // For existing customers, use customer context instructions for personalized greeting
+                  const accentInstructions = businessConfig.accent ? getAccentInstructions(businessConfig.accent) : "";
                   minimalInstructions = [
+                    accentInstructions, // Add accent instructions first
                     "You are a voice AI receptionist. Speak naturally and conversationally.",
                     "Keep responses brief (1-2 sentences) but don't sound robotic.",
                     "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
                     "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
                     "",
                     businessMemories // This includes the customer context with personalized greeting instructions
-                  ].join("\n");
+                  ].filter(Boolean).join("\n");
                   
                   logger.info("Using personalized greeting for existing customer (start event)", {
                     businessId: businessConfig.businessId,
@@ -597,12 +644,14 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                   });
                 } else {
                   // For new customers, use the business first message
+                  const accentInstructions = businessConfig.accent ? getAccentInstructions(businessConfig.accent) : "";
                   minimalInstructions = [
+                    accentInstructions, // Add accent instructions first
                     "You are a voice AI receptionist. Speak naturally and conversationally.",
                     "Keep responses brief (1-2 sentences) but don't sound robotic.",
                     "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
                     `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${businessConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
-                  ].join("\n");
+                  ].filter(Boolean).join("\n");
                   
                   logger.info("Using business first message for new customer (start event)", {
                     businessId: businessConfig.businessId,
@@ -953,7 +1002,6 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       sessionConfigured = true;
       
       const voice = currentBusinessConfig.voice || DEFAULT_VOICE;
-      const systemMessage = currentBusinessConfig.systemMessage || DEFAULT_SYSTEM_MESSAGE;
       const enableServerVAD = currentBusinessConfig.enableServerVAD ?? true;
       const turnDetection = currentBusinessConfig.turnDetection || "server_vad";
 
@@ -963,7 +1011,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
         // Fetch business memories and customer context
         getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
           .then((businessMemories) => {
-            const fullSystemMessage = systemMessage + businessMemories;
+            const fullSystemMessage = (currentBusinessConfig?.systemMessage || DEFAULT_SYSTEM_MESSAGE) + businessMemories;
             const sessionUpdate = {
               type: "session.update",
               session: {
@@ -1004,24 +1052,28 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
           .then((businessMemories) => {
             const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
             
-            let minimalInstructions;
+            let minimalInstructions: string;
+            
+            const accentInstructions = currentBusinessConfig?.accent ? getAccentInstructions(currentBusinessConfig.accent) : "";
             
             if (hasCustomerContext) {
               minimalInstructions = [
+                accentInstructions, // Add accent instructions first
                 "You are a voice AI receptionist. Speak naturally and conversationally.",
                 "Keep responses brief (1-2 sentences) but don't sound robotic.",
                 "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
                 "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
                 "",
                 businessMemories
-              ].join("\n");
+              ].filter(Boolean).join("\n");
             } else {
               minimalInstructions = [
+                accentInstructions, // Add accent instructions first
                 "You are a voice AI receptionist. Speak naturally and conversationally.",
                 "Keep responses brief (1-2 sentences) but don't sound robotic.",
                 "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
                 `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${currentBusinessConfig?.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
-              ].join("\n");
+              ].filter(Boolean).join("\n");
             }
 
             const sessionUpdate = {

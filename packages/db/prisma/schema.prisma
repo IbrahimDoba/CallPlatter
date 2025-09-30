@@ -8,16 +8,17 @@ datasource db {
 }
 
 model User {
-  id         String    @id @default(cuid())
-  email      String    @unique
-  name       String?
-  password   String
-  role       String    @default("USER")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  businessId String?
-  sessions   Session[]
-  business   Business? @relation(fields: [businessId], references: [id])
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  name                  String?
+  password              String
+  role                  String    @default("USER")
+  onboardingCompleted   Boolean?   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  businessId            String?
+  sessions              Session[]
+  business              Business? @relation(fields: [businessId], references: [id])
 
   @@map("users")
 }
@@ -138,6 +139,7 @@ model AIAgentConfig {
   goodbyeMessage     String?
   systemPrompt       String?
   voice              String   @default("alloy")
+  accent             String?  // Optional accent for AI agent
   responseModel      String   @default("gpt-4o-realtime-preview-2024-12-17")
   transcriptionModel String   @default("whisper-1")
   enableServerVAD    Boolean  @default(true)
