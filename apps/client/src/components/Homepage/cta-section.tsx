@@ -25,12 +25,12 @@ export default function CTASection() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
-            <Link href="/signup">
+            <Link href="/waitlist">
               <Button
                 size="lg"
                 className="bg-white text-blue-600 hover:bg-gray-100 text-xl font-bold px-12 py-5 shadow-lg transform hover:scale-105 transition-all"
               >
-                Start Your Free Trial
+                Join the Waitlist
               </Button>
             </Link>
             <Link href="/contact">
@@ -39,12 +39,12 @@ export default function CTASection() {
                 variant="outline"
                 className="border-2 border-white text-white hover:bg-white hover:text-blue-600 text-xl font-bold px-12 py-5 transform hover:scale-105 transition-all bg-transparent"
               >
-                Schedule Demo
+                Learn More
               </Button>
             </Link>
           </div>
 
-          <p className="text-lg opacity-80">14-day free trial • No setup fees • Cancel anytime</p>
+          <p className="text-lg opacity-80">Early access • Exclusive pricing • Launch updates</p>
         </motion.div>
       </div>
     </section>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { OnboardingStepper } from "./components/OnboardingStepper";
 import { BusinessDetailsStep } from "./components/BusinessDetailsStep";
@@ -26,6 +28,8 @@ const STEPS = [
 ];
 
 export default function OnboardingPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [isCompleting, setIsCompleting] = useState(false);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({
@@ -37,6 +41,23 @@ export default function OnboardingPage() {
     recordingConsent: false,
     selectedPhoneNumber: "",
   });
+
+  // Check if user has already completed onboarding
+  useEffect(() => {
+    if (status === "loading") return; // Still loading session
+    
+    if (!session) {
+      // Not authenticated, redirect to waitlist
+      router.push("/waitlist");
+      return;
+    }
+    
+    if (session.user?.onboardingCompleted && session.user?.businessId) {
+      // Already completed onboarding, redirect to calls
+      router.push("/calls");
+      return;
+    }
+  }, [session, status, router]);
 
   const handleNext = () => {
     if (currentStep < STEPS.length) {
@@ -128,6 +149,27 @@ export default function OnboardingPage() {
         return null;
     }
   };
+
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg border border-gray-200 p-8">
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" />
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if user should be redirected
+  if (!session || (session.user?.onboardingCompleted && session.user?.businessId)) {
+    return null;
+  }
 
   return (
     <div className="max-w-4xl mx-auto">

@@ -90,17 +90,12 @@ export default function Header() {
                 {item.name}
               </a>
             ))}
-            <Link href="/signin">
-              <Button variant="ghost" size="sm" className="text-white/80 hover:text-white hover:bg-white/10">
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/signup">
+            <Link href="/waitlist">
               <Button 
                 size="sm"
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
               >
-                Get Started
+                Join Waitlist
               </Button>
             </Link>
           </div>
@@ -132,17 +127,12 @@ export default function Header() {
                     </a>
                   ))}
                   <div className="pt-4 border-t border-white/10">
-                    <Link href="/signin" className="block w-full mb-4">
-                      <Button variant="ghost" className="w-full justify-start text-white/80 hover:text-white hover:bg-white/10">
-                        Sign In
-                      </Button>
-                    </Link>
-                    <Link href="/signup" className="block w-full">
+                    <Link href="/waitlist" className="block w-full">
                       <Button 
                         className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
-                        Get Started
+                        Join Waitlist
                       </Button>
                     </Link>
                   </div>

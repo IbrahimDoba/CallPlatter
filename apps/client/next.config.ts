@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
         source: '/api/ai-receptionist/:path*',
         destination: 'http://localhost:3001/api/ai-receptionist/:path*',
       },
+      {
+        source: '/api/waitlist',
+        destination: 'http://localhost:3001/api/waitlist',
+      },
     ];
   },
 };

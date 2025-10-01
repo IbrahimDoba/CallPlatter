@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "DailZero",
   description: "AI-powered receptionist that answers missed calls and manages your business communications 24/7.",
   url: "https://dailzero.com",
-  ogImage: "https://dailzero.com/og-image.png",
+  ogImage: "/og-image.png",
   links: {
     twitter: "@Dobaibrahim",
   },

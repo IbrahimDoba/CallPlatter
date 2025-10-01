@@ -258,6 +258,9 @@ importers:
       openai:
         specifier: ^4.67.3
         version: 4.104.0(ws@8.18.3)(zod@3.25.76)
+      resend:
+        specifier: ^6.1.2
+        version: 6.1.2
       socket.io:
         specifier: ^4.7.4
         version: 4.8.1
@@ -2801,6 +2804,15 @@ packages:
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
+
+  resend@6.1.2:
+    resolution: {integrity: sha512-C9Q+YkRe57P8MQlkHG3yatSR/B6sqBGA06Ri2DveJfkz9Vm16182FC/iHB0K6IAfmqZ4yRrFebFw1EPuktLtSg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@react-email/render': '*'
+    peerDependenciesMeta:
+      '@react-email/render':
+        optional: true
 
   resolve-pkg-maps@1.0.0:
     resolution: {integrity: sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw==}
@@ -5583,6 +5595,8 @@ snapshots:
   recordrtc@5.6.2: {}
 
   require-from-string@2.0.2: {}
+
+  resend@6.1.2: {}
 
   resolve-pkg-maps@1.0.0: {}
 

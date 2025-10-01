@@ -523,7 +523,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
         
         if (businessConfig && !sessionConfigured && openAiWs.readyState === WebSocket.OPEN) {
           logger.info("Starting session configuration in handleStartEvent");
-          // Set sessionConfigured immediately to prevent race conditions
+          // Set sessionConfigured immediately to prevent race conditions with fallback
           sessionConfigured = true;
           const voice = businessConfig.voice || DEFAULT_VOICE;
           const systemMessage = businessConfig.systemMessage || DEFAULT_SYSTEM_MESSAGE;
@@ -1010,8 +1010,121 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
         return;
       }
 
-      logger.info("Session already configured in handleStartEvent - skipping duplicate configuration");
-      return;
+      logger.info("Configuring session now with business config (fallback)");
+      // Set sessionConfigured immediately to prevent race conditions
+      sessionConfigured = true;
+      
+      const voice = currentBusinessConfig.voice || DEFAULT_VOICE;
+      const enableServerVAD = currentBusinessConfig.enableServerVAD ?? true;
+      const turnDetection = currentBusinessConfig.turnDetection || "server_vad";
+
+      const shouldIncludeMemories = !currentBusinessConfig.firstMessage;
+      
+      if (shouldIncludeMemories) {
+        // Fetch business memories and customer context
+        getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
+          .then((businessMemories) => {
+            const fullSystemMessage = (currentBusinessConfig?.systemMessage || DEFAULT_SYSTEM_MESSAGE) + businessMemories;
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                type: "realtime",
+                output_modalities: ["audio"],
+                audio: {
+                  input: {
+                    format: { type: "audio/pcmu" },
+                    turn_detection: enableServerVAD
+                      ? {
+                          type: turnDetection,
+                          threshold: 0.4,
+                          prefix_padding_ms: 300,
+                          silence_duration_ms: 800,
+                        }
+                      : null,
+                  },
+                  output: {
+                    format: { type: "audio/pcmu" },
+                    voice: voice,
+                  },
+                },
+                instructions: fullSystemMessage,
+              },
+            };
+            openAiWs.send(JSON.stringify(sessionUpdate));
+            logger.info("Session configured with business memories (fallback)");
+            
+            // Trigger AI to start speaking for business memories configuration
+            triggerAI("business_memories_configuration");
+          })
+          .catch((error) => {
+            logger.error("Error configuring session (fallback)", error);
+          });
+      } else {
+        // Use first message approach
+        getBusinessMemories(currentBusinessConfig.businessId, callerNumber || undefined)
+          .then((businessMemories) => {
+            const hasCustomerContext = businessMemories.includes("CUSTOMER CONTEXT:");
+            
+            let minimalInstructions: string;
+            
+            const accentInstructions = currentBusinessConfig?.accent ? getAccentInstructions(currentBusinessConfig.accent) : "";
+            
+            if (hasCustomerContext) {
+              minimalInstructions = [
+                accentInstructions, // Add accent instructions first
+                "You are a voice AI receptionist. Speak naturally and conversationally.",
+                "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                "IMPORTANT: When the call starts, follow the customer context instructions below to greet the caller personally. Do not use any other greeting or start collecting information until after you've delivered the personalized greeting.",
+                "",
+                businessMemories
+              ].filter(Boolean).join("\n");
+            } else {
+              minimalInstructions = [
+                accentInstructions, // Add accent instructions first
+                "You are a voice AI receptionist. Speak naturally and conversationally.",
+                "Keep responses brief (1-2 sentences) but don't sound robotic.",
+                "CRITICAL: Stop speaking when interrupted. Never continue over the caller.",
+                `IMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${currentBusinessConfig?.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+              ].filter(Boolean).join("\n");
+            }
+
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                type: "realtime",
+                output_modalities: ["audio"],
+                audio: {
+                  input: {
+                    format: { type: "audio/pcmu" },
+                    turn_detection: enableServerVAD
+                      ? {
+                          type: turnDetection,
+                          threshold: 0.4,
+                          prefix_padding_ms: 300,
+                          silence_duration_ms: 800,
+                        }
+                      : null,
+                  },
+                  output: {
+                    format: { type: "audio/pcmu" },
+                    voice: voice,
+                  },
+                },
+                instructions: minimalInstructions,
+              },
+            };
+
+            openAiWs.send(JSON.stringify(sessionUpdate));
+            logger.info("Session configured with first message approach (fallback)");
+            
+            // Trigger AI to start speaking for fallback configuration
+            triggerAI("fallback_configuration");
+          })
+          .catch((error) => {
+            logger.error("Error configuring session (fallback)", error);
+          });
+      }
     };
 
     // OpenAI WebSocket handlers
@@ -1022,12 +1135,17 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
       (ws as WebSocket & { openAiSessionConfigured?: boolean; openAiWs?: WebSocket }).openAiSessionConfigured = false;
       (ws as WebSocket & { openAiSessionConfigured?: boolean; openAiWs?: WebSocket }).openAiWs = openAiWs;
       
-      // If we have business config but session wasn't configured yet, configure it now
+      // Only configure session if we have business config and session wasn't configured yet
+      // This prevents overlap with handleStartEvent
       if (currentBusinessConfig && !sessionConfigured) {
-        logger.info("OpenAI WebSocket ready - configuring session now");
+        logger.info("OpenAI WebSocket ready - configuring session now (fallback)");
         configureSessionNow();
       } else {
-        logger.info("OpenAI WebSocket connected - session will be configured in handleStartEvent");
+        logger.info("OpenAI WebSocket connected - session configuration status:", {
+          hasBusinessConfig: !!currentBusinessConfig,
+          sessionConfigured,
+          willConfigureInStartEvent: !sessionConfigured
+        });
       }
     });
 
