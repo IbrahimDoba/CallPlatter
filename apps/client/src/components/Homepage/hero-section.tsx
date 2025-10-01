@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PartyPopper, Zap } from "lucide-react";
+import { PartyPopper } from "lucide-react";
 import Link from "next/link";
 
 const fadeInUp = {
@@ -22,13 +22,22 @@ const staggerContainer = {
 
 export default function HeroSection() {
   return (
-    <main className="relative min-h-screen flex items-center justify-center overflow-hidden">
+    <main className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-900">
       {/* Background Image */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat m-0 p-0"
         style={{
           backgroundImage:
-            "url('https://images.unsplash.com/photo-1553877522-43269d4ea984?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80')",
+            "url('https://images.unsplash.com/photo-1519389950473-47ba0277781c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80')",
+          backgroundSize: "cover",
+          backgroundPosition: "center center",
+          backgroundRepeat: "no-repeat",
+          width: "100%",
+          height: "100%",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
         }}
       />
 
@@ -85,7 +94,7 @@ export default function HeroSection() {
             size="default"
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8 py-3 shadow-lg shadow-blue-500/25 transform hover:scale-105 transition-all"
           >
-            <Link href="/login">Start Free Trial</Link>
+            <Link href="/waitlist">Join Waitlist</Link>
           </Button>
           {/* <Button
             size="default"
@@ -102,7 +111,7 @@ export default function HeroSection() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.8 }}
         >
-          No credit card required • 14-day free trial
+          Early access • Exclusive pricing • Launch updates
         </motion.p>
       </div>
 
