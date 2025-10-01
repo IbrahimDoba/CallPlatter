@@ -115,10 +115,13 @@ export function PhoneNumberStep({ data, onUpdate, onFinish, onBack, isCompleting
               </div>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-blue-800">
-                  Select Number
+                  Selected Number
                 </h3>
                 <div className="mt-1 text-sm text-blue-700">
-                  {AVAILABLE_NUMBERS.find(p => p.id === selectedPhoneNumber)?.displayNumber}
+                  {AVAILABLE_NUMBERS.find(p => p.id === selectedPhoneNumber)?.displayNumber || selectedPhoneNumber}
+                </div>
+                <div className="mt-1 text-xs text-blue-600">
+                  {AVAILABLE_NUMBERS.find(p => p.id === selectedPhoneNumber)?.location}
                 </div>
               </div>
             </div>
