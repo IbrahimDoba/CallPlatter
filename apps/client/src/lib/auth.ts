@@ -1,5 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+import DiscordProvider from "next-auth/providers/discord";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { db } from "@repo/db";
 import bcrypt from "bcryptjs";
@@ -64,6 +66,11 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // Users created via OAuth will have no password
+        if (!user.password) {
+          return null;
+        }
+
         // Check password
         const isValidPassword = await bcrypt.compare(credentials.password, user.password);
 
@@ -80,6 +87,14 @@ export const authOptions: NextAuthOptions = {
           onboardingCompleted: user.onboardingCompleted || false,
         };
       }
+    }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    }),
+    DiscordProvider({
+      clientId: process.env.DISCORD_CLIENT_ID || "",
+      clientSecret: process.env.DISCORD_CLIENT_SECRET || "",
     })
   ],
   session: {
@@ -95,17 +110,24 @@ export const authOptions: NextAuthOptions = {
       
       // Always fetch fresh data from database to ensure we have the latest values
       if (token.sub) {
-        const freshUser = await db.user.findUnique({
-          where: { id: token.sub },
-          select: {
-            businessId: true,
-            onboardingCompleted: true,
+        try {
+          const freshUser = await db.user.findUnique({
+            where: { id: token.sub },
+            select: {
+              businessId: true,
+              onboardingCompleted: true,
+              role: true,
+            }
+          });
+          
+          if (freshUser) {
+            token.businessId = freshUser.businessId;
+            token.onboardingCompleted = freshUser.onboardingCompleted ?? false;
+            token.role = freshUser.role;
           }
-        });
-        
-        if (freshUser) {
-          token.businessId = freshUser.businessId;
-          token.onboardingCompleted = freshUser.onboardingCompleted ?? false;
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          // Continue with existing token data if database query fails
         }
       }
       

@@ -48,8 +48,7 @@ export default function AgentForm() {
     []
   );
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [voice, setVoice] = useState("alloy");
-  const [accent, setAccent] = useState("");
+  const [voice, setVoice] = useState("james");
   const [responseModel, setResponseModel] = useState(
     "gpt-4o-realtime-preview-2024-12-17"
   );
@@ -87,8 +86,7 @@ export default function AgentForm() {
         setFirstMessage(config.firstMessage ?? "");
         setBusinessMemories(memories || []);
         setSystemPrompt(config.systemPrompt ?? "");
-        setVoice(config.voice ?? "alloy");
-        setAccent(config.accent ?? "");
+        setVoice(config.voice ?? "james");
         setResponseModel(
           config.responseModel ?? "gpt-4o-realtime-preview-2024-12-17"
         );
@@ -116,12 +114,11 @@ export default function AgentForm() {
 
   // Auto-load when businessId is available once
   useEffect(() => {
-    console.log(
-      "Business ID changed:",
-      businessId,
-      "Has loaded once:",
+    console.log("Business ID check:", {
+      contextBusinessId: businessId,
       hasLoadedOnce
-    );
+    });
+    
     if (businessId && !hasLoadedOnce) {
       console.log("Loading agent config for the first time");
       loadAgentConfig();
@@ -131,7 +128,7 @@ export default function AgentForm() {
 
   const saveAgentConfig = async () => {
     if (!businessId) {
-      toast.error("Missing business ID");
+      toast.error("Missing business ID. Please complete onboarding first.");
       return;
     }
 
@@ -152,7 +149,6 @@ export default function AgentForm() {
         firstMessage: firstMessage || null,
         systemPrompt: systemPrompt || null,
         voice: voice || null,
-        accent: accent || null,
         responseModel: responseModel || null,
         transcriptionModel: transcriptionModel || null,
         enableServerVAD,
@@ -164,7 +160,23 @@ export default function AgentForm() {
       const response = await api.agent.saveConfig(configData);
 
       if (response.ok) {
-        toast.success("Agent config saved");
+        // If voice changed, update the ElevenLabs agent voice
+        if (voice) {
+          try {
+            await api.voice.update({ 
+              voice, 
+              voiceId: getElevenLabsVoiceId(voice), // Use actual ElevenLabs voice ID
+              voiceName: getVoiceName(voice) 
+            });
+            toast.success("Agent config and voice updated");
+          } catch (voiceError) {
+            console.error("Error updating voice:", voiceError);
+            toast.success("Agent config saved, but voice update failed");
+          }
+        } else {
+          toast.success("Agent config saved");
+        }
+        
         // Re-load from server to ensure UI reflects normalized values
         await loadAgentConfig();
       } else {
@@ -176,6 +188,30 @@ export default function AgentForm() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Helper function to get voice name from voice ID
+  const getVoiceName = (voiceId: string): string => {
+    const voiceMap: Record<string, string> = {
+      'james': 'James',
+      'peter': 'Peter', 
+      'hope': 'Hope',
+      'emmanuel': 'Emmanuel',
+      'stella': 'Stella'
+    };
+    return voiceMap[voiceId] || voiceId;
+  };
+
+  // Helper function to get ElevenLabs voice ID from voice name
+  const getElevenLabsVoiceId = (voiceName: string): string => {
+    const voiceIdMap: Record<string, string> = {
+      'james': 'Smxkoz0xiOoHo5WcSskf',
+      'peter': 'ChO6kqkVouUn0s7HMunx',
+      'hope': 'zGjIP4SZlMnY9m93k97r',
+      'emmanuel': '77aEIu0qStu8Jwv1EdhX',
+      'stella': '2vbhUP8zyKg4dEZaTWGn'
+    };
+    return voiceIdMap[voiceName] || voiceName;
   };
 
   // Business Memory Management Functions
@@ -241,6 +277,28 @@ export default function AgentForm() {
     setEditingMemory(null);
   };
 
+  const updateVoice = async (newVoice: string) => {
+    if (!businessId) {
+      toast.error("Missing business ID. Please complete onboarding first.");
+      return;
+    }
+
+    try {
+      await api.voice.update({ 
+        voice: newVoice, 
+        voiceId: getElevenLabsVoiceId(newVoice), // Use actual ElevenLabs voice ID
+        voiceName: getVoiceName(newVoice) 
+      });
+      toast.success("Voice updated successfully");
+      
+      // Refresh the agent config to get the latest voice settings
+      await loadAgentConfig();
+    } catch (error) {
+      console.error("Error updating voice:", error);
+      toast.error("Failed to update voice");
+    }
+  };
+
   const testVoice = () => {
     if (!voice) {
       toast.error("Please select a voice first");
@@ -248,13 +306,13 @@ export default function AgentForm() {
     }
 
     try {
-      // Map voice values to custom file names
+      // Map voice values to test audio files
       const voiceFileMap: Record<string, string> = {
-        verse: "darius-verse",
-        sage: "zyra-sage",
-        coral: "cortana-coral",
-        ballad: "silver-ballad",
-        alloy: "James-alloy",
+        james: "james-test",
+        peter: "peter-test",
+        hope: "hope-test", 
+        emmanuel: "Emmanuel-test",
+        stella: "stella-test",
       };
 
       const fileName = voiceFileMap[voice];
@@ -269,13 +327,13 @@ export default function AgentForm() {
       // Handle audio loading errors
       audio.addEventListener("error", (e) => {
         console.error("Audio loading error:", e);
-        toast.error(`Failed to load voice sample for ${voice}`);
+        toast.error(`Failed to load voice sample for ${getVoiceName(voice)}`);
       });
 
       // Handle successful loading
       audio.addEventListener("canplaythrough", () => {
         audio.play();
-        toast.success(`Playing test audio with ${voice} voice`);
+        toast.success(`Playing test audio with ${getVoiceName(voice)} voice`);
       });
 
       // Set the source and start loading
@@ -440,61 +498,52 @@ export default function AgentForm() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="max-w-2xl mx-auto">
-                <div className="space-y-4">
-                  <Label htmlFor={ids.voice} className="text-lg font-medium">
-                    Select Voice
-                  </Label>
-                  <div className="flex items-center gap-3">
-                    <Select value={voice} onValueChange={setVoice}>
-                      <SelectTrigger
-                        id={ids.voice}
-                        className="h-12 text-lg flex-1"
-                      >
-                        <SelectValue placeholder="Select a voice" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="alloy">
-                          James - Neutral, balanced tone
-                        </SelectItem>
-                        <SelectItem value="ballad">
-                          Silver - Smooth, melodic tone
-                        </SelectItem>
-                        <SelectItem value="coral">
-                          Cortana - Bright, energetic voice
-                        </SelectItem>
-                        <SelectItem value="sage">
-                          Zyra - Calm, wise voice
-                        </SelectItem>
-                        <SelectItem value="verse">
-                          Darius - Rich, deep voice
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={testVoice}
-                      className="h-10 px-6 bg-blue-600 hover:bg-blue-700"
-                      disabled={!voice}
+              <div className="space-y-4">
+                <Label htmlFor={ids.voice} className="text-lg font-medium">
+                  Select Voice
+                </Label>
+                <div className="flex items-center gap-3">
+                  <Select value={voice} onValueChange={setVoice}>
+                    <SelectTrigger
+                      id={ids.voice}
+                      className="h-12 text-lg flex-1"
                     >
-                      <Headphones className="h-5 w-5 mr-2" />
-                      Play Voice
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-4 mt-6">
-                    <Label htmlFor="accent" className="text-lg font-medium">
-                      Select Accent
-                    </Label>
-                    <Select value={accent} onValueChange={setAccent}>
-                      <SelectTrigger className="h-12 text-lg">
-                        <SelectValue placeholder="Select an accent" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="american">American</SelectItem>
-                        <SelectItem value="nigerian">Nigerian</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <SelectValue placeholder="Select a voice" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="james">
+                        James - Neutral, balanced tone
+                      </SelectItem>
+                      <SelectItem value="peter">
+                        Peter - Professional, clear voice
+                      </SelectItem>
+                      <SelectItem value="hope">
+                        Hope - Warm, friendly voice
+                      </SelectItem>
+                      <SelectItem value="emmanuel">
+                        Emmanuel - Confident, authoritative voice
+                      </SelectItem>
+                      <SelectItem value="stella">
+                        Stella - Energetic, engaging voice
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={testVoice}
+                    className="h-10 px-4 bg-gray-600 hover:bg-gray-700"
+                    disabled={!voice}
+                  >
+                    <Headphones className="h-4 w-4 mr-2" />
+                    Test
+                  </Button>
+                  <Button
+                    onClick={() => updateVoice(voice)}
+                    className="h-10 px-4 bg-green-600 hover:bg-green-700"
+                    disabled={!voice}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Update Voice
+                  </Button>
                 </div>
               </div>
             </CardContent>

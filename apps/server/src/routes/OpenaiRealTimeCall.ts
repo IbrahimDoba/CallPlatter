@@ -74,7 +74,7 @@ async function getBusinessConfig(
           askForName: true,
           askForPhone: true,
           askForCompany: false,
-          askForEmail: true,
+          askForEmail: false,
           askForAddress: false,
         },
       });
@@ -105,7 +105,6 @@ async function getBusinessConfig(
     const questionsToAsk = [];
     if (aiConfig.askForName) questionsToAsk.push("name");
     if (aiConfig.askForPhone) questionsToAsk.push("phone number");
-    if (aiConfig.askForEmail) questionsToAsk.push("email address");
     if (aiConfig.askForCompany) questionsToAsk.push("company name");
     if (aiConfig.askForAddress) questionsToAsk.push("address");
 
@@ -236,7 +235,7 @@ async function getBusinessConfigById(
           askForName: true,
           askForPhone: true,
           askForCompany: false,
-          askForEmail: true,
+          askForEmail: false,
           askForAddress: false,
         },
       });
@@ -267,7 +266,6 @@ async function getBusinessConfigById(
     const questionsToAsk = [];
     if (aiConfig.askForName) questionsToAsk.push("name");
     if (aiConfig.askForPhone) questionsToAsk.push("phone number");
-    if (aiConfig.askForEmail) questionsToAsk.push("email address");
     if (aiConfig.askForCompany) questionsToAsk.push("company name");
     if (aiConfig.askForAddress) questionsToAsk.push("address");
 
@@ -566,6 +564,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                       output: {
                         format: { type: "audio/pcmu" },
                         voice: voice,
+                        speed: 1.2, // 20% faster speech
                       },
                     },
                     instructions: fullSystemMessage,
@@ -679,6 +678,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                       output: {
                         format: { type: "audio/pcmu" },
                         voice: voice,
+                        speed: 1.2, // 20% faster speech
                       },
                     },
                     instructions: minimalInstructions,
@@ -1220,6 +1220,7 @@ export const setupOpenAIRealtimeWebSocket = (server: Server) => {
                           output: {
                             format: { type: "audio/pcmu" },
                             voice: businessConfig.voice,
+                            speed: 1.2, // 20% faster speech
                           },
                         },
                         instructions: businessConfig.systemMessage + businessMemories,

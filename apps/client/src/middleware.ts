@@ -12,7 +12,7 @@ const authPaths = ["/signin", "/signup"];
 const onboardingPaths = ["/onboarding"];
 
 // Define protected paths that require onboarding completion
-const protectedPaths = ["/calls", "/appointments", "/dashboard", "/settings"];
+const protectedPaths = ["/calls", "/appointments", "/dashboard", "/settings", "/profile"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -67,9 +67,28 @@ export async function middleware(request: NextRequest) {
   const onboardingCompleted = token.onboardingCompleted;
   const hasBusinessId = !!token.businessId;
 
+  // Debug logging for development
+  if (process.env.NODE_ENV === "development") {
+    console.log("Middleware Debug:", {
+      pathname,
+      onboardingCompleted,
+      hasBusinessId,
+      isProtectedPath,
+      isOnboardingPath,
+      isAuthPath
+    });
+  }
+
   // If user hasn't completed onboarding and tries to access protected pages, redirect to onboarding
   if ((!onboardingCompleted || !hasBusinessId) && isProtectedPath) {
+    console.log("Redirecting to onboarding - user not fully set up");
     return NextResponse.redirect(new URL("/onboarding", request.url));
+  }
+
+  // Special case: Allow profile page even if onboarding is not complete
+  if (pathname === "/profile" && (!onboardingCompleted || !hasBusinessId)) {
+    console.log("Allowing profile page access even without full onboarding");
+    return NextResponse.next();
   }
 
   // If user has completed onboarding and is on onboarding pages, redirect to calls
@@ -79,11 +98,13 @@ export async function middleware(request: NextRequest) {
 
   // If user is logged in and tries to access public pages (except home), redirect to calls
   if (isPublicPath && pathname !== "/") {
+    console.log("Redirecting from public path to calls");
     return NextResponse.redirect(new URL("/calls", request.url));
   }
 
   // If user is logged in and tries to access auth pages, redirect to calls
   if (isAuthPath) {
+    console.log("Redirecting from auth path to calls");
     return NextResponse.redirect(new URL("/calls", request.url));
   }
 

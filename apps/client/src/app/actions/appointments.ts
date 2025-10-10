@@ -2,7 +2,7 @@
 
 import { db } from "@repo/db";
 
-export async function updateAppointmentStatus(appointmentId: string, status: string) {
+export async function updateAppointmentStatus(appointmentId: string, status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW') {
   try {
     const updatedAppointment = await db.appointment.update({
       where: { id: appointmentId },

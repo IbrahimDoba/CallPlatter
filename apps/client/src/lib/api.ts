@@ -2,6 +2,11 @@ import { getSession } from "next-auth/react";
 
 const SERVER_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Session cache to prevent multiple calls
+let sessionCache: any = null;
+let sessionCacheTime = 0;
+const SESSION_CACHE_DURATION = 5000; // 5 seconds
+
 interface ApiRequestOptions extends RequestInit {
   requireAuth?: boolean;
 }
@@ -21,7 +26,15 @@ export async function apiRequest(
   };
 
   if (requireAuth) {
-    const session = await getSession();
+    // Use cached session if available and not expired
+    const now = Date.now();
+    let session = sessionCache;
+    
+    if (!session || (now - sessionCacheTime) > SESSION_CACHE_DURATION) {
+      session = await getSession();
+      sessionCache = session;
+      sessionCacheTime = now;
+    }
     
     if (!session?.user) {
       throw new Error('Authentication required');
@@ -34,6 +47,11 @@ export async function apiRequest(
     headers['x-user-business-id'] = session.user.businessId || '';
     headers['x-user-role'] = session.user.role;
     headers['x-user-name'] = session.user.name || '';
+    
+    // Also add x-business-id for compatibility
+    if (session.user.businessId) {
+      headers['x-business-id'] = session.user.businessId;
+    }
   }
 
   const response = await fetch(url, {
@@ -170,6 +188,15 @@ export const api = {
       const query = params.toString() ? `?${params.toString()}` : '';
       return apiRequest(`/calls${query}`);
     },
+  },
+
+  // Voice management
+  voice: {
+    update: (data: { voice?: string; voiceId?: string; voiceName?: string }) => apiRequest('/voice/voice', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+    getVoices: () => apiRequest('/voice/voices'),
   },
 
 };

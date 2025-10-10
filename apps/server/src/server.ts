@@ -19,13 +19,16 @@ import { AIReceptionistService } from "./services/aiReceptionistService";
 import type { AgentRuntimeConfig } from "./services/aiReceptionistService";
 import { db } from "@repo/db";
 
-import openaiRealtimeRoutes, {
-  setupOpenAIRealtimeWebSocket,
-} from "./routes/OpenaiRealTimeCall";
+import openaiRealtimeRoutes from "./routes/OpenaiRealTimeCall";
+import elevenLabsAgentRoutes, {
+  setupElevenLabsAgentWebSocket,
+} from "./routes/elevenLabsAgent";
 import uploadthingRoutes from "./routes/uploadthing";
 import embeddingsRoutes from "./routes/embeddings";
 import pineconeRoutes from "./routes/pinecone";
 import waitlistRoutes from "./routes/waitlist";
+import billingRoutes from "./routes/billing";
+import voiceUpdateRoutes from "./routes/voiceUpdate";
 
 // Load environment variables
 dotenv.config();
@@ -84,11 +87,15 @@ app.use("/api/uploadthing", uploadthingRoutes);
 app.use("/api/embeddings", embeddingsRoutes);
 app.use("/api/pinecone", pineconeRoutes);
 app.use("/api/waitlist", waitlistRoutes);
+app.use("/api/billing", billingRoutes);
+app.use("/api/voice", voiceUpdateRoutes);
 
 app.use("/api/openai-realtime", openaiRealtimeRoutes);
-// Setup Twilio media stream WebSocket handler
+app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
 
-setupOpenAIRealtimeWebSocket(server);
+// Setup Twilio media stream WebSocket handlers
+// setupOpenAIRealtimeWebSocket(server); // Temporarily disabled to test ElevenLabs
+setupElevenLabsAgentWebSocket(server);
 // WebSocket connection handling
 io.on("connection", (socket) => {
   logger.info(`Client connected: ${socket.id}`, { socketId: socket.id });

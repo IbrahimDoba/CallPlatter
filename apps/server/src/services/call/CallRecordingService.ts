@@ -85,6 +85,18 @@ export class CallRecordingService {
         },
       });
 
+      // Track billing usage
+      try {
+        const { BillingService } = await import('../billingService.js');
+        const billingService = new BillingService();
+        await billingService.trackCallUsage(callId, duration);
+        logger.info("Tracked billing usage for call", { callId, duration });
+      } catch (billingError) {
+        logger.error("Error tracking billing usage", billingError);
+        // Don't fail the call completion if billing tracking fails
+        
+      }
+
       logger.info("Finalized call record", {
         callId,
         duration,
@@ -97,7 +109,7 @@ export class CallRecordingService {
   /**
    * Schedule call recording start with delay
    */
-  scheduleRecordingStart(twilioCallSid: string, delayMs: number = 3000): void {
+  scheduleRecordingStart(twilioCallSid: string, delayMs = 3000): void {
     setTimeout(async () => {
       await this.startCallRecording(twilioCallSid);
     }, delayMs);

@@ -11,16 +11,49 @@ model User {
   id                    String    @id @default(cuid())
   email                 String    @unique
   name                  String?
-  password              String
+  password              String?
+  image                 String?
+  emailVerified         DateTime?
   role                  String    @default("USER")
   onboardingCompleted   Boolean?   @default(false)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   businessId            String?
   sessions              Session[]
+  accounts              Account[]
   business              Business? @relation(fields: [businessId], references: [id])
 
   @@map("users")
+}
+
+/// NextAuth account links (for OAuth providers)
+model Account {
+  id                 String   @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @map("refresh_token")
+  access_token       String?  @map("access_token")
+  expires_at         Int?     @map("expires_at")
+  token_type         String?  @map("token_type")
+  scope              String?
+  id_token           String?  @map("id_token")
+  session_state      String?
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+/// NextAuth email verification tokens
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }
 
 model Business {
@@ -33,12 +66,16 @@ model Business {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   aiAgentConfig    AIAgentConfig?
+  elevenLabsAgent ElevenLabsAgent?
   appointments     Appointment[]
   businessMemories BusinessMemory[]
   calls            Call[]
   conversations    Conversation[]
   crmImports       CRMImport[]
   users            User[]
+  subscription     Subscription?
+  billingUsage     BillingUsage[]
+  billingTransactions BillingTransaction[]
 
   @@map("businesses")
 }
@@ -63,8 +100,9 @@ model Call {
   summary         String?
   intent          String?
   callType        String?             @default("WEB")
-  status          String              @default("INCOMING")
-  duration        Int?
+  status          CallStatus          @default(INCOMING)
+  duration        Int?                // Duration in seconds
+  durationMinutes Decimal?            @db.Decimal(10, 2) // Duration in minutes (for billing)
   audioFileUrl    String?
   businessId      String
   createdAt       DateTime            @default(now())
@@ -92,18 +130,18 @@ model CallLog {
 }
 
 model Appointment {
-  id              String   @id @default(cuid())
+  id              String           @id @default(cuid())
   customerName    String
   customerPhone   String
   customerEmail   String?
   appointmentTime DateTime
   service         String?
   notes           String?
-  status          String   @default("PENDING")
+  status          AppointmentStatus @default(PENDING)
   businessId      String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  business        Business @relation(fields: [businessId], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  business        Business         @relation(fields: [businessId], references: [id])
 
   @@map("appointments")
 }
@@ -205,9 +243,140 @@ model CRMCallEnhancement {
   @@map("crm_call_enhancements")
 }
 
+/// ElevenLabs Agent configuration for businesses
+model ElevenLabsAgent {
+  id         String   @id @default(cuid())
+  businessId String   @unique
+  agentId    String
+  voiceId    String
+  voiceName  String
+  configHash String? 
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@map("elevenlabs_agents")
+}
+
+
+// Billing Models
+model Subscription {
+  id                 String             @id @default(cuid())
+  businessId         String             @unique
+  planType           PlanType
+  status             SubscriptionStatus @default(TRIAL)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  minutesIncluded    Int                // Monthly minutes included in plan
+  minutesUsed        Int                @default(0) // Minutes used in current period
+  overageRate        Decimal            @db.Decimal(10, 2) // Rate per minute for overage (in NGN)
+  trialEndsAt        DateTime?          // When trial period ends
+  cancelledAt        DateTime?          // When subscription was cancelled
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+model BillingUsage {
+  id              String   @id @default(cuid())
+  businessId      String
+  month           Int      // 1-12
+  year            Int      // 2024, 2025, etc.
+  totalMinutes    Decimal  @default(0) @db.Decimal(10, 2) // Total minutes used this month
+  includedMinutes Int      // Minutes included in plan
+  overageMinutes  Decimal  @default(0) @db.Decimal(10, 2) // Minutes over the included limit
+  overageCost     Decimal  @default(0) @db.Decimal(10, 2) // Cost for overage minutes (in NGN)
+  totalCost       Decimal  @default(0) @db.Decimal(10, 2) // Total cost for the month (overage only, base cost separate)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, month, year])
+  @@index([businessId])
+  @@index([month, year])
+  @@index([businessId, year, month])
+  @@map("billing_usage")
+}
+
+model BillingTransaction {
+  id          String          @id @default(cuid())
+  businessId  String
+  type        TransactionType
+  amount      Decimal         @db.Decimal(10, 2) // Amount in NGN
+  description String
+  month       Int?            // For monthly billing (1-12)
+  year        Int?            // For monthly billing
+  status      PaymentStatus   @default(PENDING)
+  paidAt      DateTime?       // When payment was completed
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  business    Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([businessId, month, year])
+  @@index([type])
+  @@map("billing_transactions")
+}
+
+// Enums
 enum CRMImportStatus {
   PENDING
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum CallStatus {
+  INCOMING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  MISSED
+  CANCELLED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PlanType {
+  FREE
+  STARTER
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  SUSPENDED
+}
+
+enum TransactionType {
+  SUBSCRIPTION
+  OVERAGE
+  PAYMENT
+  REFUND
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
 }

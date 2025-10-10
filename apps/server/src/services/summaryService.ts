@@ -1,6 +1,7 @@
 // services/summaryService.ts
 import { logger } from "../utils/logger";
 import { db } from "@repo/db";
+import { emailService } from "./emailService";
 
 interface CustomerInfo {
   name?: string;
@@ -42,46 +43,50 @@ export async function generateCallSummary(
       transcriptLength: transcript.length
     });
 
-    const prompt = `You are analyzing a call transcript from a business called "${businessContext.businessName}".
+    const prompt = `You are analyzing a call transcript from "${businessContext.businessName}".
 
-BUSINESS CONTEXT:
-- Business Name: ${businessContext.businessName}
-- AI Instructions: ${businessContext.systemMessage.substring(0, 500)}...
-- AI Asks For: ${businessContext.questionsToAsk.join(', ')}
-
-CALL TRANSCRIPT:
+TRANSCRIPT:
 ${transcript}
 
-TASK:
-Create a comprehensive summary of this call. Extract all important information including:
+Create a CONCISE summary following these rules:
 
-1. MAIN SUMMARY (2-3 sentences): Brief overview of what the call was about
-2. KEY POINTS (bullet points): Important topics discussed, decisions made, or actions taken
-3. CUSTOMER INFORMATION: Any customer details collected (name, phone, email, company, address, etc.)
+SUMMARY (1-2 sentences max):
+- Start with the customer's name if known
+- State the main purpose/outcome
+- Be direct and actionable
+Examples:
+✅ "Ibrahim booked a table for 2 at 10 PM tomorrow."
+✅ "Sarah inquired about catering services for 50 people on June 15th."
+❌ "The call was about Ibrahim placing a reservation..." (too wordy)
 
-Return ONLY a JSON object with this exact format:
+KEY POINTS (3-5 max, only if important):
+- Only include actionable items, decisions, or critical info
+- Skip obvious/redundant information
+- Each point should add NEW information
+Examples:
+✅ "Requested window seating"
+✅ "Mentioned dietary restrictions: vegetarian"
+❌ "Reservation was confirmed" (obvious from summary)
+❌ "Customer called to make reservation" (redundant)
+
+CUSTOMER INFO:
+- Extract ONLY if explicitly mentioned
+- Leave fields empty if not stated
+- Be accurate, don't guess
+
+Return ONLY valid JSON:
 {
-  "summary": "Brief 2-3 sentence summary of the call",
-  "keyPoints": [
-    "Key point 1",
-    "Key point 2",
-    "Key point 3"
-  ],
+  "summary": "Customer name did X",
+  "keyPoints": ["Only important details"],
   "customerInfo": {
-    "name": "Customer name if mentioned",
-    "phone": "Phone number if mentioned", 
+    "name": "Name if mentioned",
+    "phone": "Phone if mentioned",
     "email": "Email if mentioned",
-    "company": "Company name if mentioned",
+    "company": "Company if mentioned",
     "address": "Address if mentioned",
-    "otherInfo": "Any other relevant customer information"
+    "otherInfo": "Other relevant info"
   }
-}
-
-Rules:
-- Be concise but comprehensive
-- Extract ALL customer information mentioned
-- Focus on actionable items and important details
-- Return ONLY the JSON object, no other text`;
+}`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -94,26 +99,26 @@ Rules:
         messages: [
           {
             role: 'system',
-            content: 'You are an expert at analyzing call transcripts and creating comprehensive summaries with customer information extraction.'
+            content: 'You are an expert at creating ultra-concise, actionable call summaries. Be brief, direct, and skip redundant information.'
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        temperature: 0.3,
-        max_tokens: 1500
+        temperature: 0.2, // Lower for more consistent, factual output
+        max_tokens: 800 // Reduced to encourage brevity
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("GPT-3.5 API error", {
+      logger.error("GPT API error", {
         status: response.status,
         statusText: response.statusText,
         error: errorText
       });
-      throw new Error(`GPT-3.5 API error: ${response.status} ${response.statusText}`);
+      throw new Error(`GPT API error: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
@@ -121,7 +126,7 @@ Rules:
     const tokensUsed = result.usage?.total_tokens || 0;
 
     if (!content) {
-      throw new Error("No content returned from GPT-3.5");
+      throw new Error("No content returned from GPT");
     }
 
     // Clean the content - remove markdown code blocks if present
@@ -132,7 +137,7 @@ Rules:
       cleanedContent = cleanedContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
 
-    logger.info("GPT-3.5 response content", { 
+    logger.info("GPT response content", { 
       originalLength: content.length,
       cleanedLength: cleanedContent.length,
       tokensUsed,
@@ -143,19 +148,29 @@ Rules:
     const summaryData = JSON.parse(cleanedContent);
     const processingTime = Date.now() - startTime;
 
+    // Clean up empty values in customerInfo
+    const cleanedCustomerInfo: CustomerInfo = {};
+    if (summaryData.customerInfo) {
+      Object.entries(summaryData.customerInfo).forEach(([key, value]) => {
+        if (value && value !== '' && value !== 'not mentioned' && value !== 'N/A') {
+          cleanedCustomerInfo[key as keyof CustomerInfo] = value as string;
+        }
+      });
+    }
+
     logger.info("Call summary generation completed", {
       businessName: businessContext.businessName,
       summaryLength: summaryData.summary?.length || 0,
       keyPointsCount: summaryData.keyPoints?.length || 0,
-      customerInfoFields: Object.keys(summaryData.customerInfo || {}).length,
+      customerInfoFields: Object.keys(cleanedCustomerInfo).length,
       tokensUsed,
       processingTime
     });
 
     return {
-      summary: summaryData.summary || "No summary generated",
+      summary: summaryData.summary || "Call completed",
       keyPoints: summaryData.keyPoints || [],
-      customerInfo: summaryData.customerInfo || {},
+      customerInfo: cleanedCustomerInfo,
       tokensUsed,
       processingTime
     };
@@ -170,6 +185,37 @@ Rules:
 }
 
 /**
+ * Format summary for database storage
+ */
+function formatSummaryForDatabase(summaryData: SummaryData): string {
+  const parts: string[] = [];
+  
+  // Add main summary
+  parts.push(summaryData.summary);
+  
+  // Add key points only if they exist and add value
+  if (summaryData.keyPoints && summaryData.keyPoints.length > 0) {
+    parts.push(`Additional details: ${summaryData.keyPoints.join('; ')}.`);
+  }
+  
+  // Add customer info only if exists
+  const customerDetails = Object.entries(summaryData.customerInfo)
+    .filter(([_, value]) => value && value !== '')
+    .map(([key, value]) => {
+      // Format the key nicely
+      const formattedKey = key === 'otherInfo' ? 'Notes' : 
+                          key.charAt(0).toUpperCase() + key.slice(1);
+      return `${formattedKey}: ${value}`;
+    });
+  
+  if (customerDetails.length > 0) {
+    parts.push(`Customer: ${customerDetails.join(', ')}.`);
+  }
+  
+  return parts.join(' ');
+}
+
+/**
  * Save summary to database using existing Call.summary field
  */
 export async function saveSummaryToDatabase(
@@ -177,18 +223,14 @@ export async function saveSummaryToDatabase(
   summaryData: SummaryData
 ): Promise<void> {
   try {
-    // Create a comprehensive summary that includes all information
-    const comprehensiveSummary = `${summaryData.summary} Key points discussed: ${summaryData.keyPoints.join(', ')}. Customer information: ${Object.entries(summaryData.customerInfo)
-      .filter(([_, value]) => value && value !== '')
-      .map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`)
-      .join(', ')}.`;
+    const formattedSummary = formatSummaryForDatabase(summaryData);
 
     // Update the existing call record with the comprehensive summary
     await db.call.update({
       where: { id: callId },
       data: {
-        summary: comprehensiveSummary,
-        // Also update customer fields if we have the information (excluding phone to preserve original Twilio number)
+        summary: formattedSummary,
+        // Also update customer fields if we have the information
         ...(summaryData.customerInfo.name && { customerName: summaryData.customerInfo.name }),
         ...(summaryData.customerInfo.email && { customerEmail: summaryData.customerInfo.email }),
         ...(summaryData.customerInfo.address && { customerAddress: summaryData.customerInfo.address }),
@@ -197,7 +239,7 @@ export async function saveSummaryToDatabase(
 
     logger.info("Summary saved to database", {
       callId,
-      summaryLength: comprehensiveSummary.length,
+      summaryLength: formattedSummary.length,
       keyPointsCount: summaryData.keyPoints.length,
       customerInfoFields: Object.keys(summaryData.customerInfo).length,
       tokensUsed: summaryData.tokensUsed,
@@ -228,7 +270,7 @@ export async function summarizeCall(
       transcriptLength: transcript.length
     });
 
-    // Generate summary using GPT-3.5
+    // Generate summary using GPT
     const summaryData = await generateCallSummary(transcript, businessContext);
 
     // Save summary to database
@@ -243,6 +285,9 @@ export async function summarizeCall(
       processingTime: summaryData.processingTime
     });
 
+    // Send email summary after summary is generated
+    await sendCallSummaryEmail(callId, businessContext);
+
   } catch (error) {
     logger.error("Error in call summary process", {
       error: error instanceof Error ? error.message : String(error),
@@ -250,6 +295,62 @@ export async function summarizeCall(
       businessName: businessContext.businessName
     });
     throw error;
+  }
+}
+
+/**
+ * Send call summary email after summary is generated
+ */
+async function sendCallSummaryEmail(callId: string, businessContext: BusinessContext): Promise<void> {
+  try {
+    // Get the updated call record with summary and transcript
+    const call = await db.call.findUnique({
+      where: { id: callId },
+      include: {
+        business: {
+          include: { users: true }
+        }
+      }
+    });
+
+    if (!call || !call.business || call.business.users.length === 0) {
+      logger.warn("No business or users found for email", { callId });
+      return;
+    }
+
+    const callDate = call.createdAt.toLocaleDateString();
+    const callTime = call.createdAt.toLocaleTimeString();
+    const siteUrl = process.env.SITE_URL || "https://yourdomain.com";
+
+    // Send email to all business users
+    for (const user of call.business.users) {
+      await emailService.sendCallSummaryEmail({
+        businessName: businessContext.businessName,
+        phoneNumber: call.customerPhone || "Unknown",
+        callDate,
+        callTime,
+        summary: call.summary || "Call completed successfully",
+        transcription: call.transcript || undefined,
+        audioUrl: call.audioFileUrl || undefined,
+        callId: callId,
+        recipientEmail: user.email,
+        siteUrl
+      });
+    }
+
+    logger.info("📧 Call summary emails sent", {
+      callId,
+      businessId: businessContext.businessId,
+      recipientCount: call.business.users.length
+    });
+
+  } catch (error) {
+    logger.error("Error sending call summary email", {
+      error: error instanceof Error ? error.message : String(error),
+      callId,
+      businessName: businessContext.businessName
+    });
+    // Don't throw - email failure shouldn't break the summary process
   }
 }
 
