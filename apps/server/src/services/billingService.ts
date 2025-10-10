@@ -1,5 +1,5 @@
 import { db } from '@repo/db';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 
 // Temporary string literals until database migration is complete
 type PlanType = 'FREE' | 'STARTER' | 'BUSINESS' | 'ENTERPRISE';
@@ -73,7 +73,7 @@ export class BillingService {
         currentPeriodEnd,
         minutesIncluded: plan.minutesIncluded,
         minutesUsed: 0,
-        overageRate: new Decimal(plan.overageRate)
+        overageRate: new Prisma.Decimal(plan.overageRate)
       }
     });
   }
@@ -154,7 +154,7 @@ export class BillingService {
         await tx.call.update({
           where: { id: callId },
           data: { 
-            durationMinutes: new Decimal(durationMinutes),
+            durationMinutes: new Prisma.Decimal(durationMinutes),
             duration: durationSeconds 
           }
         });
@@ -229,11 +229,11 @@ export class BillingService {
           businessId,
           month,
           year,
-          totalMinutes: new Decimal(minutesUsed),
+          totalMinutes: new Prisma.Decimal(minutesUsed),
           includedMinutes: subscription.minutesIncluded,
-          overageMinutes: new Decimal(overageMinutes),
-          overageCost: new Decimal(overageCost),
-          totalCost: new Decimal(overageCost)
+          overageMinutes: new Prisma.Decimal(overageMinutes),
+          overageCost: new Prisma.Decimal(overageCost),
+          totalCost: new Prisma.Decimal(overageCost)
         }
       });
     } else {
@@ -245,10 +245,10 @@ export class BillingService {
       await prisma.billingUsage.update({
         where: { id: existingUsage.id },
         data: {
-          totalMinutes: new Decimal(newTotalMinutes),
-          overageMinutes: new Decimal(overageMinutes),
-          overageCost: new Decimal(overageCost),
-          totalCost: new Decimal(overageCost)
+          totalMinutes: new Prisma.Decimal(newTotalMinutes),
+          overageMinutes: new Prisma.Decimal(overageMinutes),
+          overageCost: new Prisma.Decimal(overageCost),
+          totalCost: new Prisma.Decimal(overageCost)
         }
       });
     }
@@ -284,11 +284,11 @@ export class BillingService {
     return {
       subscription,
       currentUsage: billingUsage || {
-        totalMinutes: new Decimal(0),
+        totalMinutes: new Prisma.Decimal(0),
         includedMinutes: subscription.minutesIncluded,
-        overageMinutes: new Decimal(0),
-        overageCost: new Decimal(0),
-        totalCost: new Decimal(0)
+        overageMinutes: new Prisma.Decimal(0),
+        overageCost: new Prisma.Decimal(0),
+        totalCost: new Prisma.Decimal(0)
       }
     };
   }
@@ -401,7 +401,7 @@ export class BillingService {
       data: {
         businessId,
         type: 'SUBSCRIPTION',
-        amount: new Decimal(totalCost),
+        amount: new Prisma.Decimal(totalCost),
         description: `Monthly bill for ${plan.name} plan - ${month}/${year}`,
         month,
         year,
@@ -415,7 +415,7 @@ export class BillingService {
         data: {
           businessId,
           type: 'OVERAGE',
-          amount: new Decimal(overageCost),
+          amount: new Prisma.Decimal(overageCost),
           description: `Overage charges: ${Number(billingUsage.overageMinutes)} minutes @ ₦${Number(subscription.overageRate)}/min - ${month}/${year}`,
           month,
           year,
@@ -533,7 +533,7 @@ export class BillingService {
       data: {
         planType: newPlanType,
         minutesIncluded: newPlan.minutesIncluded,
-        overageRate: new Decimal(newPlan.overageRate)
+        overageRate: new Prisma.Decimal(newPlan.overageRate)
       }
     });
   }
