@@ -153,7 +153,7 @@ router.put("/:id/status", async (req: SessionAuthenticatedRequest, res) => {
 
     const updatedAppointment = await db.appointment.update({
       where: { id: appointmentId },
-      data: { status },
+      data: { status: status as 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' },
     });
 
     logger.info("Updated appointment status", {

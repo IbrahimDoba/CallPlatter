@@ -2,7 +2,6 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -10,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PricingModal } from "@/components/module/PricingModal";
+import BillingSidebar from "./BillingSidebar";
 import {
   Sidebar,
   SidebarContent,
@@ -29,7 +28,6 @@ import {
   User,
   PhoneCall,
   CalendarDays,
-  Cog,
   Bot,
   HelpCircle,
   Sparkles,
@@ -38,7 +36,6 @@ import {
   BookOpen,
   Mic,
   Users,
-//   Puzzle,
 } from "lucide-react";
 import { useAgentContext } from "@/contexts/AgentContext";
 
@@ -47,6 +44,7 @@ interface AppSidebarProps {
     user?: {
       name?: string;
       email?: string;
+      businessId?: string;
     };
   };
 }
@@ -65,7 +63,7 @@ const navigation = [
       { name: "CRM", component: "crm", icon: Users },
     ]
   },
-  { name: "Settings", href: "/settings", icon: Cog },
+  // { name: "Settings", href: "/settings", icon: Cog },
 //   { name: "Integrations", href: "/integrations", icon: Puzzle },
 ];
 
@@ -74,29 +72,6 @@ const supportItems = [
   { name: "What's new", icon: Sparkles, href: "/whats-new" },
 ];
 
-function TrialBanner() {
-  return (
-    <div className="mx-2 mb-4 p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
-      <div className="flex items-center gap-2 mb-2">
-        <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-        <span className="text-sm font-medium text-purple-900 dark:text-purple-100">
-          Trial
-        </span>
-        <span className="text-xs text-purple-600 dark:text-purple-400">
-          7 days left
-        </span>
-      </div>
-      <PricingModal>
-        <Button
-          size="sm"
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-        >
-          Upgrade now
-        </Button>
-      </PricingModal>
-    </div>
-  );
-}
 
 export default function AppSidebar({ session }: AppSidebarProps) {
   const pathname = usePathname();
@@ -219,7 +194,7 @@ export default function AppSidebar({ session }: AppSidebarProps) {
         </SidebarGroup>
 
         <div className="mt-auto">
-          <TrialBanner />
+          <BillingSidebar businessId={session.user?.businessId} />
           
           <SidebarGroup>
             <SidebarGroupContent>
@@ -281,9 +256,11 @@ export default function AppSidebar({ session }: AppSidebarProps) {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
+                <DropdownMenuItem asChild>
+                  <Link href="/profile" className="flex items-center">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => signOut()}>
                   <LogOut className="mr-2 h-4 w-4" />

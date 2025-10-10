@@ -20,7 +20,9 @@ export function validateEnvironment(): void {
     'UPLOADTHING_APP_ID',
     'BASE_URL',
     'TWILIO_ACCOUNT_SID',
-    'TWILIO_AUTH_TOKEN'
+    'TWILIO_AUTH_TOKEN',
+    'RESEND_API_KEY',
+    'RESEND_FROM_EMAIL'
   ];
 
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -38,6 +40,9 @@ export function validateEnvironment(): void {
     }
     if (missingOptional.includes('TWILIO_ACCOUNT_SID') || missingOptional.includes('TWILIO_AUTH_TOKEN')) {
       console.warn('Twilio credentials missing - call recording may not work');
+    }
+    if (missingOptional.includes('RESEND_API_KEY') || missingOptional.includes('RESEND_FROM_EMAIL')) {
+      console.warn('Resend credentials missing - email functionality may not work');
     }
     console.warn('UploadThing functionality may not work without these variables');
   }

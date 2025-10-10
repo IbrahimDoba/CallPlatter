@@ -1,10 +1,9 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import WebCallModal from "@/components/module/call/WebCallModal";
-import { Globe, Settings } from "lucide-react";
+import { Globe } from "lucide-react";
 
 interface DashboardHeaderProps {
   pageTitle: string;
@@ -21,7 +20,6 @@ export default function DashboardHeader({
   businessId,
   businessPhoneNumber,
   headerActions,
-  searchPlaceholder = "Search...",
 }: DashboardHeaderProps) {
   const [isWebCallModalOpen, setIsWebCallModalOpen] = useState(false);
 
@@ -30,50 +28,71 @@ export default function DashboardHeader({
       {/* Header */}
       <header className="border-b relative">
         <div className="flex h-16 shrink-0 items-center px-4 mx-auto w-full max-w-[1200px]">
-          <SidebarTrigger className="absolute left-4 -ml-1" />
-          <div className="flex items-center justify-between w-full">
-            <h2 className="text-2xl font-semibold text-foreground">
+          <SidebarTrigger className="relative sm:absolute sm:left-4 sm:-ml-1" />
+          <div className="flex items-center justify-between w-full ml-2 sm:ml-8 sm:ml-0">
+            {/* Page Title - responsive text size */}
+            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-foreground truncate max-w-[200px] sm:max-w-none">
               {pageTitle}
             </h2>
-            <div className="flex items-center gap-3">
+            
+            {/* Right side actions */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {/* Business phone number - hidden on very small screens */}
               {businessPhoneNumber && (
-                <div className="text-sm text-muted-foreground">
-                  <span className="font-medium">Your number:</span> {businessPhoneNumber}
+                <div className="text-xs sm:text-sm text-muted-foreground hidden xs:block">
+                  <span className="font-medium hidden sm:inline">Your number:</span>
+                  <span className="font-medium sm:hidden">#:</span> 
+                  <span className="hidden sm:inline">{businessPhoneNumber}</span>
+                  <span className="sm:hidden">{businessPhoneNumber.replace(/\D/g, '').slice(-4)}</span>
                 </div>
               )}
+              
+              {/* Web call button - responsive text */}
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2 bg-transparent"
+                className="gap-1 sm:gap-2 bg-transparent text-xs sm:text-sm px-2 sm:px-3"
                 onClick={() => setIsWebCallModalOpen(true)}
               >
-                <Globe className="h-4 w-4" />
-                <span className="hidden sm:inline">Web call</span>
+                <Globe className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Web call</span>
+                <span className="xs:hidden">Call</span>
               </Button>
+              
               <WebCallModal
                 isOpen={isWebCallModalOpen}
                 onClose={() => setIsWebCallModalOpen(false)}
                 businessName={businessName}
                 businessId={businessId}
               />
-              {headerActions}
+              
+              {/* Header actions */}
+              <div className="flex items-center">
+                {headerActions}
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Search and Filter Bar */}
-      {/* <div className=" pb-6">
-        <div className="flex items-center gap-4 px-4 mx-auto w-full max-w-[1200px] pt-4 sm:pt-6">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 bg-transparent"
-        >
-          <Settings className="h-4 w-4" />
-          Filter
-        </Button>
-          <Input placeholder={searchPlaceholder} className="max-w-md" />
+      {/* Search and Filter Bar - Mobile Responsive */}
+      {/* <div className="pb-4 sm:pb-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 px-4 mx-auto w-full max-w-[1200px] pt-4 sm:pt-6">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 sm:gap-2 bg-transparent text-xs sm:text-sm px-2 sm:px-3"
+            >
+              <Settings className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Filter</span>
+              <span className="xs:hidden">Filter</span>
+            </Button>
+            <Input 
+              placeholder={searchPlaceholder} 
+              className="flex-1 sm:max-w-md text-sm" 
+            />
+          </div>
         </div>
       </div> */}
     </>

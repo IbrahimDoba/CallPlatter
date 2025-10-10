@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      resend:
+        specifier: ^6.1.2
+        version: 6.1.2
     devDependencies:
       '@biomejs/biome':
         specifier: 2.2.0
@@ -225,6 +229,12 @@ importers:
       ai:
         specifier: ^4.1.46
         version: 4.3.19(react@19.1.0)(zod@3.25.76)
+      audio-buffer:
+        specifier: ^5.0.0
+        version: 5.0.0
+      audio-converter:
+        specifier: ^1.0.13
+        version: 1.0.13
       axios:
         specifier: ^1.7.9
         version: 1.11.0
@@ -1731,6 +1741,13 @@ packages:
     resolution: {integrity: sha512-kNOjDqAh7px0XWNI+4QbzoiR/nTkHAWNud2uvnJquD1/x5a7EQZMJT0AczqK0Qn67oY/TTQ1LbUKajZpp3I9tQ==}
     engines: {node: '>=8.0.0'}
 
+  audio-buffer@5.0.0:
+    resolution: {integrity: sha512-gsDyj1wwUp8u7NBB+eW6yhLb9ICf+0eBmDX8NGaAS00w8/fLqFdxUlL5Ge/U8kB64DlQhdonxYC59dXy1J7H/w==}
+
+  audio-converter@1.0.13:
+    resolution: {integrity: sha512-gN0tjFNsQ84IW1RGrRP1PHg09qHkXjYdjM4Gx/5QWqJd+hgYLPSI+ruP2A5JUdoal9hac7ga1/+cPiE7OlBGwA==}
+    hasBin: true
+
   avvio@9.1.0:
     resolution: {integrity: sha512-fYASnYi600CsH/j9EQov7lECAniYiBFiiAtBNuZYLA2leLe9qOvZzqYHFjtIj6gD2VMoMLP14834LFWvr4IfDw==}
 
@@ -1799,6 +1816,9 @@ packages:
     resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
     engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
 
+  charm@0.1.2:
+    resolution: {integrity: sha512-syedaZ9cPe7r3hoQA9twWYKu5AIyCswN5+szkmPBe9ccdLrj4bYaCnLVPTLd2kgVRc7+zoX4tyPgRnFKCj5YjQ==}
+
   chokidar@3.6.0:
     resolution: {integrity: sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==}
     engines: {node: '>= 8.10.0'}
@@ -1850,6 +1870,9 @@ packages:
   combined-stream@1.0.8:
     resolution: {integrity: sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==}
     engines: {node: '>= 0.8'}
+
+  commander@2.20.3:
+    resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
 
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
@@ -2187,6 +2210,10 @@ packages:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
     engines: {node: '>= 6'}
 
+  glob@5.0.15:
+    resolution: {integrity: sha512-c9IPMazfRITpmAAKi22dK1VKxGDX9ehhqfABDriL/lzO92xcUKEJPQHrVA/2YHSNFB4iFlykVmWvwo48nr3OxA==}
+    deprecated: Glob versions prior to v9 are no longer supported
+
   google-libphonenumber@3.2.42:
     resolution: {integrity: sha512-60jm6Lu72WmlUJXUBJmmuZlHG2vDJ2gQ9pL5gcFsSe1Q4eigsm0Z1ayNHjMgqGUl0zey8JqKtO4QCHPV+5LCNQ==}
     engines: {node: '>=0.10'}
@@ -2235,6 +2262,10 @@ packages:
 
   ignore-by-default@1.0.1:
     resolution: {integrity: sha512-Ius2VYcGNk7T90CppJqcIkS5ooHUZyIQK+ClZfMfMNFEF9VSE73Fq+906u/CWu92x4gzZMWOwfFYckPObzdEbA==}
+
+  inflight@1.0.6:
+    resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
+    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -2377,6 +2408,9 @@ packages:
     resolution: {integrity: sha512-xi6IyHML+c9+Q3W0S4fCQJOym42pyurFiJUHEcEyHS0CeKzia4yZDEsLlqOFykxOdHpNy0NmvVO31vcSqAxJCg==}
     engines: {node: '>= 12.0.0'}
 
+  lodash.chunk@4.2.0:
+    resolution: {integrity: sha512-ZzydJKfUHJwHa+hF5X66zLFCBrWn5GeF28OHEr4WVWtNDXlQ/IjWKPBiikqKo2ne0+v6JgCgJ0GzJp8k8bHC7w==}
+
   lodash.includes@4.3.0:
     resolution: {integrity: sha512-W3Bx6mdkRTGtlJISOvVD/lbqjTlPPUDTMnlXZFnVwi9NKJ6tiAk6LVdlhZMm17VZisqhKcgzpO5Wz91PCt5b0w==}
 
@@ -2397,6 +2431,9 @@ packages:
 
   lodash.once@4.1.1:
     resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
+
+  lodash.uniq@4.5.0:
+    resolution: {integrity: sha512-xfBaXQd9ryd9dlSDvnvI0lvxfLJlYAZzXomUYzLKtUeOQvOP5piqAWuGtrhWeqaXK9hhoM/iyJc5AV+XfsX3HQ==}
 
   lodash@4.17.21:
     resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
@@ -2616,6 +2653,9 @@ packages:
     resolution: {integrity: sha512-737ZY3yNnXy37FHkQxPzt4UZ2UWPWiCZWLvFZ4fu5cueciegX0zGPnrlY6bwRg4FdQOe9YU8MkmJwGhoMybl8A==}
     engines: {node: '>= 0.8'}
 
+  once@1.4.0:
+    resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
+
   one-time@1.0.0:
     resolution: {integrity: sha512-5DXOiRKwuSEcQ/l0kGCF6Q3jcADFv5tSmRaJck/OqkVFcOzutB134KRSfF0xDrL39MNnqxbHBbUUcjZIhTgb2g==}
 
@@ -2634,9 +2674,16 @@ packages:
   openid-client@5.7.1:
     resolution: {integrity: sha512-jDBPgSVfTnkIh71Hg9pRvtJc6wTwqjRkN88+gCFtYWrlP4Yx2Dsrow8uPi3qLr/aeymPF3o2+dS+wOpglK04ew==}
 
+  pace@0.0.4:
+    resolution: {integrity: sha512-B1tKMCrHnTmMxaZTzK5+4HRisYaeH8WHMjeg21dbBXB9eFnrZ5uw9+grRnLmLzTcL4R4A8v/XDCnP2Qf+37rPw==}
+
   parseurl@1.3.3:
     resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
     engines: {node: '>= 0.8'}
+
+  path-is-absolute@1.0.1:
+    resolution: {integrity: sha512-AVbw3UJ2e9bq64vSaS9Am0fje1Pa8pbGqTTsmXfaIiMpnr5DlDhfJOuLj9Sf95ZPVDAUerDfEk88MPmPe7UCQg==}
+    engines: {node: '>=0.10.0'}
 
   path-to-regexp@0.1.12:
     resolution: {integrity: sha512-RA1GjUVMnvYFxuqovrEqZoxxW5NUZqbwKtYz/Tt7nXerk0LbLblQmrsgdeOxV5SFHf0UDggjS/bSeOZwt1pmEQ==}
@@ -2711,6 +2758,14 @@ packages:
 
   pure-rand@6.1.0:
     resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+
+  q@1.5.1:
+    resolution: {integrity: sha512-kV/CThkXo6xyFEZUugw/+pIOywXcDbFYgSct5cT3gqlbkBE1SJdwy6UQoZvodiWF/ckQLZyDE/Bu1M6gVu5lVw==}
+    engines: {node: '>=0.6.0', teleport: '>=0.2.0'}
+    deprecated: |-
+      You or someone you depend on is using Q, the JavaScript Promise library that gave JavaScript developers strong feelings about promises. They can almost certainly migrate to the native JavaScript promise now. Thank you literally everyone for joining me in this bet against the odds. Be excellent to each other.
+
+      (For a CapTP with native promises, see @endo/eventual-send and @endo/captp)
 
   qs@6.13.0:
     resolution: {integrity: sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==}
@@ -3225,6 +3280,9 @@ packages:
   word@0.3.0:
     resolution: {integrity: sha512-OELeY0Q61OXpdUfTp+oweA/vtLVg5VDOXh+3he3PNzLGG/y0oylSOC1xRVj0+l4vQ3tj/bB1HVHv1ocXkQceFA==}
     engines: {node: '>=0.8'}
+
+  wrappy@1.0.2:
+    resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
   ws@8.17.1:
     resolution: {integrity: sha512-6XQFvXTkbfUOZOKKILFG1PDK2NDQs4azKQl26T0YS5CxqWLgXajbPZ+h4gZekJyRqFU8pvnbAbbs/3TgRPy+GQ==}
@@ -4495,6 +4553,18 @@ snapshots:
 
   atomic-sleep@1.0.0: {}
 
+  audio-buffer@5.0.0: {}
+
+  audio-converter@1.0.13:
+    dependencies:
+      commander: 2.20.3
+      glob: 5.0.15
+      lodash.chunk: 4.2.0
+      lodash.uniq: 4.5.0
+      mkdirp: 0.5.6
+      pace: 0.0.4
+      q: 1.5.1
+
   avvio@9.1.0:
     dependencies:
       '@fastify/error': 4.2.0
@@ -4575,6 +4645,8 @@ snapshots:
 
   chalk@5.6.2: {}
 
+  charm@0.1.2: {}
+
   chokidar@3.6.0:
     dependencies:
       anymatch: 3.1.3
@@ -4636,6 +4708,8 @@ snapshots:
   combined-stream@1.0.8:
     dependencies:
       delayed-stream: 1.0.0
+
+  commander@2.20.3: {}
 
   concat-map@0.0.1: {}
 
@@ -5016,6 +5090,14 @@ snapshots:
     dependencies:
       is-glob: 4.0.3
 
+  glob@5.0.15:
+    dependencies:
+      inflight: 1.0.6
+      inherits: 2.0.4
+      minimatch: 3.1.2
+      once: 1.4.0
+      path-is-absolute: 1.0.1
+
   google-libphonenumber@3.2.42: {}
 
   gopd@1.2.0: {}
@@ -5060,6 +5142,11 @@ snapshots:
       safer-buffer: 2.1.2
 
   ignore-by-default@1.0.1: {}
+
+  inflight@1.0.6:
+    dependencies:
+      once: 1.4.0
+      wrappy: 1.0.2
 
   inherits@2.0.4: {}
 
@@ -5182,6 +5269,8 @@ snapshots:
       lightningcss-win32-arm64-msvc: 1.30.1
       lightningcss-win32-x64-msvc: 1.30.1
 
+  lodash.chunk@4.2.0: {}
+
   lodash.includes@4.3.0: {}
 
   lodash.isboolean@3.0.3: {}
@@ -5195,6 +5284,8 @@ snapshots:
   lodash.isstring@4.0.1: {}
 
   lodash.once@4.1.1: {}
+
+  lodash.uniq@4.5.0: {}
 
   lodash@4.17.21: {}
 
@@ -5401,6 +5492,10 @@ snapshots:
 
   on-headers@1.1.0: {}
 
+  once@1.4.0:
+    dependencies:
+      wrappy: 1.0.2
+
   one-time@1.0.0:
     dependencies:
       fn.name: 1.1.0
@@ -5427,7 +5522,13 @@ snapshots:
       object-hash: 2.2.0
       oidc-token-hash: 5.1.1
 
+  pace@0.0.4:
+    dependencies:
+      charm: 0.1.2
+
   parseurl@1.3.3: {}
+
+  path-is-absolute@1.0.1: {}
 
   path-to-regexp@0.1.12: {}
 
@@ -5507,6 +5608,8 @@ snapshots:
   pstree.remy@1.1.8: {}
 
   pure-rand@6.1.0: {}
+
+  q@1.5.1: {}
 
   qs@6.13.0:
     dependencies:
@@ -6043,6 +6146,8 @@ snapshots:
   wmf@1.0.2: {}
 
   word@0.3.0: {}
+
+  wrappy@1.0.2: {}
 
   ws@8.17.1: {}
 

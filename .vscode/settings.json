@@ -1,7 +1,9 @@
 {
-  "eslint.workingDirectories": [
-    {
-      "mode": "auto"
-    }
-  ]
+  "prisma.autoFormat": false,
+  "prisma.autoSave": false,
+  "prisma.dbPush": false,
+  "files.autoSave": "off",
+  "prisma.enableAutoComplete": false,
+  "prisma.enableHover": false,
+  "prisma.enableValidation": false
 }

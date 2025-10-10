@@ -49,7 +49,7 @@ export async function saveCallToDatabase(callData: CallData) {
         businessId: callData.businessId,
         customerPhone: callData.customerPhone || null,
         customerName: callData.customerName || null,
-        status: callData.status || 'COMPLETED',
+        status: (callData.status as 'INCOMING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'MISSED' | 'CANCELLED') || 'COMPLETED',
         duration: callData.duration || null,
         transcript: callData.finalTranscript || null,
         intent: callData.intent || null,

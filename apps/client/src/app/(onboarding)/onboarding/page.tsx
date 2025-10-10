@@ -71,8 +71,14 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleFinish = async () => {
-    console.log('Onboarding - Final data being sent:', onboardingData);
+  const handleFinish = async (phoneNumber?: string) => {
+    // Use the passed phone number or the one from state
+    const finalData = {
+      ...onboardingData,
+      selectedPhoneNumber: phoneNumber || onboardingData.selectedPhoneNumber
+    };
+    
+    console.log('Onboarding - Final data being sent:', finalData);
     setIsCompleting(true);
     try {
       const response = await fetch('/api/onboarding', {
@@ -80,7 +86,7 @@ export default function OnboardingPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(onboardingData),
+        body: JSON.stringify(finalData),
       });
 
       if (!response.ok) {
@@ -91,10 +97,10 @@ export default function OnboardingPage() {
       // Show success toast and redirect
       toast.success('Onboarding completed successfully! Redirecting to your dashboard...');
       
-      // Small delay to ensure session is updated, then redirect
+      // Wait a moment for the database update to complete, then redirect
       setTimeout(() => {
         window.location.href = '/calls';
-      }, 1000);
+      }, 500);
     } catch (error) {
       console.error('Onboarding completion error:', error);
       toast.error('Failed to complete onboarding. Please try again.');

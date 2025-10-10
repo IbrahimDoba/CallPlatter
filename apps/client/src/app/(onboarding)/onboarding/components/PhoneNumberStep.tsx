@@ -9,7 +9,7 @@ import type { OnboardingData } from "../page";
 interface PhoneNumberStepProps {
   data: OnboardingData;
   onUpdate: (updates: Partial<OnboardingData>) => void;
-  onFinish: () => void;
+  onFinish: (phoneNumber?: string) => void;
   onBack: () => void;
   isCompleting?: boolean;
 }
@@ -65,8 +65,11 @@ export function PhoneNumberStep({ data, onUpdate, onFinish, onBack, isCompleting
     console.log('PhoneNumberStep - Selected phone object:', selectedPhone);
     console.log('PhoneNumberStep - Clean phone number:', cleanPhoneNumber);
     
+    // Update the data with the clean phone number
     onUpdate({ selectedPhoneNumber: cleanPhoneNumber });
-    onFinish();
+    
+    // Pass the phone number directly to the finish handler
+    onFinish(cleanPhoneNumber);
   };
 
   const isFormValid = selectedPhoneNumber !== "" && selectedPhoneNumber !== undefined;
