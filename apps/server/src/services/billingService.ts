@@ -9,10 +9,8 @@ export interface BillingPlan {
   monthlyPriceUSD: number; // in USD
   minutesIncluded: number;
   overageRate: number; // per minute in NGN
-  overageRateUSD: number; 
+  overageRateUSD: number;
 }
-
-
 
 // Exchange rate constant
 
