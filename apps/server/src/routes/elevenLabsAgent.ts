@@ -354,24 +354,24 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
     conversation_config: {
       conversation: { max_duration_seconds: 600 },
       turn: { 
-        mode: "turn",  // Fixed: should be 'turn' not 'turn_based'
-        turn_timeout: 1,  // Fixed: must be -1 or between 1-300 seconds
+        mode: "turn",
+        turn_timeout: 10,  // Increased from 1 to 10 seconds - gives user more time to respond
         silence_end_call_timeout: -1  // Don't end call on silence
       },
       asr: {
         quality: "high",
         provider: "elevenlabs",
         user_input_audio_format: "ulaw_8000",
-        no_speech_threshold: 0.1  // More sensitive to silence detection for faster response
+        no_speech_threshold: 0.3  // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
       },
       tts: {
         voice_id: voice.voice_id,
-        model_id: "eleven_flash_v2",  // Using flash v2 model for faster responses
+        model_id: "eleven_flash_v2",
         agent_output_audio_format: "ulaw_8000",
-        optimize_streaming_latency: 4,  // Maximum streaming optimization
-        stability: 0.5,  // Normal stability for good voice quality
-        similarity_boost: 0.5,  // Normal similarity for good voice quality
-        speed: 1.0  // Normal speech speed
+        optimize_streaming_latency: 3,  // Reduced from 4 to 3 - balance between speed and quality
+        stability: 0.5,
+        similarity_boost: 0.5,
+        speed: 1.0
       },
       agent: {
         first_message: businessConfig.firstMessage,
@@ -380,7 +380,7 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
           prompt: businessConfig.systemMessage,
           llm: "gpt-4o-mini",
           temperature: businessConfig.temperature,
-          max_tokens: 80  // Even shorter responses for faster generation
+          max_tokens: 150  // Increased from 80 to 150 - allows for more natural responses
         },
         tools: [
           {
