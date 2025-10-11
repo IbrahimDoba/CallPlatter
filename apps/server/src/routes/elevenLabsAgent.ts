@@ -151,16 +151,18 @@ function generateConfigHash(systemMessage: string, firstMessage: string, tempera
   return crypto.createHash('md5').update(configString).digest('hex');
 }
 
-// Update existing agent's prompt only if changed
-async function updateAgentPrompt(agentId: string, systemMessage: string, firstMessage: string, temperature: number, lastConfigHash?: string): Promise<boolean> {
+// Update existing agent's full conversation configuration
+async function updateAgentFullConfig(agentId: string, systemMessage: string, firstMessage: string, temperature: number, voiceId: string, lastConfigHash?: string, forceUpdate: boolean = false): Promise<boolean> {
   try {
     const currentHash = generateConfigHash(systemMessage, firstMessage, temperature);
     
-    // Skip update if config hasn't changed
-    if (lastConfigHash && lastConfigHash === currentHash) {
+    // Skip update if config hasn't changed (unless forced)
+    if (!forceUpdate && lastConfigHash && lastConfigHash === currentHash) {
       logger.info("Agent config unchanged, skipping update", { agentId });
       return true;
     }
+
+    logger.info("🔄 Updating full agent configuration", { agentId, voiceId });
 
     const response = await fetch(`${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`, {
       method: 'PATCH',
@@ -171,11 +173,34 @@ async function updateAgentPrompt(agentId: string, systemMessage: string, firstMe
       },
       body: JSON.stringify({
         conversation_config: {
+          turn: { 
+            mode: "turn",
+            turn_timeout: 10,  // Increased from 1 to 10 seconds - gives user more time to respond
+            silence_end_call_timeout: -1  // Don't end call on silence
+          },
+          asr: {
+            quality: "high",
+            provider: "elevenlabs",
+            user_input_audio_format: "ulaw_8000",
+            no_speech_threshold: 0.3  // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
+          },
+          tts: {
+            voice_id: voiceId,
+            model_id: "eleven_flash_v2",
+            agent_output_audio_format: "ulaw_8000",
+            optimize_streaming_latency: 3,  // Reduced from 4 to 3 - balance between speed and quality
+            stability: 0.5,
+            similarity_boost: 0.5,
+            speed: 1.0
+          },
           agent: {
             first_message: firstMessage,
+            language: "en",
             prompt: {
               prompt: systemMessage,
+              llm: "gpt-4o-mini",
               temperature: temperature,
+              max_tokens: 150  // Increased from 80 to 150 - allows for more natural responses
             }
           }
         }
@@ -183,7 +208,12 @@ async function updateAgentPrompt(agentId: string, systemMessage: string, firstMe
     });
 
     if (!response.ok) {
-      logger.error("Failed to update agent prompt", { agentId, status: response.status });
+      const errorText = await response.text();
+      logger.error("Failed to update agent full configuration", { 
+        agentId, 
+        status: response.status, 
+        error: errorText 
+      });
       return false;
     }
 
@@ -192,14 +222,18 @@ async function updateAgentPrompt(agentId: string, systemMessage: string, firstMe
     if (agent) {
       await db.elevenLabsAgent.update({
         where: { id: agent.id },
-        data: { configHash: currentHash, updatedAt: new Date() }
+        data: { 
+          configHash: currentHash, 
+          voiceId: voiceId,
+          updatedAt: new Date() 
+        }
       });
     }
 
-    logger.info("Updated agent prompt", { agentId, newHash: currentHash });
+    logger.info("✅ Updated full agent configuration", { agentId, newHash: currentHash, voiceId });
     return true;
   } catch (error) {
-    logger.error("Error updating agent prompt", { agentId, error });
+    logger.error("❌ Error updating agent full configuration", { agentId, error });
     return false;
   }
 }
@@ -281,29 +315,24 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       voiceChanged: businessConfig.voiceId !== existingAgent.voiceId
     });
     
-    // Only update if config has changed
-    await updateAgentPrompt(
+    // Update full configuration including turn, asr, tts, and agent settings
+    // This ensures all the new timing and sensitivity settings are applied
+    // Force update to ensure new configuration is applied to existing agents
+    const fullConfigUpdateResult = await updateAgentFullConfig(
       existingAgent.agentId, 
       businessConfig.systemMessage,
       businessConfig.firstMessage,
       businessConfig.temperature,
-      existingAgent.configHash || undefined
+      businessConfig.voiceId || existingAgent.voiceId,
+      existingAgent.configHash || undefined,
+      true // Force update to apply new timing settings
     );
     
-    // Always update voice to ensure ElevenLabs agent has the correct voice
-    // This handles cases where the database was updated but ElevenLabs wasn't
-    if (businessConfig.voiceId) {
-      logger.info("Updating agent voice to ensure consistency", {
-        agentId: existingAgent.agentId,
-        currentVoiceId: existingAgent.voiceId,
-        targetVoiceId: businessConfig.voiceId,
-        forceUpdate: true
-      });
-      const voiceUpdateResult = await updateAgentVoice(existingAgent.agentId, businessConfig.voiceId);
-      logger.info("Voice update result", { success: voiceUpdateResult });
-    } else {
-      logger.info("No voice ID provided, skipping voice update");
-    }
+    logger.info("Full configuration update result", { 
+      success: fullConfigUpdateResult,
+      agentId: existingAgent.agentId,
+      voiceId: businessConfig.voiceId || existingAgent.voiceId
+    });
     
     return existingAgent.agentId;
   }
