@@ -5,7 +5,6 @@ import HeroSection from "@/components/Homepage/hero-section";
 import LogoCarousel from "@/components/Homepage/logo-carousel";
 import FeaturesSection from "@/components/Homepage/features-section";
 import HowItWorks from "@/components/Homepage/how-it-works";
-import PricingSection from "@/components/Homepage/pricing-section";
 import TestimonialsSection from "@/components/Homepage/testimonials-section";
 import FAQSection from "@/components/Homepage/faq-section";
 import AboutSection from "@/components/Homepage/about-section";
@@ -27,8 +26,6 @@ export default function CallPlatterLanding() {
       <FeaturesSection />
 
       <HowItWorks />
-
-      <PricingSection />
 
       <TestimonialsSection />
 

@@ -2,7 +2,14 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Mail, Send, MessageSquare, Clock, CheckCircle } from "lucide-react";
+import {
+  CheckCircle,
+  Clock,
+  Mail,
+  MessageCircle,
+  MessageSquare,
+  Send,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,7 +63,7 @@ export default function SupportPage() {
         `Name: ${formData.name}\nEmail: ${formData.email}\n\nMessage:\n${formData.message}`
       );
 
-      const mailtoLink = `mailto:ibrahimdoba55@gmail.com?subject=${subject}&body=${body}`;
+      const mailtoLink = `mailto:support@dailzero.com?subject=${subject}&body=${body}`;
 
       // Open email client
       window.open(mailtoLink);
@@ -235,7 +242,7 @@ export default function SupportPage() {
                     >
                       {isSubmitting ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                           Sending...
                         </>
                       ) : (
@@ -277,13 +284,37 @@ export default function SupportPage() {
                   <div className="flex items-center gap-3">
                     <Mail className="h-4 w-4 text-blue-600" />
                     <span className="text-sm text-gray-600">
-                      ibrahimdoba55@gmail.com
+                      support@dailzero.com
                     </span>
                   </div>
                   <p className="text-sm text-gray-500">
                     For urgent issues, please mention "URGENT" in your subject
                     line.
                   </p>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-lg border-0">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5 text-purple-600" />
+                    Discord Community
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Join our Discord community for real-time support, updates,
+                    and discussions with other DailZero users.
+                  </p>
+                  <Button
+                    onClick={() =>
+                      window.open("https://discord.gg/Xc89m7sRFc", "_blank")
+                    }
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Join Discord Community
+                  </Button>
                 </CardContent>
               </Card>
 

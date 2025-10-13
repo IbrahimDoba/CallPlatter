@@ -8,7 +8,7 @@ const features = [
   {
     icon: <Phone className="w-6 h-6" />,
     title: "AI Voice Assistant",
-    description: "Natural conversation handling with advanced speech recognition. Our AI understands Nigerian accents and local business contexts.",
+    description: "Natural conversation handling with advanced speech recognition. Our AI understands various accents and local business contexts worldwide.",
     image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
   },
   {
@@ -33,17 +33,17 @@ const features = [
 
 export default function FeaturesSection() {
   return (
-    <section id="features" className="py-24" style={{ backgroundColor: '#343434' }}>
+    <section id="features" className="py-24 bg-background">
       <div className="container px-4 mx-auto max-w-6xl">
         {/* Header Section */}
         <div className="max-w-2xl mb-20">
-          <h2 className="text-5xl md:text-6xl font-normal mb-6 tracking-tight text-left text-white">
+          <h2 className="text-5xl md:text-6xl font-normal mb-6 tracking-tight text-left text-foreground">
             Advanced AI
             <br />
-            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent font-medium">Features & Tools</span>
+            <span className="text-primary font-medium">Features & Tools</span>
           </h2>
-          <p className="text-lg md:text-xl text-gray-300 text-left">
-            Experience professional-grade AI tools and features designed specifically for Nigerian businesses and their communication needs.
+          <p className="text-lg md:text-xl text-muted-foreground text-left">
+            Experience professional-grade AI tools and features designed for modern businesses and their communication needs worldwide.
           </p>
         </div>
 
