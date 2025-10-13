@@ -42,8 +42,8 @@ export const siteConfig = {
       description: "Automatically schedule appointments and manage your calendar seamlessly",
     },
     {
-      title: "Nigerian Accent Support",
-      description: "Natural Nigerian accent and expressions for better customer experience",
+      title: "Multi-Accent Support",
+      description: "Natural accent recognition and expressions for better customer experience worldwide",
     },
     {
       title: "CRM Integration",
@@ -55,24 +55,21 @@ export const siteConfig = {
     },
     {
       title: "Multi-language Support",
-      description: "Support for English, Pidgin, and local Nigerian languages",
+      description: "Support for multiple languages and dialects worldwide",
     },
   ],
   pricing: {
     plans: [
       {
         name: "Starter",
-        price: "₦34,000",
+        price: "₦30,000",
         period: "per month",
         description: "Perfect for small businesses starting their AI journey",
         features: [
-          "1,080 minutes included",
-          "₦346/min ($0.23/min) after limit",
-          "Annual savings ~13.5%",
-          "24/7 answering",
+          "38 minutes included",
+          "₦1,467/min ($0.89/min) after limit",
+          "24/7 AI answering",
           "Instant call summaries",
-          "Call transfers",
-          "Send text messages",
           "Call recordings & transcription",
           "Spam blocking",
           "Zapier integration",
@@ -81,83 +78,81 @@ export const siteConfig = {
       },
       {
         name: "Business",
-        price: "₦77,000",
+        price: "₦71,000",
         period: "per month",
         description: "Advanced features for growing businesses",
         features: [
-          "2,640 minutes included",
-          "₦321/min ($0.21/min) after limit",
-          "Annual savings ~19.8%",
-          "24/7 answering",
+          "105 minutes included",
+          "₦1,000/min ($0.61/min) after limit",
+          "24/7 AI answering",
           "Instant call summaries",
-          "Call transfers",
-          "Send text messages",
           "Call recordings & transcription",
           "Spam blocking",
           "Zapier integration",
+          "Priority support",
         ],
         popular: true,
       },
       {
         name: "Enterprise",
-        price: "₦152,000",
+        price: "₦190,000",
         period: "per month",
         description: "Enterprise-grade solutions for large organizations",
         features: [
-          "5,760 minutes included",
-          "₦290/min ($0.19/min) after limit",
-          "Annual savings ~27.5%",
-          "24/7 answering",
+          "300 minutes included",
+          "₦733/min ($0.44/min) after limit",
+          "24/7 AI answering",
           "Instant call summaries",
-          "Call transfers",
-          "Send text messages",
           "Call recordings & transcription",
           "Spam blocking",
           "Zapier integration",
+          "Priority support",
+          "Custom integrations",
         ],
         popular: false,
       },
     ],
     nigerianPricing: {
       Starter: {
-        annual: 374000, // ₦374,000 ($248)
-        monthly: 34000,
+        annual: 300000, // ₦300,000
+        monthly: 30000,
       },
       Business: {
-        annual: 847000, // ₦847,000 ($562)
-        monthly: 77000,
+        annual: 710000, // ₦710,000
+        monthly: 71000,
       },
       Enterprise: {
-        annual: 1672000, // ₦1,672,000 ($1,110)
-        monthly: 152000,
+        annual: 1900000, // ₦1,900,000
+        monthly: 190000,
       },
     },
     usdPricing: {
       Starter: {
-        annual: 248, // $248
-        monthly: 24.95,
+        annual: 218.16, // $218.16
+        monthly: 18.18,
       },
       Business: {
-        annual: 562, // $562
-        monthly: 59.95,
+        annual: 516.36, // $516.36
+        monthly: 43.03,
       },
       Enterprise: {
-        annual: 1110, // $1,110
-        monthly: 159.95,
+        annual: 1381.80, // $1,381.80
+        monthly: 115.15,
       },
     },
   },
   contact: {
     email: "info@dailzero.com",
-    phone: "+234 814 911 3328",
-    address: "Abuja, Nigeria",
+    phone: "+1 (555) 123-4567",
+    address: "Global",
     supportEmail: "info@dailzero.com",
   },
   companyInfo: {
     founded: "2025",
     employees: "1",
     certifications: [
-      "Nigerian Data Protection Act Compliant"
+      "GDPR Compliant",
+      "SOC 2 Type II Certified"
     ],
     expertise: [
       "AI Voice Technology",
@@ -165,7 +160,7 @@ export const siteConfig = {
       "Call Center Automation",
       "CRM Integration",
       "Real-time Communication",
-      "Nigerian Business Solutions"
+      "Global Business Solutions"
     ],
     technologies: [
       "OpenAI GPT-4",
@@ -185,21 +180,21 @@ export const siteConfig = {
   testimonials: [
     {
       name: "Sarah Johnson",
-      company: "Lagos Medical Center",
+      company: "Metro Medical Center",
       role: "Practice Manager",
       content: "DailZero has transformed how we handle patient calls. Our appointment bookings increased by 40% since implementing the AI receptionist.",
       rating: 5
     },
     {
-      name: "Emeka Okafor",
-      company: "Nigerian Tech Solutions",
+      name: "Michael Chen",
+      company: "Tech Solutions Inc",
       role: "CEO",
-      content: "The Nigerian accent feature is amazing! Our customers feel more comfortable speaking with an AI that sounds like a local.",
+      content: "The multi-accent feature is amazing! Our customers feel more comfortable speaking with an AI that understands their local context.",
       rating: 5
     },
     {
-      name: "Aisha Mohammed",
-      company: "Abuja Law Firm",
+      name: "Emma Thompson",
+      company: "Global Law Firm",
       role: "Managing Partner",
       content: "Professional and efficient. Never missed a client call since using DailZero. The CRM integration is seamless.",
       rating: 5

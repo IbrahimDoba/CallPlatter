@@ -17,29 +17,29 @@ export const FeatureTab = ({ icon, title, description, isActive }: FeatureTabPro
         w-full flex items-center gap-4 p-5 rounded-xl
         transition-all duration-300 relative
         ${isActive 
-          ? 'bg-white/10 backdrop-blur-lg shadow-lg shadow-blue-500/10' 
-          : 'hover:bg-white/5'
+          ? 'bg-card/10 backdrop-blur-lg shadow-lg' 
+          : 'hover:bg-card/5'
         }
       `}
     >
       {isActive && (
         <motion.div
           layoutId="activeTab"
-          className="absolute left-0 top-0 w-1 h-full bg-blue-400 rounded-l-xl"
+          className="absolute left-0 top-0 w-1 h-full bg-primary rounded-l-xl"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
         />
       )}
       <div className="flex items-center gap-4 min-w-0">
-        <div className={`${isActive ? 'text-blue-400' : 'text-gray-400'}`}>
+        <div className={`${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
           {icon}
         </div>
         <div className="text-left min-w-0">
-          <h3 className={`font-semibold truncate text-base ${isActive ? 'text-blue-400' : 'text-white'}`}>
+          <h3 className={`font-semibold truncate text-base ${isActive ? 'text-primary' : 'text-foreground'}`}>
             {title}
           </h3>
-          <p className="text-sm text-gray-300 line-clamp-2">
+          <p className="text-sm text-muted-foreground line-clamp-2">
             {description}
           </p>
         </div>

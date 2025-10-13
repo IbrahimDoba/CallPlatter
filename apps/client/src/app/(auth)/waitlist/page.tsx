@@ -1,254 +1,312 @@
 "use client";
 
-import { useState, useId } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { motion } from "framer-motion";
-import { CheckCircle, Clock, Users, Zap, Mail } from "lucide-react";
+import { CheckCircle, Clock, TrendingUp, Bell, Shield } from "lucide-react";
 
 export default function WaitlistPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const emailId = useId();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001';
-      const apiUrl = `${serverUrl}/api/waitlist`;
-      
-      console.log('Sending request to:', apiUrl);
-      console.log('Request data:', { email });
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const serverUrl =
+        process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3001";
+      const response = await fetch(`${serverUrl}/api/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      
       const result = await response.json();
-      console.log('Response data:', result);
+      if (!response.ok)
+        throw new Error(result.error || "Failed to join waitlist");
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to join waitlist');
-      }
-      
-      toast.success("You've been added to our waitlist! Check your email for confirmation.");
       setIsSubmitted(true);
     } catch (error) {
-      console.error('Waitlist submission error:', error);
-      
-      // Provide more specific error messages
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        toast.error("Unable to connect to server. Please check if the server is running.");
-      } else if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error("An error occurred. Please try again.");
-      }
+      console.error("Error:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-  };
-
-  const fadeInUp = {
-    initial: { opacity: 0, y: 30 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6, ease: "easeOut" as const },
-  };
-
-
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
-        <motion.div {...fadeInUp} className="w-full max-w-md">
-          <Card className="text-center">
-            <CardHeader className="space-y-4">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-green-600" />
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-lg border-border">
+          <CardHeader className="text-center space-y-6 pb-8">
+            <div className="mx-auto w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center">
+              <CheckCircle className="w-10 h-10 text-primary" strokeWidth={2} />
+            </div>
+            <div className="space-y-2">
+              <CardTitle className="text-3xl font-semibold text-foreground">
+                Welcome aboard
+              </CardTitle>
+              <p className="text-muted-foreground text-lg">
+                You're now on the DailZero waitlist. We'll be in touch soon with
+                exclusive updates.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="bg-muted border border-border rounded-xl p-6">
+              <h4 className="font-medium text-foreground mb-4">
+                What to expect
+              </h4>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-2 flex-shrink-0" />
+                  <span>Priority access when we launch in Q2 2025</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-2 flex-shrink-0" />
+                  <span>Exclusive pricing reserved for early supporters</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-2 flex-shrink-0" />
+                  <span>Behind-the-scenes development insights</span>
+                </div>
               </div>
-              <CardTitle className="text-2xl text-green-600">You're on the list!</CardTitle>
-              <CardDescription className="text-lg">
-                Thank you for joining our waitlist. We'll notify you as soon as DailZero is ready for launch.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-blue-900 mb-2">What happens next?</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Early access to DailZero when we launch</li>
-                  <li>• Exclusive updates on our development progress</li>
-                  <li>• Special launch pricing for waitlist members</li>
-                </ul>
-              </div>
-              <Button 
-                onClick={() => {
-                  window.location.href = '/';
-                }}
-                className="w-full"
-              >
-                Back to Home
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </div>
+            <Button
+              onClick={() => (window.location.href = "/")}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              Return home
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-      {/* Header */}
-      <div className="container mx-auto px-6 py-8">
-        <motion.div {...fadeInUp} className="text-center mb-12">
-          <Badge variant="secondary" className="mb-4">
-            <Clock className="w-4 h-4 mr-2" />
-            Coming Soon
-          </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-4">
-            Join the{" "}
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              DailZero
-            </span>{" "}
-            Waitlist
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Be among the first to experience Nigeria's most advanced AI receptionist. 
-            Just enter your email to get early access and exclusive launch pricing.
-          </p>
-        </motion.div>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-12 md:py-20">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-16 md:mb-20">
+            <Badge
+              variant="secondary"
+              className="mb-6 px-4 py-1.5 bg-secondary text-secondary-foreground border-border"
+            >
+              <Clock className="w-3.5 h-3.5 mr-2" />
+              Launching Q2 2025
+            </Badge>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-semibold text-foreground mb-6 leading-tight">
+              Your Personal
+              <br />
+              AI receptionist
+            </h1>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Join the waitlist to get early access to DailZero and never miss
+              another call again.
+            </p>
+          </div>
 
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-          {/* Waitlist Form */}
-          <motion.div {...fadeInUp}>
-            <Card className="shadow-xl">
-              <CardHeader>
-                <CardTitle className="text-2xl text-center">Get Early Access</CardTitle>
-                <CardDescription className="text-center">
-                  Join 500+ people already on our waitlist
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor={emailId}>Email Address</Label>
-                    <Input
-                      id={emailId}
-                      name="email"
-                      type="email"
-                      placeholder="Enter your email address"
-                      value={email}
-                      onChange={handleEmailChange}
-                      required
-                      className="text-lg py-3"
+          <div className="max-w-2xl mx-auto space-y-12">
+            {/* Form */}
+            <div className="flex justify-center">
+              <Card className="border-border shadow-sm w-full max-w-md">
+                <CardHeader className="pb-6">
+                  <CardTitle className="text-xl font-medium text-foreground text-center">
+                    Get early access
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-2 text-center">
+                    Join 10+ businesses already on our list
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="email"
+                        className="text-sm font-medium text-foreground"
+                      >
+                        Email
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="you@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="h-11 border-input focus:border-ring focus:ring-ring"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Joining..." : "Join waitlist"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center">
+                      No spam. Unsubscribe anytime.
+                    </p>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Benefits */}
+            <div className="space-y-12">
+              <div className="space-y-6">
+                <h3 className="text-2xl font-medium text-foreground">
+                  Why join early
+                </h3>
+                <div className="grid gap-6">
+                  <div className="flex gap-4">
+                    <div className="w-11 h-11 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <TrendingUp
+                        className="w-5 h-5 text-primary"
+                        strokeWidth={2}
+                      />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-foreground mb-1">
+                        Priority access
+                      </h4>
+                      <p className="text-muted-foreground text-sm leading-relaxed">
+                        Be first in line when we open our doors. Skip the queue
+                        and start using DailZero before anyone else.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="w-11 h-11 bg-accent rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Shield
+                        className="w-5 h-5 text-accent-foreground"
+                        strokeWidth={2}
+                      />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-foreground mb-1">
+                        Exclusive pricing
+                      </h4>
+                      <p className="text-muted-foreground text-sm leading-relaxed">
+                        Lock in special launch rates reserved exclusively for
+                        our waitlist members. Save up to 40% off standard
+                        pricing.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="w-11 h-11 bg-secondary rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Bell
+                        className="w-5 h-5 text-secondary-foreground"
+                        strokeWidth={2}
+                      />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-foreground mb-1">
+                        Development updates
+                      </h4>
+                      <p className="text-muted-foreground text-sm leading-relaxed">
+                        Get insider access to our progress, features, and launch
+                        timeline as we build DailZero.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-muted border border-border rounded-xl p-6">
+                <h4 className="font-medium text-foreground mb-4">
+                  What's included
+                </h4>
+                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle
+                      className="w-4 h-4 text-primary flex-shrink-0"
+                      strokeWidth={2}
                     />
+                    <span>AI with Nigerian accents</span>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading} size="lg">
-                    {isLoading ? "Joining Waitlist..." : "Join the Waitlist"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Benefits Section */}
-          <motion.div {...fadeInUp} className="space-y-8">
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                Why Join Our Waitlist?
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Zap className="w-4 h-4 text-blue-600" />
+                  <div className="flex items-center gap-2">
+                    <CheckCircle
+                      className="w-4 h-4 text-primary flex-shrink-0"
+                      strokeWidth={2}
+                    />
+                    <span>Call analytics dashboard</span>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Early Access</h4>
-                    <p className="text-gray-600">Be the first to try DailZero when we launch</p>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle
+                      className="w-4 h-4 text-primary flex-shrink-0"
+                      strokeWidth={2}
+                    />
+                    <span>24/7 call handling</span>
                   </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Users className="w-4 h-4 text-purple-600" />
+                  <div className="flex items-center gap-2">
+                    <CheckCircle
+                      className="w-4 h-4 text-primary flex-shrink-0"
+                      strokeWidth={2}
+                    />
+                    <span>CRM integrations</span>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Exclusive Pricing</h4>
-                    <p className="text-gray-600">Special launch pricing for waitlist members</p>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle
+                      className="w-4 h-4 text-primary flex-shrink-0"
+                      strokeWidth={2}
+                    />
+                    <span>Appointment scheduling</span>
                   </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Development Updates</h4>
-                    <p className="text-gray-600">Get exclusive insights into our development progress</p>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle
+                      className="w-4 h-4 text-primary flex-shrink-0"
+                      strokeWidth={2}
+                    />
+                    <span>Custom voice training</span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="bg-white/50 backdrop-blur-sm rounded-lg p-6 border border-white/20">
-              <h4 className="font-semibold text-gray-900 mb-3">What's Coming</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                  AI Receptionist with Multiple Accents
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                  24/7 Call Handling
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                  Appointment Booking
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                  CRM Integration
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                  Call Analytics & Reports
-                </li>
-              </ul>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Stats Section */}
-        <motion.div {...fadeInUp} className="mt-16 text-center">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-2xl mx-auto">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">500+</div>
-              <div className="text-gray-600">People on Waitlist</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600 mb-2">Q2 2025</div>
-              <div className="text-gray-600">Expected Launch</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">98%</div>
-              <div className="text-gray-600">Satisfaction Rate</div>
+          {/* Stats */}
+          <div className="mt-20 pt-12 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-3xl mx-auto text-center">
+              <div>
+                <div className="text-4xl font-semibold text-foreground mb-2">
+                  5+
+                </div>
+                <div className="text-muted-foreground text-sm">
+                  On the waitlist
+                </div>
+              </div>
+              <div>
+                <div className="text-4xl font-semibold text-foreground mb-2">
+                  Q2 2025
+                </div>
+                <div className="text-muted-foreground text-sm">
+                  Expected launch
+                </div>
+              </div>
+              <div>
+                <div className="text-4xl font-semibold text-foreground mb-2">
+                  Free
+                </div>
+                <div className="text-muted-foreground text-sm">Testing</div>
+              </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );
