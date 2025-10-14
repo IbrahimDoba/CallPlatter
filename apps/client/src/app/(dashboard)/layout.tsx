@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 import DashboardHeader from "@/components/layout/AppHeader";
 import AppSidebar, { navigation } from "@/components/layout/Appsidebar";
+import { SubscriptionBanner } from "@/components/layout/SubscriptionBanner";
 import { getBusinessInfo } from "@/app/actions/business";
 import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
 
@@ -126,6 +127,7 @@ export default function DashboardLayout({
 
             <main className="flex-1 p-4 sm:p-6">
               <div className="mx-auto w-full max-w-[1200px]">
+                <SubscriptionBanner businessId={businessId} />
                 {children}
               </div>
             </main>

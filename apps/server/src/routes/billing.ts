@@ -132,6 +132,54 @@ router.post('/subscription', async (req: Request, res: Response) => {
   }
 });
 
+// Update subscription plan for business
+router.put('/subscription', async (req: Request, res: Response) => {
+  try {
+    const businessId = getBusinessId(req);
+    
+    if (!businessId) {
+      return res.status(401).json({ error: 'Business ID required' });
+    }
+
+    const { planType } = req.body;
+    
+    if (!planType || !['FREE', 'STARTER', 'BUSINESS', 'ENTERPRISE'].includes(planType)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid plan type' 
+      });
+    }
+
+    // Check if subscription exists
+    const existingSubscription = await db.subscription.findUnique({
+      where: { businessId: businessId }
+    });
+
+    if (!existingSubscription) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'No subscription found' 
+      });
+    }
+
+    const subscription = await billingService.updateSubscriptionPlan(
+      businessId,
+      planType
+    );
+    
+    res.json({
+      success: true,
+      data: subscription
+    });
+  } catch (error) {
+    console.error('Error updating subscription:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to update subscription' 
+    });
+  }
+});
+
 // Generate monthly bill
 router.post('/generate-bill', async (req: Request, res: Response) => {
   try {

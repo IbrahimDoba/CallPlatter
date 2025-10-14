@@ -130,6 +130,21 @@ export class BillingApi {
   }
 
   /**
+   * Update subscription plan for business
+   */
+  async updateSubscription(
+    planType: "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE"
+  ): Promise<Subscription> {
+    const headers = await this.getHeaders();
+    const response = await apiRequest("/billing/subscription", {
+      method: "PUT",
+      body: JSON.stringify({ planType }),
+      headers,
+    });
+    return response.data;
+  }
+
+  /**
    * Generate monthly bill
    */
   async generateMonthlyBill(
