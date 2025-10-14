@@ -87,7 +87,7 @@ export class SubscriptionValidationService {
         }
 
         // For paid plans, check if overage is allowed
-        if (subscription.overageRate === 0) {
+        if (Number(subscription.overageRate) === 0) {
           return {
             isBlocked: true,
             reason: 'no_credits',
