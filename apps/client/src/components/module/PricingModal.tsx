@@ -3,11 +3,13 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Check, DollarSign, Globe } from "lucide-react"
+import { Check, DollarSign, Globe, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { billingApi } from "@/lib/billingApi"
+import { toast } from "sonner"
 
 interface PricingPlan {
   name: string
@@ -116,10 +118,13 @@ const usdPricing = {
 interface PricingModalProps {
   children: React.ReactNode
   currentPlan?: string
+  onPlanChange?: (newPlan: string) => void
 }
 
-export function PricingModal({ children, currentPlan }: PricingModalProps) {
+export function PricingModal({ children, currentPlan, onPlanChange }: PricingModalProps) {
   const [currency, setCurrency] = useState<'USD' | 'NGN'>('NGN')
+  const [isLoading, setIsLoading] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
 
   const formatPrice = (planName: string) => {
     if (currency === 'NGN') {
@@ -132,6 +137,66 @@ export function PricingModal({ children, currentPlan }: PricingModalProps) {
     const planPricing = usdPricing[planName as keyof typeof usdPricing]
     const usdPrice = planPricing.monthly
     return `$${usdPrice.toFixed(2)}`
+  }
+
+  const handlePlanSelection = async (planName: string) => {
+    if (planName === currentPlan) {
+      return // Don't do anything if it's the same plan
+    }
+
+    setIsLoading(true)
+    setSelectedPlan(planName)
+
+    try {
+      // Map plan names to API format
+      const planTypeMap: Record<string, string> = {
+        'FREE': 'FREE',
+        'Starter': 'STARTER', 
+        'Business': 'BUSINESS',
+        'Enterprise': 'ENTERPRISE'
+      }
+
+      const planType = planTypeMap[planName]
+      if (!planType) {
+        throw new Error('Invalid plan selected')
+      }
+
+      // Try to update existing subscription first, then create if it doesn't exist
+      try {
+        await billingApi.updateSubscription(planType as "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE")
+        toast.success(`Successfully updated to ${planName} plan!`)
+      } catch (updateError: any) {
+        // If update fails because subscription doesn't exist, try to create
+        if (updateError?.response?.status === 404 || updateError?.message?.includes('No subscription found')) {
+          await billingApi.createSubscription(planType as "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE")
+          toast.success(`Successfully subscribed to ${planName} plan!`)
+        } else {
+          // Re-throw other errors
+          throw updateError
+        }
+      }
+
+      // Call the callback to refresh the parent component
+      if (onPlanChange) {
+        onPlanChange(planName)
+      }
+
+      // Close the modal after successful update
+      setTimeout(() => {
+        window.location.reload() // Simple refresh to update the UI
+      }, 1000)
+
+    } catch (error) {
+      console.error('Error updating subscription:', error)
+      toast.error(
+        error instanceof Error 
+          ? error.message 
+          : 'Failed to update subscription. Please try again.'
+      )
+    } finally {
+      setIsLoading(false)
+      setSelectedPlan(null)
+    }
   }
 
   return (
@@ -214,6 +279,8 @@ export function PricingModal({ children, currentPlan }: PricingModalProps) {
 
                 <div className="mt-6">
                   <Button
+                    onClick={() => handlePlanSelection(plan.name)}
+                    disabled={isLoading || (currentPlan === plan.name)}
                     className={cn(
                       "w-full",
                       currentPlan === plan.name
@@ -225,12 +292,18 @@ export function PricingModal({ children, currentPlan }: PricingModalProps) {
                         : "bg-muted hover:bg-muted/80 text-muted-foreground",
                     )}
                   >
-                    {currentPlan === plan.name 
-                      ? 'Current Plan' 
-                      : plan.name === 'FREE' 
-                      ? 'Get Started' 
-                      : 'Select plan'
-                    }
+                    {isLoading && selectedPlan === plan.name ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Updating...
+                      </>
+                    ) : currentPlan === plan.name ? (
+                      'Current Plan'
+                    ) : plan.name === 'FREE' ? (
+                      'Get Started'
+                    ) : (
+                      'Select plan'
+                    )}
                   </Button>
                 </div>
               </div>

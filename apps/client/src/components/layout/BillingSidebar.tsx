@@ -157,14 +157,15 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
       )}
 
       {/* Plan Details */}
-      {subscription.planType !== 'FREE' && (
+      {/* TODO: Implement overage rate display when billing is fully implemented */}
+      {/* {subscription.planType !== 'FREE' && (
         <div className="space-y-2 mb-3">
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-600">Overage rate</span>
             <span className="font-medium">{formatCurrency(subscription.overageRate)}/min</span>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Action Button */}
       {subscription.planType === 'FREE' ? (

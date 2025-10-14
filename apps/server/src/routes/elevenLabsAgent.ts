@@ -5,7 +5,9 @@ import type { Server } from "http";
 import { logger } from "../utils/logger";
 import { db } from "@repo/db";
 import { instructions } from "@/utils/instructions";
-import { emailService } from "../services/emailService";
+import { registerActiveCall, unregisterActiveCall } from "./webhooks";
+import { subscriptionValidationService } from "../services/subscriptionValidationService";
+
 
 const router: Router = Router();
 
@@ -48,6 +50,7 @@ Use this information to answer customer questions accurately. If asked about som
     sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
   }
 
+  // Updated customer information collection approach
   const questionsToAsk = [];
   if (aiConfig.askForName) questionsToAsk.push("name");
   if (aiConfig.askForPhone) questionsToAsk.push("phone number");
@@ -56,8 +59,15 @@ Use this information to answer customer questions accurately. If asked about som
 
   if (questionsToAsk.length > 0) {
     sessionInstructions.push(
-      `\n\nDuring the conversation, naturally collect: ${questionsToAsk.join(", ")}.`
+      `\n\nIMPORTANT: Collect customer information (${questionsToAsk.join(", ")}) ONLY AFTER you have gathered all the necessary business information (date, time, quantity, service details, etc.). Focus on their request first, then get their contact details at the end.`
     );
+    
+    // Add caller ID instructions for phone number collection
+    if (aiConfig.askForPhone) {
+      sessionInstructions.push(
+        `\n\nPHONE NUMBER COLLECTION: Use caller ID when available. Ask "Is this the best number to reach you at?" instead of "What's your phone number?". This is more natural and saves time.`
+      );
+    }
   }
 
   if (aiConfig.firstMessage) {
@@ -72,8 +82,10 @@ Use this information to answer customer questions accurately. If asked about som
     );
   }
 
-  // Add end call tool instructions
-  sessionInstructions.push(`\n\n## CALL ENDING
+  // Add confirmation and call ending instructions
+  sessionInstructions.push(`\n\n## CONFIRMATION & CALL ENDING
+CONFIRMATION RULE: Only confirm ONCE at the very end after collecting ALL information (business details + customer details). Don't confirm each piece individually.
+
 You have an "end_call" tool to hang up when:
 - Conversation is complete
 - Customer says goodbye or asks to hang up
@@ -152,7 +164,7 @@ function generateConfigHash(systemMessage: string, firstMessage: string, tempera
 }
 
 // Update existing agent's full conversation configuration
-async function updateAgentFullConfig(agentId: string, systemMessage: string, firstMessage: string, temperature: number, voiceId: string, lastConfigHash?: string, forceUpdate: boolean = false): Promise<boolean> {
+async function updateAgentFullConfig(agentId: string, systemMessage: string, firstMessage: string, temperature: number, voiceId: string, lastConfigHash?: string, forceUpdate = false): Promise<boolean> {
   try {
     const currentHash = generateConfigHash(systemMessage, firstMessage, temperature);
     
@@ -354,7 +366,7 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
   const voices = voicesData.voices || [];
   
   // Use the voiceId from businessConfig if provided, otherwise fallback to Rachel/Sarah
-  let voice;
+  let voice: any;
   if (businessConfig.voiceId) {
     voice = voices.find((v: any) => v.voice_id === businessConfig.voiceId);
     logger.info("Using configured voice", { 
@@ -415,34 +427,27 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
           {
             type: "webhook",
             name: "end_call",
-            description: "End the phone call when the conversation is complete or the customer requests to hang up",
+            description: "End the phone call when conversation is complete, customer says goodbye, or becomes unresponsive. Call this AFTER saying your goodbye message.",
             response_timeout_secs: 10,
             disable_interruptions: false,
             force_pre_tool_speech: false,
             api_schema: {
-              url: `${process.env.NGROK_URL || "https://server-production-0693e.up.railway.app"}/api/elevenlabs-agent/end-call`,
+              url: `${process.env.NGROK_URL || "https://server-production-0693e.up.railway.app"}/api/webhooks/end-call`,
               method: "POST",
               request_body_schema: {
                 type: "object",
                 properties: {
                   reason: {
                     type: "string",
-                    description: "Reason for ending the call (e.g., 'conversation_complete', 'customer_requested', 'no_response')"
+                    description: "Why ending call: 'conversation_complete' (normal end), 'customer_requested' (they said goodbye), or 'no_response' (unresponsive)",
+                    enum: ["conversation_complete", "customer_requested", "no_response"]
                   },
                   summary: {
                     type: "string", 
-                    description: "Brief summary of the call outcome"
-                  },
-                  callId: {
-                    type: "string",
-                    description: "The call ID from the database"
-                  },
-                  twilioCallSid: {
-                    type: "string", 
-                    description: "The Twilio Call SID"
+                    description: "What was accomplished in 1 sentence. Examples: 'Booked table for 2 on Friday 7pm for John Smith', 'Provided business hours information', 'Customer will call back later'"
                   }
                 },
-                required: ["reason"]
+                required: ["reason", "summary"]
               }
             }
           }
@@ -513,8 +518,7 @@ const startRecording = async (twilioCallSid: string, webhookUrl: string) => {
 
     const recording = await client.calls(twilioCallSid).recordings.create({
       recordingStatusCallback: webhookUrl,
-      recordingStatusCallbackMethod: 'POST',
-      recordingStatusCallbackEvent: ['completed']
+      recordingStatusCallbackMethod: 'POST'
     });
 
     logger.info("✅ Recording started", {
@@ -641,6 +645,21 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
         </Response>`);
     }
 
+    // Check subscription status before proceeding with call
+    const subscriptionValidation = await subscriptionValidationService.validateSubscriptionForCall(businessConfig.businessId);
+    
+    if (subscriptionValidation.isBlocked) {
+      logger.warn("🚫 Call blocked due to subscription issue", {
+        businessId: businessConfig.businessId,
+        businessName: businessConfig.businessName,
+        reason: subscriptionValidation.reason,
+        callerNumber,
+        twilioCallSid
+      });
+
+      return res.type("text/xml").send(subscriptionValidationService.getBlockedCallTwiML(subscriptionValidation));
+    }
+
     const agentId = await getOrCreateAgent(businessConfig);
 
     if (!agentId) {
@@ -707,71 +726,6 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
   }
 });
 
-// End call tool endpoint
-router.post("/end-call", async (req: Request, res: Response) => {
-  try {
-    const { reason, summary, callId, twilioCallSid } = req.body;
-    
-    logger.info("🔚 End call tool triggered", {
-      reason,
-      summary,
-      callId,
-      twilioCallSid
-    });
-
-    // End the call via Twilio API
-    if (twilioCallSid) {
-      try {
-        const accountSid = process.env.TWILIO_ACCOUNT_SID;
-        const authToken = process.env.TWILIO_AUTH_TOKEN;
-        
-        if (accountSid && authToken) {
-          const twilio = require('twilio');
-          const client = twilio(accountSid, authToken);
-          
-          await client.calls(twilioCallSid).update({
-            status: 'completed'
-          });
-          
-          logger.info("✅ Call ended via Twilio API", { twilioCallSid });
-        } else {
-          logger.error("❌ Missing Twilio credentials for ending call");
-        }
-      } catch (error) {
-        logger.error("❌ Error ending call via Twilio API:", error);
-      }
-    }
-
-    // Update call record with end reason
-    if (callId) {
-      try {
-        await db.call.update({
-          where: { id: callId },
-          data: {
-            status: "COMPLETED",
-            summary: summary || `Call ended: ${reason}`
-          }
-        });
-        logger.info("✅ Call record updated with end reason", { callId });
-      } catch (error) {
-        logger.error("❌ Error updating call record:", error);
-      }
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Call ended successfully",
-      reason,
-      summary
-    });
-  } catch (error) {
-    logger.error("❌ Error in end-call endpoint:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error ending call"
-    });
-  }
-});
 
 // WebSocket server setup
 export const setupElevenLabsAgentWebSocket = (server: Server) => {
@@ -863,6 +817,12 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
           twilioCallSid
         });
 
+        // Register call in active calls map
+        if (callId && twilioCallSid && streamSid) {
+          registerActiveCall(streamSid, callId, twilioCallSid, businessId || '');
+          logger.info("📝 Registered active call", { streamSid, callId, twilioCallSid });
+        }
+
         // Start recording via API after stream is established
         if (shouldStartRecording && twilioCallSid) {
           const webhookUrl = process.env.NGROK_URL 
@@ -897,6 +857,12 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
 
     ws.on("close", () => {
       logger.info("🔌 Twilio disconnected");
+      
+      // Clean up from active calls
+      if (streamSid) {
+        unregisterActiveCall(streamSid);
+        logger.info("🗑️ Removed from active calls", { streamSid });
+      }
       
       // Finalize call record on disconnect
       if (callId && callStartTime && businessName) {
