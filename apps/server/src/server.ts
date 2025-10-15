@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { validateEnvironment } from "./utils/helpers";
 import { logger } from "./utils/logger";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { generalLimiter, authLimiter, apiLimiter, waitlistLimiter, contactLimiter, webhookLimiter } from "./middleware/rateLimiter";
 import aiReceptionistRoutes from "./routes/aiReceptionist";
 import appointmentsRoutes from "./routes/appointments";
 import callsRoutes from "./routes/calls";
@@ -29,6 +30,7 @@ import pineconeRoutes from "./routes/pinecone";
 import waitlistRoutes from "./routes/waitlist";
 import billingRoutes from "./routes/billing";
 import voiceUpdateRoutes from "./routes/voiceUpdate";
+import adminRoutes from "./routes/admin";
 
 // Load environment variables
 dotenv.config();
@@ -44,23 +46,17 @@ const PORT = Number.parseInt(process.env.PORT || "3001");
 // Middleware
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
-  : ["http://localhost:3000"];
+  : ["http://localhost:3000", "http://localhost:3002"];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, Postman, etc.)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: true, // Temporarily allow all origins for debugging
     credentials: true,
   })
 );
+// Apply general rate limiting to all routes
+app.use(generalLimiter);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -85,25 +81,26 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// API Routes
-app.use("/api/ai-receptionist", aiReceptionistRoutes);
-app.use("/api/appointments", appointmentsRoutes);
-app.use("/api/calls", callsRoutes);
-app.use("/api/settings", settingsRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/signup", signupRoutes);
-app.use("/api/webhooks", webhooksRoutes);
-app.use("/api/agent", agentRoutes);
-app.use("/api/openai", openaiRoutes);
-app.use("/api/uploadthing", uploadthingRoutes);
-app.use("/api/embeddings", embeddingsRoutes);
-app.use("/api/pinecone", pineconeRoutes);
-app.use("/api/waitlist", waitlistRoutes);
-app.use("/api/billing", billingRoutes);
-app.use("/api/voice", voiceUpdateRoutes);
+// API Routes with specific rate limiting
+app.use("/api/ai-receptionist", apiLimiter, aiReceptionistRoutes);
+app.use("/api/appointments", apiLimiter, appointmentsRoutes);
+app.use("/api/calls", apiLimiter, callsRoutes);
+app.use("/api/settings", apiLimiter, settingsRoutes);
+app.use("/api/dashboard", apiLimiter, dashboardRoutes);
+app.use("/api/signup", authLimiter, signupRoutes);
+app.use("/api/webhooks", webhookLimiter, webhooksRoutes);
+app.use("/api/agent", apiLimiter, agentRoutes);
+app.use("/api/openai", apiLimiter, openaiRoutes);
+app.use("/api/uploadthing", apiLimiter, uploadthingRoutes);
+app.use("/api/embeddings", apiLimiter, embeddingsRoutes);
+app.use("/api/pinecone", apiLimiter, pineconeRoutes);
+app.use("/api/waitlist", waitlistLimiter, waitlistRoutes);
+app.use("/api/billing", apiLimiter, billingRoutes);
+app.use("/api/voice", apiLimiter, voiceUpdateRoutes);
+app.use("/api/admin", apiLimiter, adminRoutes);
 
-app.use("/api/openai-realtime", openaiRealtimeRoutes);
-app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
+app.use("/api/openai-realtime", apiLimiter, openaiRealtimeRoutes);
+app.use("/api/elevenlabs-agent", apiLimiter, elevenLabsAgentRoutes);
 
 // Setup Twilio media stream WebSocket handlers
 // setupOpenAIRealtimeWebSocket(server); // Temporarily disabled to test ElevenLabs

@@ -2,40 +2,50 @@
 
 import Header from "@/components/Homepage/header";
 import HeroSection from "@/components/Homepage/hero-section";
-import LogoCarousel from "@/components/Homepage/logo-carousel";
 import FeaturesSection from "@/components/Homepage/features-section";
 import HowItWorks from "@/components/Homepage/how-it-works";
 import TestimonialsSection from "@/components/Homepage/testimonials-section";
-import FAQSection from "@/components/Homepage/faq-section";
-import AboutSection from "@/components/Homepage/about-section";
 import CTASection from "@/components/Homepage/cta-section";
 import Footer from "@/components/Homepage/footer";
 import BackgroundElements from "@/components/Homepage/background-elements";
+import ScrollAnimationWrapper from "@/components/Homepage/scroll-animation-wrapper";
 
 export default function CallPlatterLanding() {
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: '#343434' }}>
+    <div className="min-h-screen relative overflow-hidden bg-white">
       <BackgroundElements />
 
       <Header />
 
       <HeroSection />
 
+      {/* <HeroImageWithFeatures /> */}
+
       {/* <LogoCarousel /> */}
 
-      <FeaturesSection />
+      <ScrollAnimationWrapper delay={0.1}>
+        <FeaturesSection />
+      </ScrollAnimationWrapper>
 
-      <HowItWorks />
+      <ScrollAnimationWrapper delay={0.2}>
+        <HowItWorks />
+      </ScrollAnimationWrapper>
 
-      <TestimonialsSection />
+      <ScrollAnimationWrapper delay={0.3}>
+        <TestimonialsSection />
+      </ScrollAnimationWrapper>
 
       {/* <FAQSection /> */}
 
       {/* <AboutSection />*/}
 
-      <CTASection /> 
+      <ScrollAnimationWrapper delay={0.4}>
+        <CTASection />
+      </ScrollAnimationWrapper>
 
-      <Footer />
+      <ScrollAnimationWrapper delay={0.5}>
+        <Footer />
+      </ScrollAnimationWrapper>
     </div>
   );
 }

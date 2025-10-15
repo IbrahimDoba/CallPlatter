@@ -5,7 +5,6 @@ import { motion } from "framer-motion"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { Phone, Menu } from "lucide-react"
 
 export default function Header() {
@@ -91,7 +90,6 @@ export default function Header() {
                 {item.name}
               </a>
             ))}
-            <ThemeToggle />
             <Link href="/waitlist">
               <Button 
                 size="sm"
@@ -129,9 +127,6 @@ export default function Header() {
                     </a>
                   ))}
                   <div className="pt-4 border-t border-border">
-                    <div className="flex items-center justify-center mb-4">
-                      <ThemeToggle />
-                    </div>
                     <Link href="/waitlist" className="block w-full">
                       <Button 
                         className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"

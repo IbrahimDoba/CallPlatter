@@ -62,31 +62,31 @@ const PricingTier = ({
   isPopular?: boolean;
 }) => (
   <CardSpotlight
-    className={`h-full ${isPopular ? "border-blue-500" : "border-white/10"} border-2`}
+    className={`h-full ${isPopular ? "border-primary" : "border-border"} border-2 bg-muted`}
   >
     <div className="relative h-full p-6 flex flex-col">
       {isPopular && (
-        <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-blue-600 hover:bg-blue-600 text-white">
+        <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary hover:bg-primary/90 text-primary-foreground">
           POPULAR
         </Badge>
       )}
-      <h3 className="text-xl font-medium mb-2 text-white">{name}</h3>
+      <h3 className="text-xl font-medium mb-2 text-muted-foreground">{name}</h3>
       <div className="mb-4">
-        <span className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+        <span className="text-4xl font-bold text-primary">
           {price}
         </span>
-        <span className="text-gray-400 text-sm ml-1">{period}</span>
+        <span className="text-muted-foreground text-sm ml-1">{period}</span>
       </div>
-      <p className="text-gray-400 mb-6">{description}</p>
+      <p className="text-muted-foreground mb-6">{description}</p>
       <ul className="space-y-3 mb-8 flex-grow">
         {features.map((feature) => (
           <li key={feature} className="flex items-start gap-2">
-            <Check className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-            <span className="text-sm text-gray-300">{feature}</span>
+            <Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+            <span className="text-sm text-muted-foreground">{feature}</span>
           </li>
         ))}
       </ul>
-      <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 w-full">
+      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground w-full">
         Select plan
       </Button>
     </div>
@@ -103,15 +103,15 @@ const FAQItem = ({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border border-white/10 rounded-lg">
+    <div className="border border-border rounded-lg">
       <button
         type="button"
-        className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-white/5 transition-colors"
+        className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-accent transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className="text-white font-medium">{question}</span>
+        <span className="text-foreground font-medium">{question}</span>
         <ChevronDown
-          className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+          className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
           }`}
         />
@@ -123,7 +123,7 @@ const FAQItem = ({
           exit={{ opacity: 0, height: 0 }}
           className="px-6 pb-4"
         >
-          <p className="text-gray-300 leading-relaxed">{answer}</p>
+          <p className="text-muted-foreground leading-relaxed">{answer}</p>
         </motion.div>
       )}
     </div>
@@ -217,15 +217,15 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-16">
+      <div className="bg-primary py-16">
         <div className="container mx-auto px-6 text-center">
           <motion.div {...fadeInUp}>
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
               Pricing Plans
             </h1>
-            <p className="text-xl text-blue-100 max-w-3xl mx-auto">
+            <p className="text-xl text-primary-foreground/80 max-w-3xl mx-auto">
               Choose the perfect plan for your business. All plans include our
               core AI receptionist features with no hidden costs.
             </p>
@@ -252,8 +252,8 @@ export default function PricingPage() {
               onClick={() => setCurrency("USD")}
               className={`flex items-center gap-1 transition-all duration-200 ${
                 currency === "USD"
-                  ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25 scale-105"
-                  : "bg-black border-white/20 text-white hover:bg-gray-800 hover:border-white/40"
+                  ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg scale-105"
+                  : "bg-secondary border-border text-secondary-foreground hover:bg-accent hover:border-accent"
               }`}
             >
               <DollarSign className="h-4 w-4" />
@@ -265,8 +265,8 @@ export default function PricingPage() {
               onClick={() => setCurrency("NGN")}
               className={`flex items-center gap-1 transition-all duration-200 ${
                 currency === "NGN"
-                  ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25 scale-105"
-                  : "bg-black border-white/20 text-white hover:bg-gray-800 hover:border-white/40"
+                  ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg scale-105"
+                  : "bg-secondary border-border text-secondary-foreground hover:bg-accent hover:border-accent"
               }`}
             >
               <Globe className="h-4 w-4" />
@@ -295,14 +295,14 @@ export default function PricingPage() {
           {/* FAQ Section */}
           <motion.section
             {...fadeInUp}
-            className="bg-white/5 backdrop-blur-lg rounded-xl p-8 border border-white/10"
+            className="bg-card backdrop-blur-lg rounded-xl p-8 border border-border"
           >
             <div className="text-center mb-12">
               <h2 className="text-4xl font-bold mb-6 flex items-center justify-center gap-3">
-                <HelpCircle className="w-10 h-10 text-blue-400" />
+                <HelpCircle className="w-10 h-10 text-primary" />
                 Frequently Asked Questions
               </h2>
-              <p className="text-gray-300 text-lg">
+              <p className="text-muted-foreground text-lg">
                 Everything you need to know about DailZero's AI receptionist
                 service
               </p>
@@ -321,7 +321,7 @@ export default function PricingPage() {
 
           {/* CTA Section */}
           <motion.section {...fadeInUp} className="text-center">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl p-12 text-white">
+            <div className="bg-primary rounded-3xl p-12 text-primary-foreground">
               <h2 className="text-3xl md:text-4xl font-bold mb-6">
                 Ready to Get Started?
               </h2>
@@ -332,7 +332,7 @@ export default function PricingPage() {
                 <Link href="/waitlist">
                   <Button
                     size="lg"
-                    className="bg-white text-blue-600 hover:bg-gray-100 text-xl font-bold px-8 py-4"
+                    className="bg-background text-foreground hover:bg-accent text-xl font-bold px-8 py-4"
                   >
                     Start Free Trial
                   </Button>
@@ -341,7 +341,7 @@ export default function PricingPage() {
                   <Button
                     size="lg"
                     variant="outline"
-                    className="bg-black text-white hover:bg-gray-800 hover:text-white text-xl font-bold px-8 py-4"
+                    className="bg-transparent border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary text-xl font-bold px-8 py-4"
                   >
                     Contact Sales
                   </Button>
@@ -354,7 +354,7 @@ export default function PricingPage() {
         {/* Back to Home */}
         <motion.div {...fadeInUp} className="text-center mt-12">
           <Link href="/">
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3">
               Back to Home
             </Button>
           </Link>
