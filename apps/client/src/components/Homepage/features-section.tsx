@@ -1,92 +1,97 @@
-"use client"
-import { Phone, Calendar, BarChart3, Shield } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FeatureTab } from "./FeatureTab"
-import { FeatureContent } from "./FeatureContent"
+"use client";
+import { motion } from "framer-motion";
+import {
+  Phone,
+  Calendar,
+  BarChart3,
+  Shield,
+  Clock,
+  Users,
+  Bot,
+  Zap,
+} from "lucide-react";
 
 const features = [
   {
+    title: "24/7 AI Receptionist",
+    description: "Never miss a call again with our intelligent AI that answers every call professionally.",
     icon: <Phone className="w-6 h-6" />,
-    title: "AI Voice Assistant",
-    description: "Natural conversation handling with advanced speech recognition. Our AI understands various accents and local business contexts worldwide.",
-    image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
   },
   {
+    title: "Smart Scheduling",
+    description: "Automatic appointment booking with calendar integration saves you hours daily.",
     icon: <Calendar className="w-6 h-6" />,
-    title: "Smart Appointment Booking",
-    description: "Automatically schedule appointments during calls. Integrates with your calendar and sends reminders to customers.",
-    image: "https://images.unsplash.com/photo-1611224923853-80b023f02d71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
   },
   {
+    title: "Call Analytics",
+    description: "Complete insights into every call with detailed reports and customer analytics.",
     icon: <BarChart3 className="w-6 h-6" />,
-    title: "Business Dashboard",
-    description: "Track calls, appointments, and customer interactions. Get insights into your business communications patterns.",
-    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
   },
   {
+    title: "Professional Service",
+    description: "Consistent, high-quality customer service that represents your brand perfectly.",
     icon: <Shield className="w-6 h-6" />,
-    title: "Enterprise Security",
-    description: "Enterprise-grade security with complete data isolation. Your business data is protected and private.",
-    image: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
-  }
-]
+  },
+  {
+    title: "Instant Response",
+    description: "Lightning-fast call handling with zero wait times for your customers.",
+    icon: <Zap className="w-6 h-6" />,
+  },
+  {
+    title: "AI-Powered",
+    description: "Advanced artificial intelligence that learns and improves with every interaction.",
+    icon: <Bot className="w-6 h-6" />,
+  },
+];
 
 export default function FeaturesSection() {
   return (
-    <section id="features" className="py-24 bg-background">
-      <div className="container px-4 mx-auto max-w-6xl">
-        {/* Header Section */}
-        <div className="max-w-2xl mb-20">
-          <h2 className="text-5xl md:text-6xl font-normal mb-6 tracking-tight text-left text-foreground">
-            Advanced AI
-            <br />
-            <span className="text-primary font-medium">Features & Tools</span>
+    <section id="features" className="py-24 bg-white">
+      <div className="container px-4 mx-auto max-w-7xl">
+        {/* Header with slide-in animation from left */}
+        <motion.div
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+            Why Choose <span className="text-primary">DailZero</span>
           </h2>
-          <p className="text-lg md:text-xl text-muted-foreground text-left">
-            Experience professional-grade AI tools and features designed for modern businesses and their communication needs worldwide.
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Everything you need to transform your business communication with AI
           </p>
+        </motion.div>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {features.map((feature, index) => (
+            <motion.div
+              key={feature.title}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                delay: 0.2 + index * 0.1, 
+                duration: 0.6,
+                ease: "easeOut"
+              }}
+              className="group p-8 bg-white rounded-2xl border border-gray-100 hover:border-primary/20 hover:shadow-lg transition-all duration-300"
+            >
+              <div className="flex items-center justify-center w-12 h-12 bg-primary/10 rounded-xl mb-6 group-hover:bg-primary/20 transition-colors duration-300">
+                <div className="text-primary">
+                  {feature.icon}
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">
+                {feature.title}
+              </h3>
+              <p className="text-gray-600 leading-relaxed">
+                {feature.description}
+              </p>
+            </motion.div>
+          ))}
         </div>
-
-        <Tabs defaultValue={features[0]?.title || "AI Voice Assistant"} className="w-full">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
-            {/* Left side - Tab triggers */}
-            <div className="md:col-span-5 space-y-3">
-              <TabsList className="flex flex-col w-full bg-transparent h-auto p-0 space-y-3">
-                {features.map((feature) => (
-                  <TabsTrigger
-                    key={feature.title}
-                    value={feature.title}
-                    className="w-full data-[state=active]:shadow-none data-[state=active]:bg-transparent"
-                  >
-                    <FeatureTab
-                      title={feature.title}
-                      description={feature.description}
-                      icon={feature.icon}
-                      isActive={false}
-                    />
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-
-            {/* Right side - Tab content with images */}
-            <div className="md:col-span-7">
-              {features.map((feature) => (
-                <TabsContent
-                  key={feature.title}
-                  value={feature.title}
-                  className="mt-0 h-full"
-                >
-                  <FeatureContent
-                    image={feature.image}
-                    title={feature.title}
-                  />
-                </TabsContent>
-              ))}
-            </div>
-          </div>
-        </Tabs>
       </div>
     </section>
-  )
+  );
 }

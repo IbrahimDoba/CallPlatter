@@ -12,7 +12,7 @@ const fadeInUp = {
 
 export default function CTASection() {
   return (
-    <section className="text-center py-20 bg-background">
+    <section className="text-center py-20 bg-stone-100">
       <div className="container mx-auto px-6 max-w-6xl">
         <motion.div
           className="bg-primary rounded-3xl p-12 md:p-16 text-primary-foreground shadow-2xl"

@@ -88,11 +88,11 @@ export default function ContactPage() {
   ];
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: '#343434' }}>
+    <div className="min-h-screen relative overflow-hidden bg-stone-200">
       <BackgroundElements />
       <Header />
 
-      <main className="pt-20 pb-16">
+      <main className="pt-32 pb-16">
         <div className="container mx-auto px-4">
           {/* Hero Section */}
           <motion.div
@@ -101,10 +101,10 @@ export default function ContactPage() {
             transition={{ duration: 0.6 }}
             className="text-center mb-16"
           >
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-              Get in <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Touch</span>
+            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+              Get in <span className="text-primary">Touch</span>
             </h1>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Have questions about DailZero? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
             </p>
           </motion.div>
@@ -117,44 +117,25 @@ export default function ContactPage() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="lg:col-span-1 space-y-6"
             >
-              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-                <h2 className="text-2xl font-bold text-white mb-6">Contact Information</h2>
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-lg">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Contact Information</h2>
                 <div className="space-y-6">
-                  {contactInfo.map((info, index) => (
-                    <div key={`contact-${index}`} className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white flex-shrink-0">
+                  {contactInfo.map((info) => (
+                    <div key={info.title} className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary flex-shrink-0">
                         {info.icon}
                       </div>
                       <div>
-                        <h3 className="font-semibold text-white mb-1">{info.title}</h3>
+                        <h3 className="font-semibold text-gray-900 mb-1">{info.title}</h3>
                         <div className="space-y-1">
                           {info.details.map((detail, idx) => (
-                            <p key={`detail-${index}-${idx}`} className="text-gray-300 text-sm">{detail}</p>
+                            <p key={`detail-${info.title}-${idx}`} className="text-gray-600 text-sm">{detail}</p>
                           ))}
                         </div>
-                        <p className="text-gray-400 text-xs mt-1">{info.description}</p>
+                        <p className="text-gray-500 text-xs mt-1">{info.description}</p>
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* Quick Links */}
-              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-                <h3 className="text-xl font-bold text-white mb-4">Quick Links</h3>
-                <div className="space-y-3">
-                  <a href="#features" className="block text-gray-300 hover:text-white transition-colors">
-                    → Features
-                  </a>
-                  <a href="#pricing" className="block text-gray-300 hover:text-white transition-colors">
-                    → Pricing
-                  </a>
-                  <a href="/signup" className="block text-gray-300 hover:text-white transition-colors">
-                    → Get Started
-                  </a>
-                  <a href="/signin" className="block text-gray-300 hover:text-white transition-colors">
-                    → Sign In
-                  </a>
                 </div>
               </div>
             </motion.div>
@@ -166,10 +147,10 @@ export default function ContactPage() {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="lg:col-span-2"
             >
-              <Card className="bg-white/10 backdrop-blur-lg border-white/20">
+              <Card className="bg-white border-gray-200 shadow-lg">
                 <CardHeader>
-                  <CardTitle className="text-2xl font-bold text-white">Send us a Message</CardTitle>
-                  <CardDescription className="text-gray-300">
+                  <CardTitle className="text-2xl font-bold text-gray-900">Send us a Message</CardTitle>
+                  <CardDescription className="text-gray-600">
                     Fill out the form below and we'll get back to you within 24 hours.
                   </CardDescription>
                 </CardHeader>
@@ -180,27 +161,27 @@ export default function ContactPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       className="text-center py-12"
                     >
-                      <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                      <h3 className="text-2xl font-bold text-white mb-2">Message Sent!</h3>
-                      <p className="text-gray-300">Thank you for contacting us. We'll get back to you soon.</p>
+                      <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-2xl font-bold text-gray-900 mb-2">Message Sent!</h3>
+                      <p className="text-gray-600">Thank you for contacting us. We'll get back to you soon.</p>
                     </motion.div>
                   ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label htmlFor={nameId} className="text-white">Full Name *</Label>
+                          <Label htmlFor={nameId} className="text-gray-900">Full Name *</Label>
                           <Input
                             id={nameId}
                             name="name"
                             value={formData.name}
                             onChange={handleInputChange}
                             required
-                            className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-blue-400"
+                            className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:border-primary"
                             placeholder="Enter your full name"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor={emailId} className="text-white">Email Address *</Label>
+                          <Label htmlFor={emailId} className="text-gray-900">Email Address *</Label>
                           <Input
                             id={emailId}
                             name="email"
@@ -208,7 +189,7 @@ export default function ContactPage() {
                             value={formData.email}
                             onChange={handleInputChange}
                             required
-                            className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-blue-400"
+                            className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:border-primary"
                             placeholder="Enter your email"
                           />
                         </div>
@@ -216,32 +197,32 @@ export default function ContactPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label htmlFor={companyId} className="text-white">Company</Label>
+                          <Label htmlFor={companyId} className="text-gray-900">Company</Label>
                           <Input
                             id={companyId}
                             name="company"
                             value={formData.company}
                             onChange={handleInputChange}
-                            className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-blue-400"
+                            className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:border-primary"
                             placeholder="Your company name"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor={subjectId} className="text-white">Subject *</Label>
+                          <Label htmlFor={subjectId} className="text-gray-900">Subject *</Label>
                           <Input
                             id={subjectId}
                             name="subject"
                             value={formData.subject}
                             onChange={handleInputChange}
                             required
-                            className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-blue-400"
+                            className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:border-primary"
                             placeholder="What's this about?"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor={messageId} className="text-white">Message *</Label>
+                        <Label htmlFor={messageId} className="text-gray-900">Message *</Label>
                         <Textarea
                           id={messageId}
                           name="message"
@@ -249,7 +230,7 @@ export default function ContactPage() {
                           onChange={handleInputChange}
                           required
                           rows={6}
-                          className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-blue-400"
+                          className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 focus:border-primary"
                           placeholder="Tell us how we can help you..."
                         />
                       </div>
@@ -257,11 +238,11 @@ export default function ContactPage() {
                       <Button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3"
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3"
                       >
                         {isSubmitting ? (
                           <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                             Sending Message...
                           </div>
                         ) : (
@@ -278,46 +259,6 @@ export default function ContactPage() {
             </motion.div>
           </div>
 
-          {/* FAQ Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-            className="mt-16"
-          >
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-white mb-4">Frequently Asked Questions</h2>
-              <p className="text-gray-300">Quick answers to common questions</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-              {[
-                {
-                  question: "How quickly can I get started?",
-                  answer: "You can set up your AI receptionist in under 5 minutes. Just complete our simple onboarding process and you're ready to go."
-                },
-                {
-                  question: "Do you offer phone support?",
-                  answer: "Yes! We provide 24/7 phone support for all our customers. Call us anytime for immediate assistance."
-                },
-                {
-                  question: "Can I customize the AI voice?",
-                  answer: "Absolutely! We offer 6 different AI voices to choose from, each with unique characteristics to match your brand."
-                },
-                {
-                  question: "What if I need help with setup?",
-                  answer: "Our support team is here to help with setup, configuration, and any questions you might have. We offer free onboarding assistance."
-                }
-              ].map((faq, index) => (
-                <Card key={`faq-${index}`} className="bg-white/10 backdrop-blur-lg border-white/20">
-                  <CardContent className="p-6">
-                    <h3 className="text-lg font-semibold text-white mb-3">{faq.question}</h3>
-                    <p className="text-gray-300">{faq.answer}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </motion.div>
         </div>
       </main>
 
