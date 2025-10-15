@@ -11,6 +11,7 @@
     "check-types": "turbo run check-types",
     "server:dev": "turbo dev --filter=server",
     "client:dev": "turbo dev --filter=client",
+    "admin:dev": "turbo dev --filter=admin",
     "db:dev": "turbo dev --filter=db",
     "db:generate": "pnpm --filter @repo/db run db:generate",
     "db:push": "pnpm --filter @repo/db run db:push",
