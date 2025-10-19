@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { Phone, Loader2 } from "lucide-react";
 import type { OnboardingData } from "../page";
 
 interface PhoneNumberStepProps {
@@ -14,140 +23,340 @@ interface PhoneNumberStepProps {
   isCompleting?: boolean;
 }
 
-// Mock data - in real implementation, this would come from an API
-const AVAILABLE_NUMBERS = [
-  {
-    id: "1",
-    displayNumber: "+1 (734) 415-6557",
-    cleanNumber: "+17344156557",
-    location: "New York, NY",
-    areaCode: "734"
-  },
-  {
-    id: "2", 
-    displayNumber: "+1 (555) 234-5678",
-    cleanNumber: "+15552345678",
-    location: "Los Angeles, CA",
-    areaCode: "555"
-  },
-  {
-    id: "3",
-    displayNumber: "+1 (555) 345-6789", 
-    cleanNumber: "+15553456789",
-    location: "Chicago, IL",
-    areaCode: "555"
-  },
-  {
-    id: "4",
-    displayNumber: "+1 (555) 456-7890",
-    cleanNumber: "+15554567890",
-    location: "Houston, TX", 
-    areaCode: "555"
-  },
-  {
-    id: "5",
-    displayNumber: "+1 (555) 567-8901",
-    cleanNumber: "+15555678901",
-    location: "Phoenix, AZ",
-    areaCode: "555"
-  }
-];
+interface AvailablePhoneNumber {
+  id: string;
+  number: string;
+  countryCode: string;
+}
 
-export function PhoneNumberStep({ data, onUpdate, onFinish, onBack, isCompleting = false }: PhoneNumberStepProps) {
-  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(data.selectedPhoneNumber);
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
 
-  const handleFinish = () => {
-    // Find the selected phone number and get its clean format
-    const selectedPhone = AVAILABLE_NUMBERS.find(phone => phone.id === selectedPhoneNumber);
-    const cleanPhoneNumber = selectedPhone?.cleanNumber || selectedPhoneNumber;
-    
-    console.log('PhoneNumberStep - Selected phone ID:', selectedPhoneNumber);
-    console.log('PhoneNumberStep - Selected phone object:', selectedPhone);
-    console.log('PhoneNumberStep - Clean phone number:', cleanPhoneNumber);
-    
-    // Update the data with the clean phone number
-    onUpdate({ selectedPhoneNumber: cleanPhoneNumber });
-    
-    // Pass the phone number directly to the finish handler
-    onFinish(cleanPhoneNumber);
+export function PhoneNumberStep({
+  data,
+  onUpdate,
+  onFinish,
+  onBack,
+  isCompleting = false,
+}: PhoneNumberStepProps) {
+  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(
+    data.selectedPhoneNumber
+  );
+  const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState(
+    data.selectedPhoneNumberId || ""
+  );
+  const [availableNumbers, setAvailableNumbers] = useState<
+    AvailablePhoneNumber[]
+  >([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Fetch available phone numbers
+  const fetchAvailableNumbers = async (
+    page: number = 1,
+    search: string = ""
+  ) => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "10",
+        ...(search && { search }),
+      });
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3001"}/api/admin/phone-numbers/available?${params}`
+      );
+      const result = await response.json();
+
+      if (result.ok) {
+        setAvailableNumbers(result.data);
+        setPagination(result.pagination);
+        setCurrentPage(page);
+      } else {
+        toast.error("Failed to load available phone numbers");
+      }
+    } catch (error) {
+      console.error("Error fetching available numbers:", error);
+      toast.error("Failed to load available phone numbers");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const isFormValid = selectedPhoneNumber !== "" && selectedPhoneNumber !== undefined;
+  useEffect(() => {
+    fetchAvailableNumbers(1, searchTerm);
+  }, [searchTerm]);
+
+  // Handle search with debounce
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm !== "") {
+        fetchAvailableNumbers(1, searchTerm);
+      } else {
+        fetchAvailableNumbers(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Format phone number for display
+  const formatPhoneNumber = (phoneNumber: string) => {
+    // Remove any existing formatting
+    const cleanNumber = phoneNumber.replace(/[\s\-\(\)]/g, "");
+
+    // Format based on length and country code
+    if (cleanNumber.startsWith("+234")) {
+      // Nigerian format: +234 801 234 5678
+      return cleanNumber.replace(/(\+234)(\d{3})(\d{3})(\d{4})/, "$1 $2 $3 $4");
+    } else if (cleanNumber.startsWith("+1")) {
+      // US format: +1 (234) 567-8900
+      return cleanNumber.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, "$1 ($2) $3-$4");
+    } else if (cleanNumber.startsWith("+44")) {
+      // UK format: +44 20 1234 5678
+      return cleanNumber.replace(/(\+44)(\d{2})(\d{4})(\d{4})/, "$1 $2 $3 $4");
+    } else {
+      // Generic format: +123 456 789 0123
+      return cleanNumber.replace(
+        /(\+\d{1,3})(\d{3})(\d{3})(\d{3,4})/,
+        "$1 $2 $3 $4"
+      );
+    }
+  };
+
+  const handleFinish = () => {
+    // Find the selected phone number
+    const selectedPhone = availableNumbers.find(
+      (phone) => phone.id === selectedPhoneNumberId
+    );
+
+    if (!selectedPhone) {
+      toast.error("Please select a phone number");
+      return;
+    }
+
+    // Update the data with both the phone number and ID
+    onUpdate({
+      selectedPhoneNumber: selectedPhone.number,
+      selectedPhoneNumberId: selectedPhone.id,
+    });
+
+    // Pass the phone number directly to the finish handler
+    onFinish(selectedPhone.number);
+  };
+
+  const isFormValid =
+    selectedPhoneNumberId !== "" && selectedPhoneNumberId !== undefined;
+
+  if (isLoading) {
+    return (
+      <motion.div
+        className="space-y-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900">Phone Number</h2>
+          <p className="mt-2 text-gray-600">
+            Loading available phone numbers...
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
+    <motion.div
+      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.div
+        className="text-center"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+      >
         <h2 className="text-2xl font-bold text-gray-900">Phone Number</h2>
         <p className="mt-2 text-gray-600">
-          You can forward calls to this number later
+          Choose a phone number for your business
         </p>
-      </div>
+      </motion.div>
 
-      <div className="space-y-4">
+      <motion.div
+        className="space-y-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
         <div>
-          <Label htmlFor="phoneNumber" className="text-sm font-medium text-gray-700">
+          <Label
+            htmlFor="phoneNumber"
+            className="text-sm font-medium text-gray-700"
+          >
             Pick a Number *
           </Label>
-          <Select value={selectedPhoneNumber} onValueChange={setSelectedPhoneNumber}>
-            <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Select a phone number" />
-            </SelectTrigger>
-            <SelectContent>
-              {AVAILABLE_NUMBERS.map((phone) => (
-                <SelectItem key={phone.id} value={phone.id}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{phone.displayNumber}</span>
-                    <span className="text-sm text-gray-500">{phone.location}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <motion.div
+            whileFocus={{ scale: 1.02 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Select
+              value={selectedPhoneNumberId}
+              onValueChange={(value) => {
+                setSelectedPhoneNumberId(value);
+                // Also update the phone number when ID changes
+                const selectedPhone = availableNumbers.find(phone => phone.id === value);
+                if (selectedPhone) {
+                  setSelectedPhoneNumber(selectedPhone.number);
+                }
+              }}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select a phone number" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableNumbers.map((phone, index) => (
+                  <motion.div
+                    key={phone.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <SelectItem value={phone.id}>
+                      <div className="flex items-center gap-3">
+                        <Phone className="h-4 w-4 text-gray-500" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            {formatPhoneNumber(phone.number)}
+                          </span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  </motion.div>
+                ))}
+              </SelectContent>
+            </Select>
+          </motion.div>
           <p className="mt-1 text-sm text-gray-500">
-            Choose a phone number for your business. You can change this later in settings.
+            Choose a phone number for your business. You can change this later
+            in settings.
           </p>
         </div>
 
-        {selectedPhoneNumber && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        {/* Pagination Controls */}
+        {pagination && pagination.pages > 1 && (
+          <motion.div
+            className="flex items-center justify-between"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  fetchAvailableNumbers(currentPage - 1, searchTerm)
+                }
+                disabled={!pagination.hasPrev || isLoading}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {pagination.pages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  fetchAvailableNumbers(currentPage + 1, searchTerm)
+                }
+                disabled={!pagination.hasNext || isLoading}
+              >
+                Next
+              </Button>
+            </div>
+            <div className="text-sm text-gray-500">
+              {pagination.total} total numbers
+            </div>
+          </motion.div>
+        )}
+
+        {selectedPhoneNumberId && (
+          <motion.div
+            className="bg-blue-50 border border-blue-200 rounded-lg p-4"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <Phone className="w-5 h-5 text-blue-400" />
+                </motion.div>
               </div>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-blue-800">
                   Selected Number
                 </h3>
                 <div className="mt-1 text-sm text-blue-700">
-                  {AVAILABLE_NUMBERS.find(p => p.id === selectedPhoneNumber)?.displayNumber || selectedPhoneNumber}
-                </div>
-                <div className="mt-1 text-xs text-blue-600">
-                  {AVAILABLE_NUMBERS.find(p => p.id === selectedPhoneNumber)?.location}
+                  {formatPhoneNumber(
+                    availableNumbers.find((p) => p.id === selectedPhoneNumberId)
+                      ?.number || selectedPhoneNumber
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
-      <div className="flex justify-between pt-6">
-        <Button
-          variant="outline"
-          onClick={onBack}
-          className="px-8"
+      <motion.div
+        className="flex justify-between pt-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ duration: 0.2 }}
         >
-          Back
-        </Button>
-        <Button
-          onClick={handleFinish}
-          disabled={!isFormValid || isCompleting}
-          className="px-8"
+          <Button variant="outline" onClick={onBack} className="px-8">
+            Back
+          </Button>
+        </motion.div>
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ duration: 0.2 }}
         >
-          {isCompleting ? "Completing Setup..." : "Finish Setup"}
-        </Button>
-      </div>
-    </div>
+          <Button
+            onClick={handleFinish}
+            disabled={!isFormValid || isCompleting}
+            className="px-8"
+          >
+            {isCompleting ? "Completing Setup..." : "Finish Setup"}
+          </Button>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }

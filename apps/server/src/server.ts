@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import { validateEnvironment } from "./utils/helpers";
 import { logger } from "./utils/logger";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import { generalLimiter, authLimiter, apiLimiter, waitlistLimiter, contactLimiter, webhookLimiter } from "./middleware/rateLimiter";
+import { generalLimiter, authLimiter, apiLimiter, waitlistLimiter, webhookLimiter } from "./middleware/rateLimiter";
 import aiReceptionistRoutes from "./routes/aiReceptionist";
 import appointmentsRoutes from "./routes/appointments";
 import callsRoutes from "./routes/calls";
@@ -31,6 +31,12 @@ import waitlistRoutes from "./routes/waitlist";
 import billingRoutes from "./routes/billing";
 import voiceUpdateRoutes from "./routes/voiceUpdate";
 import adminRoutes from "./routes/admin";
+import adminPhoneNumbersRoutes from "./routes/admin-phone-numbers";
+import resendOTPRoutes from "./routes/resend-otp";
+import verifyEmailRoutes from "./routes/verify-email";
+import forgotPasswordRoutes from "./routes/forgot-password";
+import verifyResetOTPRoutes from "./routes/verify-reset-otp";
+import resetPasswordRoutes from "./routes/reset-password";
 
 // Load environment variables
 dotenv.config();
@@ -98,6 +104,12 @@ app.use("/api/waitlist", waitlistLimiter, waitlistRoutes);
 app.use("/api/billing", apiLimiter, billingRoutes);
 app.use("/api/voice", apiLimiter, voiceUpdateRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
+app.use("/api/admin/phone-numbers", apiLimiter, adminPhoneNumbersRoutes);
+app.use("/api/resend-otp", authLimiter, resendOTPRoutes);
+app.use("/api/verify-email", authLimiter, verifyEmailRoutes);
+app.use("/api/forgot-password", authLimiter, forgotPasswordRoutes);
+app.use("/api/verify-reset-otp", authLimiter, verifyResetOTPRoutes);
+app.use("/api/reset-password", authLimiter, resetPasswordRoutes);
 
 app.use("/api/openai-realtime", apiLimiter, openaiRealtimeRoutes);
 app.use("/api/elevenlabs-agent", apiLimiter, elevenLabsAgentRoutes);

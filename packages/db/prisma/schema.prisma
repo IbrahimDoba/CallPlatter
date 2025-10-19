@@ -14,6 +14,8 @@ model User {
   password              String?
   image                 String?
   emailVerified         DateTime?
+  emailVerificationOtp String?   // OTP for email verification
+  otpExpiresAt          DateTime? // OTP expiration time
   role                  String    @default("USER")
   onboardingCompleted   Boolean?   @default(false)
   createdAt             DateTime  @default(now())
@@ -56,6 +58,38 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+/// Email verification OTP tokens for signup verification
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  otp       String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([email])
+  @@index([otp])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+/// Password reset tokens for forgot password functionality
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  otp       String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([email])
+  @@index([otp])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
 model Business {
   id               String             @id @default(cuid())
   name             String
@@ -76,8 +110,29 @@ model Business {
   subscription     Subscription?
   billingUsage     BillingUsage[]
   billingTransactions BillingTransaction[]
+  phoneNumberRecord PhoneNumber?
+  phoneNumberId    String?            @unique
 
   @@map("businesses")
+}
+
+model PhoneNumber {
+  id          String    @id @default(cuid())
+  number      String    @unique // The actual phone number (e.g., "+2348012345678")
+  countryCode String    // e.g., "+234" for Nigeria
+  isActive    Boolean   @default(true)
+  isAssigned  Boolean   @default(false) // Whether this number is assigned to a business
+  assignedTo  String?   @unique // Business ID if assigned, null if available
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  business    Business? @relation(fields: [assignedTo], references: [id])
+  
+  @@index([isAssigned])
+  @@index([isActive])
+  @@index([assignedTo])
+  @@map("phone_numbers")
 }
 
 model Session {

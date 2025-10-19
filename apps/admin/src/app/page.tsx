@@ -6,9 +6,53 @@ import { adminApi, type AdminStats } from "@/lib/adminApi";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<Array<{
+    id: string;
+    name: string;
+    email: string;
+    phoneNumber: string;
+    createdAt: string;
+    business: {
+      id: string;
+      name: string;
+      phoneNumber: string;
+      totalCalls: number;
+      subscription: {
+        id: string;
+        planType: string;
+        status: string;
+        minutesUsed: number;
+        minutesIncluded: number;
+        currentPeriodStart: string;
+        currentPeriodEnd: string;
+      } | null;
+    } | null;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Format phone number for display
+  const formatPhoneNumber = (phoneNumber: string) => {
+    if (!phoneNumber) return 'No AI number assigned';
+    
+    // Remove any existing formatting
+    const cleanNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    
+    // Format based on length and country code
+    if (cleanNumber.startsWith('+234')) {
+      // Nigerian format: +234 801 234 5678
+      return cleanNumber.replace(/(\+234)(\d{3})(\d{3})(\d{4})/, '$1 $2 $3 $4');
+    } else if (cleanNumber.startsWith('+1')) {
+      // US format: +1 (234) 567-8900
+      return cleanNumber.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
+    } else if (cleanNumber.startsWith('+44')) {
+      // UK format: +44 20 1234 5678
+      return cleanNumber.replace(/(\+44)(\d{2})(\d{4})(\d{4})/, '$1 $2 $3 $4');
+    } else {
+      // Generic format: +123 456 789 0123
+      return cleanNumber.replace(/(\+\d{1,3})(\d{3})(\d{3})(\d{3,4})/, '$1 $2 $3 $4');
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -57,10 +101,25 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage your AI receptionist platform
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
+              <p className="text-muted-foreground mt-2">
+                Manage your AI receptionist platform
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => window.location.href = '/phone-numbers'}
+                variant="outline"
+              >
+                Manage Phone Numbers
+              </Button>
+              <Button onClick={fetchData}>
+                Refresh Data
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -146,9 +205,6 @@ export default function AdminDashboard() {
                 No recent calls to display.
               </p>
             )}
-            <Button onClick={fetchData} className="mt-4">
-              Refresh Data
-            </Button>
           </div>
         </div>
 
@@ -158,7 +214,7 @@ export default function AdminDashboard() {
               Users by Plan
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {stats.usersByPlan.map((plan) => (
+              {stats.usersByPlan.map((plan: { planType: string; _count: { planType: number } }) => (
                 <div key={plan.planType} className="bg-card border border-border rounded-lg p-4">
                   <h3 className="font-semibold text-card-foreground">{plan.planType}</h3>
                   <p className="text-2xl font-bold text-primary mt-2">
@@ -183,7 +239,7 @@ export default function AdminDashboard() {
                       <th className="text-left p-4 font-medium text-foreground">Name</th>
                       <th className="text-left p-4 font-medium text-foreground">Email</th>
                       <th className="text-left p-4 font-medium text-foreground">Business</th>
-                      <th className="text-left p-4 font-medium text-foreground">Phone</th>
+                      <th className="text-left p-4 font-medium text-foreground">AI Phone Number</th>
                       <th className="text-left p-4 font-medium text-foreground">Total Calls</th>
                       <th className="text-left p-4 font-medium text-foreground">Subscription</th>
                       <th className="text-left p-4 font-medium text-foreground">Joined</th>
@@ -198,7 +254,7 @@ export default function AdminDashboard() {
                           {user.business?.name || 'No business'}
                         </td>
                         <td className="p-4 text-muted-foreground">
-                          {user.business?.phoneNumber || user.phoneNumber || 'N/A'}
+                          {formatPhoneNumber(user.business?.phoneNumber || '')}
                         </td>
                         <td className="p-4 text-foreground">
                           {user.business?.totalCalls || 0}

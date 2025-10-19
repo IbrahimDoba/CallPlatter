@@ -1,4 +1,3 @@
-import axios from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001';
 
@@ -18,6 +17,12 @@ export interface AdminStats {
     business: {
       name: string;
       phoneNumber: string;
+    };
+  }>;
+  usersByPlan: Array<{
+    planType: string;
+    _count: {
+      planType: number;
     };
   }>;
   businessesByPlan: Array<{
@@ -237,18 +242,149 @@ export class AdminApi {
    * Get subscription analytics
    */
   async getSubscriptions(): Promise<{
-    subscriptions: any[];
+    subscriptions: Array<{
+      id: string;
+      planType: string;
+      status: string;
+      minutesUsed: number;
+      minutesIncluded: number;
+      currentPeriodStart: string;
+      currentPeriodEnd: string;
+      business: {
+        id: string;
+        name: string;
+      };
+    }>;
     planAnalytics: Record<string, { count: number; revenue: number }>;
   }> {
     const response = await this.request<{
       success: boolean;
       data: {
-        subscriptions: any[];
+        subscriptions: Array<{
+          id: string;
+          planType: string;
+          status: string;
+          minutesUsed: number;
+          minutesIncluded: number;
+          currentPeriodStart: string;
+          currentPeriodEnd: string;
+          business: {
+            id: string;
+            name: string;
+          };
+        }>;
         planAnalytics: Record<string, { count: number; revenue: number }>;
       };
     }>('/api/admin/subscriptions');
 
     return response.data;
+  }
+
+  /**
+   * Get all phone numbers
+   */
+  async getPhoneNumbers(): Promise<{
+    id: string;
+    number: string;
+    countryCode: string;
+    isActive: boolean;
+    isAssigned: boolean;
+    assignedTo: string | null;
+    createdAt: string;
+    business?: {
+      id: string;
+      name: string;
+    };
+  }[]> {
+    const response = await this.request<{
+      ok: boolean;
+      data: {
+        id: string;
+        number: string;
+        countryCode: string;
+        isActive: boolean;
+        isAssigned: boolean;
+        assignedTo: string | null;
+        createdAt: string;
+        business?: {
+          id: string;
+          name: string;
+        };
+      }[];
+    }>('/api/admin/phone-numbers');
+
+    return response.data;
+  }
+
+  /**
+   * Add new phone number
+   */
+  async addPhoneNumber(data: { number: string; countryCode: string }): Promise<{
+    id: string;
+    number: string;
+    countryCode: string;
+    isActive: boolean;
+    isAssigned: boolean;
+    assignedTo: string | null;
+    createdAt: string;
+  }> {
+    const response = await this.request<{
+      ok: boolean;
+      data: {
+        id: string;
+        number: string;
+        countryCode: string;
+        isActive: boolean;
+        isAssigned: boolean;
+        assignedTo: string | null;
+        createdAt: string;
+      };
+    }>('/api/admin/phone-numbers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Update phone number
+   */
+  async updatePhoneNumber(id: string, data: { isActive?: boolean }): Promise<{
+    id: string;
+    number: string;
+    countryCode: string;
+    isActive: boolean;
+    isAssigned: boolean;
+    assignedTo: string | null;
+    createdAt: string;
+  }> {
+    const response = await this.request<{
+      ok: boolean;
+      data: {
+        id: string;
+        number: string;
+        countryCode: string;
+        isActive: boolean;
+        isAssigned: boolean;
+        assignedTo: string | null;
+        createdAt: string;
+      };
+    }>(`/api/admin/phone-numbers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Delete phone number
+   */
+  async deletePhoneNumber(id: string): Promise<void> {
+    await this.request(`/api/admin/phone-numbers/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 

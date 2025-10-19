@@ -118,6 +118,31 @@ export const api = {
       body: JSON.stringify(data),
       requireAuth: false,
     }),
+    verifyEmail: (data: { email: string; otp: string }) => apiRequest('/verify-email', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      requireAuth: false,
+    }),
+    resendOTP: (data: { email: string }) => apiRequest('/resend-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      requireAuth: false,
+    }),
+    forgotPassword: (data: { email: string }) => apiRequest('/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      requireAuth: false,
+    }),
+    verifyResetOTP: (data: { email: string; otp: string }) => apiRequest('/verify-reset-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      requireAuth: false,
+    }),
+    resetPassword: (data: { email: string; resetToken: string; newPassword: string }) => apiRequest('/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      requireAuth: false,
+    }),
   },
 
   // Webhooks (typically don't require session)
