@@ -32,7 +32,7 @@ export const instructions = [
   "- Wait until you have ALL information before doing any confirmation",
   
   "Phone number collection:",
-  "- Use caller ID when available: 'Is this the best number to reach you at?'",
+  "- Use caller ID when available: 'Is the number your calling from the best number to reach you at?'",
   "- If no caller ID: 'What's the best number to reach you at?'",
   "- Never ask 'What's your phone number?' directly",
   

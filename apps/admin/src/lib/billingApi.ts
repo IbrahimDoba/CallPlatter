@@ -1,4 +1,3 @@
-import { db } from "@repo/db";
 
 export interface Subscription {
   id: string;
@@ -18,6 +17,36 @@ export interface UsageLimits {
   minutesUsed: number;
   minutesIncluded: number;
   overageRate: number;
+}
+
+export interface BillingHistoryItem {
+  id: string;
+  businessId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  description: string;
+  createdAt: Date;
+  subscription: {
+    id: string;
+    planType: string;
+  };
+}
+
+export interface MonthlyBill {
+  id: string;
+  businessId: string;
+  totalAmount: number;
+  currency: string;
+  periodStart: Date;
+  periodEnd: Date;
+  status: string;
+  items: Array<{
+    description: string;
+    amount: number;
+    quantity: number;
+  }>;
+  createdAt: Date;
 }
 
 export class BillingApi {
@@ -64,7 +93,7 @@ export class BillingApi {
   /**
    * Get billing history
    */
-  async getBillingHistory(): Promise<any[]> {
+  async getBillingHistory(): Promise<BillingHistoryItem[]> {
     const response = await this.apiRequest("/api/billing/history");
     return response.data;
   }
@@ -98,7 +127,7 @@ export class BillingApi {
   /**
    * Generate monthly bill
    */
-  async generateMonthlyBill(): Promise<any> {
+  async generateMonthlyBill(): Promise<MonthlyBill> {
     const response = await this.apiRequest("/api/billing/generate-bill", {
       method: "POST",
     });

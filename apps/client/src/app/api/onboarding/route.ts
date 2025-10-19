@@ -25,20 +25,22 @@ export async function POST(request: NextRequest) {
       selectedAccent,
       greeting,
       recordingConsent,
-      selectedPhoneNumber
+      selectedPhoneNumber,
+      selectedPhoneNumberId
     } = body;
 
     // TODO: Use selectedAccent after running database migration
     console.log('Selected accent:', selectedAccent);
 
     // Validate required fields
-    if (!businessName || !businessDescription || !selectedVoice || !greeting || !selectedPhoneNumber) {
+    if (!businessName || !businessDescription || !selectedVoice || !greeting || !selectedPhoneNumber || !selectedPhoneNumberId) {
       console.log('Missing required fields:', {
         businessName: !!businessName,
         businessDescription: !!businessDescription,
         selectedVoice: !!selectedVoice,
         greeting: !!greeting,
-        selectedPhoneNumber: !!selectedPhoneNumber
+        selectedPhoneNumber: !!selectedPhoneNumber,
+        selectedPhoneNumberId: !!selectedPhoneNumberId
       });
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -53,6 +55,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if phone number is available and assign it
+    const phoneNumberRecord = await db.phoneNumber.findUnique({
+      where: { id: selectedPhoneNumberId },
+    });
+
+    if (!phoneNumberRecord) {
+      return NextResponse.json(
+        { error: 'Selected phone number not found' },
+        { status: 400 }
+      );
+    }
+
+    if (phoneNumberRecord.isAssigned) {
+      return NextResponse.json(
+        { error: 'Selected phone number is already assigned' },
+        { status: 400 }
+      );
+    }
+
     // Create or update business
     if (!businessId) {
       // Create new business
@@ -61,6 +82,7 @@ export async function POST(request: NextRequest) {
           name: businessName,
           description: businessDescription,
           phoneNumber: selectedPhoneNumber,
+          phoneNumberId: selectedPhoneNumberId,
         }
       });
       businessId = business.id;
@@ -78,9 +100,19 @@ export async function POST(request: NextRequest) {
           name: businessName,
           description: businessDescription,
           phoneNumber: selectedPhoneNumber,
+          phoneNumberId: selectedPhoneNumberId,
         }
       });
     }
+
+    // Assign the phone number to the business
+    await db.phoneNumber.update({
+      where: { id: selectedPhoneNumberId },
+      data: {
+        isAssigned: true,
+        assignedTo: businessId,
+      },
+    });
 
     // Update or create AI agent config
     await db.aIAgentConfig.upsert({

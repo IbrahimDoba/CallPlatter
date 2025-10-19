@@ -78,6 +78,11 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // Check if email is verified
+        if (!user.emailVerified) {
+          throw new Error("Please verify your email before signing in. Check your inbox for a verification code.");
+        }
+
         return {
           id: user.id,
           email: user.email,

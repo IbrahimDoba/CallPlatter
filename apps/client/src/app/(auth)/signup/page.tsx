@@ -34,6 +34,11 @@ export default function SignUpPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (formData.password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
@@ -42,17 +47,20 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      await api.auth.signup({
+      const response = await api.auth.signup({
         name: formData.name,
         email: formData.email,
         phoneNumber: formData.phoneNumber,
         password: formData.password,
       });
 
-      toast.success("Account created successfully");
-      router.push("/signin");
-    } catch {
-      toast.error("An error occurred");
+      // Store email for verification page
+      localStorage.setItem("signupEmail", formData.email);
+      
+      toast.success("Account created! Please check your email for verification code.");
+      router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
+    } catch (error: any) {
+      toast.error(error.message || "An error occurred");
     } finally {
       setIsLoading(false);
     }

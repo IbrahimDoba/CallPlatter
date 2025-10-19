@@ -27,7 +27,12 @@ export default function SignInPage() {
       });
 
       if (result?.error) {
-        toast.error("Invalid credentials");
+        if (result.error.includes("verify your email")) {
+          toast.error("Please verify your email first");
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        } else {
+          toast.error("Invalid credentials");
+        }
       } else {
         toast.success("Signed in successfully");
         router.push("/calls");
@@ -168,6 +173,15 @@ export default function SignInPage() {
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
+
+          <div className="mt-4 text-center">
+            <a
+              href="/forgot-password"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+            >
+              Forgot your password?
+            </a>
+          </div>
 
           <p className="mt-6 text-center text-sm text-gray-600">
             Don't have an account?{" "}

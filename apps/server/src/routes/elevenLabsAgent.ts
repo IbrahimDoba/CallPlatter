@@ -8,7 +8,6 @@ import { instructions } from "@/utils/instructions";
 import { registerActiveCall, unregisterActiveCall } from "./webhooks";
 import { subscriptionValidationService } from "../services/subscriptionValidationService";
 
-
 const router: Router = Router();
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
@@ -19,8 +18,8 @@ async function getSignedUrl(agentId: string): Promise<string> {
   const response = await fetch(
     `${ELEVENLABS_BASE_URL}/convai/conversation/get_signed_url?agent_id=${agentId}`,
     {
-      method: 'GET',
-      headers: { 'xi-api-key': ELEVENLABS_API_KEY || '' }
+      method: "GET",
+      headers: { "xi-api-key": ELEVENLABS_API_KEY || "" },
     }
   );
 
@@ -61,7 +60,7 @@ Use this information to answer customer questions accurately. If asked about som
     sessionInstructions.push(
       `\n\nIMPORTANT: Collect customer information (${questionsToAsk.join(", ")}) ONLY AFTER you have gathered all the necessary business information (date, time, quantity, service details, etc.). Focus on their request first, then get their contact details at the end.`
     );
-    
+
     // Add caller ID instructions for phone number collection
     if (aiConfig.askForPhone) {
       sessionInstructions.push(
@@ -71,15 +70,11 @@ Use this information to answer customer questions accurately. If asked about som
   }
 
   if (aiConfig.firstMessage) {
-    sessionInstructions.push(
-      `\n\nStart with: "${aiConfig.firstMessage}"`
-    );
+    sessionInstructions.push(`\n\nStart with: "${aiConfig.firstMessage}"`);
   }
 
   if (aiConfig.goodbyeMessage) {
-    sessionInstructions.push(
-      `\n\nEnd with: "${aiConfig.goodbyeMessage}"`
-    );
+    sessionInstructions.push(`\n\nEnd with: "${aiConfig.goodbyeMessage}"`);
   }
 
   // Add confirmation and call ending instructions
@@ -100,13 +95,13 @@ Use the tool with: reason, summary, callId, twilioCallSid`);
 async function getBusinessConfig(phoneNumber: string) {
   const business = await db.business.findFirst({
     where: { phoneNumber },
-    include: { 
+    include: {
       aiAgentConfig: true,
       elevenLabsAgent: true, // Include ElevenLabs agent to get the correct voiceId
       businessMemories: {
         where: { isActive: true },
-        orderBy: { createdAt: 'desc' }
-      }
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 
@@ -136,14 +131,15 @@ async function getBusinessConfig(phoneNumber: string) {
   }
 
   // Get the voiceId from ElevenLabsAgent if it exists, otherwise use the AI config voice
-  const voiceId = business.elevenLabsAgent?.voiceId || aiConfig.voice || "alloy";
+  const voiceId =
+    business.elevenLabsAgent?.voiceId || aiConfig.voice || "alloy";
 
   logger.info("🎤 Voice configuration", {
     businessId: business.id,
     elevenLabsVoiceId: business.elevenLabsAgent?.voiceId,
     aiConfigVoice: aiConfig.voice,
     finalVoiceId: voiceId,
-    hasElevenLabsAgent: !!business.elevenLabsAgent
+    hasElevenLabsAgent: !!business.elevenLabsAgent,
   });
 
   return {
@@ -157,17 +153,33 @@ async function getBusinessConfig(phoneNumber: string) {
 }
 
 // Generate a hash of the configuration to detect changes
-function generateConfigHash(systemMessage: string, firstMessage: string, temperature: number): string {
-  const crypto = require('crypto');
+function generateConfigHash(
+  systemMessage: string,
+  firstMessage: string,
+  temperature: number
+): string {
+  const crypto = require("crypto");
   const configString = `${systemMessage}|${firstMessage}|${temperature}`;
-  return crypto.createHash('md5').update(configString).digest('hex');
+  return crypto.createHash("md5").update(configString).digest("hex");
 }
 
 // Update existing agent's full conversation configuration
-async function updateAgentFullConfig(agentId: string, systemMessage: string, firstMessage: string, temperature: number, voiceId: string, lastConfigHash?: string, forceUpdate = false): Promise<boolean> {
+async function updateAgentFullConfig(
+  agentId: string,
+  systemMessage: string,
+  firstMessage: string,
+  temperature: number,
+  voiceId: string,
+  lastConfigHash?: string,
+  forceUpdate = false
+): Promise<boolean> {
   try {
-    const currentHash = generateConfigHash(systemMessage, firstMessage, temperature);
-    
+    const currentHash = generateConfigHash(
+      systemMessage,
+      firstMessage,
+      temperature
+    );
+
     // Skip update if config hasn't changed (unless forced)
     if (!forceUpdate && lastConfigHash && lastConfigHash === currentHash) {
       logger.info("Agent config unchanged, skipping update", { agentId });
@@ -176,55 +188,58 @@ async function updateAgentFullConfig(agentId: string, systemMessage: string, fir
 
     logger.info("🔄 Updating full agent configuration", { agentId, voiceId });
 
-    const response = await fetch(`${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`, {
-      method: 'PATCH',
-      headers: {
-        'Accept': 'application/json',
-        'xi-api-key': ELEVENLABS_API_KEY || '',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        conversation_config: {
-          turn: { 
-            mode: "turn",
-            turn_timeout: 10,  // Increased from 1 to 10 seconds - gives user more time to respond
-            silence_end_call_timeout: -1  // Don't end call on silence
+    const response = await fetch(
+      `${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`,
+      {
+        method: "PATCH",
+        headers: {
+          Accept: "application/json",
+          "xi-api-key": ELEVENLABS_API_KEY || "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversation_config: {
+            turn: {
+              mode: "turn",
+              turn_timeout: 10, // Increased from 1 to 10 seconds - gives user more time to respond
+              silence_end_call_timeout: -1, // Don't end call on silence
+            },
+            asr: {
+              quality: "high",
+              provider: "elevenlabs",
+              user_input_audio_format: "ulaw_8000",
+              no_speech_threshold: 0.3, // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
+            },
+            tts: {
+              voice_id: voiceId,
+              model_id: "eleven_flash_v2",
+              agent_output_audio_format: "ulaw_8000",
+              optimize_streaming_latency: 3, // Reduced from 4 to 3 - balance between speed and quality
+              stability: 0.5,
+              similarity_boost: 0.5,
+              speed: 1.0,
+            },
+            agent: {
+              first_message: firstMessage,
+              language: "en",
+              prompt: {
+                prompt: systemMessage,
+                llm: "gpt-4o-mini",
+                temperature: temperature,
+                max_tokens: 150, // Increased from 80 to 150 - allows for more natural responses
+              },
+            },
           },
-          asr: {
-            quality: "high",
-            provider: "elevenlabs",
-            user_input_audio_format: "ulaw_8000",
-            no_speech_threshold: 0.3  // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
-          },
-          tts: {
-            voice_id: voiceId,
-            model_id: "eleven_flash_v2",
-            agent_output_audio_format: "ulaw_8000",
-            optimize_streaming_latency: 3,  // Reduced from 4 to 3 - balance between speed and quality
-            stability: 0.5,
-            similarity_boost: 0.5,
-            speed: 1.0
-          },
-          agent: {
-            first_message: firstMessage,
-            language: "en",
-            prompt: {
-              prompt: systemMessage,
-              llm: "gpt-4o-mini",
-              temperature: temperature,
-              max_tokens: 150  // Increased from 80 to 150 - allows for more natural responses
-            }
-          }
-        }
-      })
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("Failed to update agent full configuration", { 
-        agentId, 
-        status: response.status, 
-        error: errorText 
+      logger.error("Failed to update agent full configuration", {
+        agentId,
+        status: response.status,
+        error: errorText,
       });
       return false;
     }
@@ -234,65 +249,81 @@ async function updateAgentFullConfig(agentId: string, systemMessage: string, fir
     if (agent) {
       await db.elevenLabsAgent.update({
         where: { id: agent.id },
-        data: { 
-          configHash: currentHash, 
+        data: {
+          configHash: currentHash,
           voiceId: voiceId,
-          updatedAt: new Date() 
-        }
+          updatedAt: new Date(),
+        },
       });
     }
 
-    logger.info("✅ Updated full agent configuration", { agentId, newHash: currentHash, voiceId });
+    logger.info("✅ Updated full agent configuration", {
+      agentId,
+      newHash: currentHash,
+      voiceId,
+    });
     return true;
   } catch (error) {
-    logger.error("❌ Error updating agent full configuration", { agentId, error });
+    logger.error("❌ Error updating agent full configuration", {
+      agentId,
+      error,
+    });
     return false;
   }
 }
 
 // Update agent's voice
-async function updateAgentVoice(agentId: string, voiceId: string): Promise<boolean> {
+async function updateAgentVoice(
+  agentId: string,
+  voiceId: string
+): Promise<boolean> {
   try {
     logger.info("🔄 Starting voice update", { agentId, voiceId });
-    
-    const response = await fetch(`${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`, {
-      method: 'PATCH',
-      headers: {
-        'Accept': 'application/json',
-        'xi-api-key': ELEVENLABS_API_KEY || '',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        conversation_config: {
-          tts: {
-            voice_id: voiceId,
-            // Keep other TTS settings the same
-          }
-        }
-      })
-    });
+
+    const response = await fetch(
+      `${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`,
+      {
+        method: "PATCH",
+        headers: {
+          Accept: "application/json",
+          "xi-api-key": ELEVENLABS_API_KEY || "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversation_config: {
+            tts: {
+              voice_id: voiceId,
+              // Keep other TTS settings the same
+            },
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("Failed to update agent voice", { 
-        agentId, 
-        status: response.status, 
-        error: errorText 
+      logger.error("Failed to update agent voice", {
+        agentId,
+        status: response.status,
+        error: errorText,
       });
       return false;
     }
 
-    logger.info("✅ ElevenLabs API voice update successful", { agentId, voiceId });
+    logger.info("✅ ElevenLabs API voice update successful", {
+      agentId,
+      voiceId,
+    });
 
     // Update voice in database
     const agent = await db.elevenLabsAgent.findFirst({ where: { agentId } });
     if (agent) {
       await db.elevenLabsAgent.update({
         where: { id: agent.id },
-        data: { 
+        data: {
           voiceId: voiceId,
-          updatedAt: new Date() 
-        }
+          updatedAt: new Date(),
+        },
       });
       logger.info("✅ Database voice update successful", { agentId, voiceId });
     } else {
@@ -320,18 +351,18 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
   });
 
   if (existingAgent) {
-    logger.info("Using existing agent", { 
+    logger.info("Using existing agent", {
       agentId: existingAgent.agentId,
       currentVoiceId: existingAgent.voiceId,
       newVoiceId: businessConfig.voiceId,
-      voiceChanged: businessConfig.voiceId !== existingAgent.voiceId
+      voiceChanged: businessConfig.voiceId !== existingAgent.voiceId,
     });
-    
+
     // Update full configuration including turn, asr, tts, and agent settings
     // This ensures all the new timing and sensitivity settings are applied
     // Force update to ensure new configuration is applied to existing agents
     const fullConfigUpdateResult = await updateAgentFullConfig(
-      existingAgent.agentId, 
+      existingAgent.agentId,
       businessConfig.systemMessage,
       businessConfig.firstMessage,
       businessConfig.temperature,
@@ -339,21 +370,21 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       existingAgent.configHash || undefined,
       true // Force update to apply new timing settings
     );
-    
-    logger.info("Full configuration update result", { 
+
+    logger.info("Full configuration update result", {
       success: fullConfigUpdateResult,
       agentId: existingAgent.agentId,
-      voiceId: businessConfig.voiceId || existingAgent.voiceId
+      voiceId: businessConfig.voiceId || existingAgent.voiceId,
     });
-    
+
     return existingAgent.agentId;
   }
 
   // Get voices
   const voicesResponse = await fetch(`${ELEVENLABS_BASE_URL}/voices`, {
     headers: {
-      'Accept': 'application/json',
-      'xi-api-key': ELEVENLABS_API_KEY,
+      Accept: "application/json",
+      "xi-api-key": ELEVENLABS_API_KEY,
     },
   });
 
@@ -364,23 +395,24 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
 
   const voicesData = await voicesResponse.json();
   const voices = voicesData.voices || [];
-  
+
   // Use the voiceId from businessConfig if provided, otherwise fallback to Rachel/Sarah
   let voice: any;
   if (businessConfig.voiceId) {
     voice = voices.find((v: any) => v.voice_id === businessConfig.voiceId);
-    logger.info("Using configured voice", { 
-      voiceId: businessConfig.voiceId, 
+    logger.info("Using configured voice", {
+      voiceId: businessConfig.voiceId,
       found: !!voice,
-      voiceName: voice?.name 
+      voiceName: voice?.name,
     });
   }
-  
+
   // Fallback to Rachel or Sarah for telephony if no voice found or configured
   if (!voice) {
-    voice = voices.find((v: any) => 
-      ['rachel', 'sarah'].includes(v.name.toLowerCase())
-    ) || voices[0];
+    voice =
+      voices.find((v: any) =>
+        ["rachel", "sarah"].includes(v.name.toLowerCase())
+      ) || voices[0];
     logger.info("Using fallback voice", { voiceName: voice?.name });
   }
 
@@ -394,25 +426,25 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
     name: `${businessConfig.businessName} AI Receptionist`,
     conversation_config: {
       conversation: { max_duration_seconds: 600 },
-      turn: { 
+      turn: {
         mode: "turn",
-        turn_timeout: 10,  // Increased from 1 to 10 seconds - gives user more time to respond
-        silence_end_call_timeout: -1  // Don't end call on silence
+        turn_timeout: 10, // Increased from 1 to 10 seconds - gives user more time to respond
+        silence_end_call_timeout: -1, // Don't end call on silence
       },
       asr: {
         quality: "high",
         provider: "elevenlabs",
         user_input_audio_format: "ulaw_8000",
-        no_speech_threshold: 0.3  // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
+        no_speech_threshold: 0.3, // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
       },
       tts: {
         voice_id: voice.voice_id,
         model_id: "eleven_flash_v2",
         agent_output_audio_format: "ulaw_8000",
-        optimize_streaming_latency: 3,  // Reduced from 4 to 3 - balance between speed and quality
+        optimize_streaming_latency: 3, // Reduced from 4 to 3 - balance between speed and quality
         stability: 0.5,
         similarity_boost: 0.5,
-        speed: 1.0
+        speed: 1.0,
       },
       agent: {
         first_message: businessConfig.firstMessage,
@@ -421,13 +453,14 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
           prompt: businessConfig.systemMessage,
           llm: "gpt-4o-mini",
           temperature: businessConfig.temperature,
-          max_tokens: 150  // Increased from 80 to 150 - allows for more natural responses
+          max_tokens: 150, // Increased from 80 to 150 - allows for more natural responses
         },
         tools: [
           {
             type: "webhook",
             name: "end_call",
-            description: "End the phone call when conversation is complete, customer says goodbye, or becomes unresponsive. Call this AFTER saying your goodbye message.",
+            description:
+              "End the phone call when conversation is complete, customer says goodbye, or becomes unresponsive. Call this AFTER saying your goodbye message.",
             response_timeout_secs: 10,
             disable_interruptions: false,
             force_pre_tool_speech: false,
@@ -439,32 +472,41 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
                 properties: {
                   reason: {
                     type: "string",
-                    description: "Why ending call: 'conversation_complete' (normal end), 'customer_requested' (they said goodbye), or 'no_response' (unresponsive)",
-                    enum: ["conversation_complete", "customer_requested", "no_response"]
+                    description:
+                      "Why ending call: 'conversation_complete' (normal end), 'customer_requested' (they said goodbye), or 'no_response' (unresponsive)",
+                    enum: [
+                      "conversation_complete",
+                      "customer_requested",
+                      "no_response",
+                    ],
                   },
                   summary: {
-                    type: "string", 
-                    description: "What was accomplished in 1 sentence. Examples: 'Booked table for 2 on Friday 7pm for John Smith', 'Provided business hours information', 'Customer will call back later'"
-                  }
+                    type: "string",
+                    description:
+                      "What was accomplished in 1 sentence. Examples: 'Booked table for 2 on Friday 7pm for John Smith', 'Provided business hours information', 'Customer will call back later'",
+                  },
                 },
-                required: ["reason", "summary"]
-              }
-            }
-          }
-        ]
-      }
-    }
+                required: ["reason", "summary"],
+              },
+            },
+          },
+        ],
+      },
+    },
   };
 
-  const agentResponse = await fetch(`${ELEVENLABS_BASE_URL}/convai/agents/create`, {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'xi-api-key': ELEVENLABS_API_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(agentPayload)
-  });
+  const agentResponse = await fetch(
+    `${ELEVENLABS_BASE_URL}/convai/agents/create`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(agentPayload),
+    }
+  );
 
   if (!agentResponse.ok) {
     const errorText = await agentResponse.text();
@@ -505,25 +547,25 @@ const startRecording = async (twilioCallSid: string, webhookUrl: string) => {
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
-    
+
     if (!accountSid || !authToken) {
       logger.error("❌ Missing Twilio credentials");
       return null;
     }
 
-    const twilio = require('twilio');
+    const twilio = require("twilio");
     const client = twilio(accountSid, authToken);
 
     logger.info("🎙️ Starting call recording via API", { twilioCallSid });
 
     const recording = await client.calls(twilioCallSid).recordings.create({
       recordingStatusCallback: webhookUrl,
-      recordingStatusCallbackMethod: 'POST'
+      recordingStatusCallbackMethod: "POST",
     });
 
     logger.info("✅ Recording started", {
       twilioCallSid,
-      recordingSid: recording.sid
+      recordingSid: recording.sid,
     });
 
     return recording;
@@ -566,20 +608,23 @@ const createCallRecord = async (
 // Track finalized calls to prevent duplicates
 const finalizedCalls = new Set<string>();
 
-const finalizeCallRecord = async (callId: string, callStartTime: Date, businessName: string, businessId?: string) => {
+const finalizeCallRecord = async (
+  callId: string,
+  callStartTime: Date,
+  businessName: string,
+  businessId?: string
+) => {
   // Prevent duplicate finalization
   if (finalizedCalls.has(callId)) {
     logger.info("⚠️ Call already finalized, skipping", { callId });
     return;
   }
-  
+
   finalizedCalls.add(callId);
   if (!callId || !callStartTime) return;
 
   try {
-    const duration = Math.floor(
-      (Date.now() - callStartTime.getTime()) / 1000
-    );
+    const duration = Math.floor((Date.now() - callStartTime.getTime()) / 1000);
 
     // Update call record
     const updatedCall = await db.call.update({
@@ -593,7 +638,7 @@ const finalizeCallRecord = async (callId: string, callStartTime: Date, businessN
 
     // Track billing usage
     try {
-      const { BillingService } = await import('../services/billingService.js');
+      const { BillingService } = await import("../services/billingService.js");
       const billingService = new BillingService();
       await billingService.trackCallUsage(callId, duration);
       logger.info("✅ Tracked billing usage for call", { callId, duration });
@@ -608,7 +653,10 @@ const finalizeCallRecord = async (callId: string, callStartTime: Date, businessN
     });
 
     // Email will be sent after summary generation in the transcription process
-    logger.info("📧 Email will be sent after summary generation", { callId, businessId });
+    logger.info("📧 Email will be sent after summary generation", {
+      callId,
+      businessId,
+    });
   } catch (error) {
     logger.error("❌ Error finalizing call record", error);
   }
@@ -624,7 +672,7 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
     logger.info("📞 Incoming call received", {
       calledNumber,
       callerNumber,
-      twilioCallSid
+      twilioCallSid,
     });
 
     if (!calledNumber) {
@@ -646,18 +694,27 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
     }
 
     // Check subscription status before proceeding with call
-    const subscriptionValidation = await subscriptionValidationService.validateSubscriptionForCall(businessConfig.businessId);
-    
+    const subscriptionValidation =
+      await subscriptionValidationService.validateSubscriptionForCall(
+        businessConfig.businessId
+      );
+
     if (subscriptionValidation.isBlocked) {
       logger.warn("🚫 Call blocked due to subscription issue", {
         businessId: businessConfig.businessId,
         businessName: businessConfig.businessName,
         reason: subscriptionValidation.reason,
         callerNumber,
-        twilioCallSid
+        twilioCallSid,
       });
 
-      return res.type("text/xml").send(subscriptionValidationService.getBlockedCallTwiML(subscriptionValidation));
+      return res
+        .type("text/xml")
+        .send(
+          subscriptionValidationService.getBlockedCallTwiML(
+            subscriptionValidation
+          )
+        );
     }
 
     const agentId = await getOrCreateAgent(businessConfig);
@@ -679,15 +736,16 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
 
     logger.info("✅ Call record created", {
       callId: call?.id,
-      twilioCallSid
+      twilioCallSid,
     });
 
-    const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'wss' : 'ws';
-    const host = req.headers.host || 'localhost:3001';
+    const protocol =
+      req.headers["x-forwarded-proto"] === "https" ? "wss" : "ws";
+    const host = req.headers.host || "localhost:3001";
     const websocketUrl = `${protocol}://${host}/api/elevenlabs-agent/media-stream`;
 
     // Setup recording webhook URL
-    const recordingWebhookUrl = process.env.NGROK_URL 
+    const recordingWebhookUrl = process.env.NGROK_URL
       ? `${process.env.NGROK_URL}/api/webhooks/recording-status`
       : `https://${host}/api/webhooks/recording-status`;
 
@@ -696,7 +754,7 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
       agentId,
       callerNumber,
       twilioCallSid,
-      recordingWebhookUrl
+      recordingWebhookUrl,
     });
 
     // Simple TwiML with just Connect - recording will be started via API
@@ -708,8 +766,8 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
             <Parameter name="businessName" value="${businessConfig.businessName}" />
             <Parameter name="agentId" value="${agentId}" />
             <Parameter name="twilioCallSid" value="${twilioCallSid}" />
-            <Parameter name="callerNumber" value="${callerNumber || 'Unknown'}" />
-            <Parameter name="callId" value="${call?.id || ''}" />
+            <Parameter name="callerNumber" value="${callerNumber || "Unknown"}" />
+            <Parameter name="callId" value="${call?.id || ""}" />
             <Parameter name="startRecording" value="true" />
           </Stream>
         </Connect>
@@ -726,7 +784,6 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
   }
 });
 
-
 // WebSocket server setup
 export const setupElevenLabsAgentWebSocket = (server: Server) => {
   const wss = new WebSocket.Server({
@@ -740,7 +797,7 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
 
     let streamSid: string | null = null;
     let elevenLabsWs: WebSocket | null = null;
-    
+
     // Call recording state
     let callId: string | null = null;
     let callStartTime: Date | null = null;
@@ -763,23 +820,30 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
             const meta = message.conversation_initiation_metadata_event;
             logger.info("🎵 Audio formats confirmed", {
               input: meta?.user_input_audio_format,
-              output: meta?.agent_output_audio_format
+              output: meta?.agent_output_audio_format,
             });
-          } else if (message.type === "audio" && message.audio_event?.audio_base_64) {
+          } else if (
+            message.type === "audio" &&
+            message.audio_event?.audio_base_64
+          ) {
             if (streamSid) {
-              ws.send(JSON.stringify({
-                event: "media",
-                streamSid,
-                media: { payload: message.audio_event.audio_base_64 }
-              }));
+              ws.send(
+                JSON.stringify({
+                  event: "media",
+                  streamSid,
+                  media: { payload: message.audio_event.audio_base_64 },
+                })
+              );
             }
           } else if (message.type === "interruption" && streamSid) {
             ws.send(JSON.stringify({ event: "clear", streamSid }));
           } else if (message.type === "ping" && message.ping_event?.event_id) {
-            elevenLabsWs?.send(JSON.stringify({
-              type: "pong",
-              event_id: message.ping_event.event_id
-            }));
+            elevenLabsWs?.send(
+              JSON.stringify({
+                type: "pong",
+                event_id: message.ping_event.event_id,
+              })
+            );
           }
         });
 
@@ -801,7 +865,8 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
       if (data.event === "start") {
         streamSid = data.start.streamSid;
         const customParameters = data.start.customParameters || {};
-        const agentId = customParameters.agentId || "agent_8001k6wjmac4e27tx268nfwq2611";
+        const agentId =
+          customParameters.agentId || "agent_8001k6wjmac4e27tx268nfwq2611";
         businessName = customParameters.businessName;
         businessId = customParameters.businessId;
         callId = customParameters.callId;
@@ -809,26 +874,35 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         const twilioCallSid = customParameters.twilioCallSid;
         const shouldStartRecording = customParameters.startRecording === "true";
 
-        logger.info("🎬 Stream started", { 
-          streamSid, 
-          agentId, 
+        logger.info("🎬 Stream started", {
+          streamSid,
+          agentId,
           businessName,
           callId,
-          twilioCallSid
+          twilioCallSid,
         });
 
         // Register call in active calls map
         if (callId && twilioCallSid && streamSid) {
-          registerActiveCall(streamSid, callId, twilioCallSid, businessId || '');
-          logger.info("📝 Registered active call", { streamSid, callId, twilioCallSid });
+          registerActiveCall(
+            streamSid,
+            callId,
+            twilioCallSid,
+            businessId || ""
+          );
+          logger.info("📝 Registered active call", {
+            streamSid,
+            callId,
+            twilioCallSid,
+          });
         }
 
         // Start recording via API after stream is established
         if (shouldStartRecording && twilioCallSid) {
-          const webhookUrl = process.env.NGROK_URL 
+          const webhookUrl = process.env.NGROK_URL
             ? `${process.env.NGROK_URL}/api/webhooks/recording-status`
             : "https://server-production-0693e.up.railway.app/api/webhooks/recording-status";
-          
+
           setTimeout(async () => {
             await startRecording(twilioCallSid, webhookUrl);
           }, 2000); // Wait 2 seconds for stream to be fully established
@@ -839,36 +913,51 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         (ws as any).twilioCallSid = twilioCallSid;
 
         await connectToElevenLabs(agentId);
-      } else if (data.event === "media" && elevenLabsWs?.readyState === WebSocket.OPEN) {
-        elevenLabsWs.send(JSON.stringify({
-          user_audio_chunk: data.media.payload
-        }));
+      } else if (
+        data.event === "media" &&
+        elevenLabsWs?.readyState === WebSocket.OPEN
+      ) {
+        elevenLabsWs.send(
+          JSON.stringify({
+            user_audio_chunk: data.media.payload,
+          })
+        );
       } else if (data.event === "stop") {
         logger.info("⏹️ Stream stopped");
-        
+
         // Finalize call record
         if (callId && callStartTime && businessName) {
-          await finalizeCallRecord(callId, callStartTime, businessName, businessId || undefined);
+          await finalizeCallRecord(
+            callId,
+            callStartTime,
+            businessName,
+            businessId || undefined
+          );
         }
-        
+
         elevenLabsWs?.close();
       }
     });
 
     ws.on("close", () => {
       logger.info("🔌 Twilio disconnected");
-      
+
       // Clean up from active calls
       if (streamSid) {
         unregisterActiveCall(streamSid);
         logger.info("🗑️ Removed from active calls", { streamSid });
       }
-      
+
       // Finalize call record on disconnect
       if (callId && callStartTime && businessName) {
-        finalizeCallRecord(callId, callStartTime, businessName, businessId || undefined);
+        finalizeCallRecord(
+          callId,
+          callStartTime,
+          businessName,
+          businessId || undefined
+        );
       }
-      
+
       elevenLabsWs?.close();
     });
 

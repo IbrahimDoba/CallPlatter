@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Headphones } from "lucide-react";
 import { OnboardingData } from "../page";
@@ -17,54 +17,61 @@ interface VoiceSelectionStepProps {
 
 const VOICE_OPTIONS = [
   {
-    id: "alloy",
+    id: "james",
     name: "James",
     description: "Neutral, balanced tone",
-    gender: "Neutral",
-    accent: "American"
-  },
-  {
-    id: "ballad",
-    name: "Silver",
-    description: "Smooth, melodic tone",
-    gender: "Female",
-    accent: "American"
-  },
-  {
-    id: "coral",
-    name: "Cortana",
-    description: "Bright, energetic voice",
-    gender: "Female",
-    accent: "American"
-  },
-  {
-    id: "sage",
-    name: "Zyra",
-    description: "Calm, wise voice",
-    gender: "Female",
-    accent: "American"
-  },
-  {
-    id: "verse",
-    name: "Darius",
-    description: "Rich, deep voice",
     gender: "Male",
+    accent: "American"
+  },
+  {
+    id: "peter",
+    name: "Peter",
+    description: "Professional, clear voice",
+    gender: "Male",
+    accent: "American"
+  },
+  {
+    id: "hope",
+    name: "Hope",
+    description: "Warm, friendly voice",
+    gender: "Female",
+    accent: "American"
+  },
+  {
+    id: "emmanuel",
+    name: "Emmanuel",
+    description: "Confident, authoritative voice",
+    gender: "Male",
+    accent: "American"
+  },
+  {
+    id: "stella",
+    name: "Stella",
+    description: "Energetic, engaging voice",
+    gender: "Female",
     accent: "American"
   }
 ];
 
-const ACCENT_OPTIONS = [
-  { value: "american", label: "American" },
-  { value: "nigerian", label: "Nigerian" }
-];
 
 export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSelectionStepProps) {
   const [selectedVoice, setSelectedVoice] = useState(data.selectedVoice);
-  const [selectedAccent, setSelectedAccent] = useState(data.selectedAccent);
 
   const handleNext = () => {
-    onUpdate({ selectedVoice, selectedAccent });
+    onUpdate({ selectedVoice });
     onNext();
+  };
+
+  // Helper function to get voice name from voice ID
+  const getVoiceName = (voiceId: string): string => {
+    const voiceMap: Record<string, string> = {
+      'james': 'James',
+      'peter': 'Peter', 
+      'hope': 'Hope',
+      'emmanuel': 'Emmanuel',
+      'stella': 'Stella'
+    };
+    return voiceMap[voiceId] || voiceId;
   };
 
   const testVoice = (voiceId: string) => {
@@ -74,13 +81,13 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
     }
 
     try {
-      // Map voice values to custom file names
+      // Map voice values to test audio files (same as AgentForm)
       const voiceFileMap: Record<string, string> = {
-        verse: "darius-verse",
-        sage: "zyra-sage",
-        coral: "cortana-coral",
-        ballad: "silver-ballad",
-        alloy: "James-alloy",
+        james: "james-test",
+        peter: "peter-test",
+        hope: "hope-test", 
+        emmanuel: "Emmanuel-test",
+        stella: "stella-test",
       };
 
       const fileName = voiceFileMap[voiceId];
@@ -95,13 +102,13 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
       // Handle audio loading errors
       audio.addEventListener("error", (e) => {
         console.error("Audio loading error:", e);
-        toast.error(`Failed to load voice sample for ${voiceId}`);
+        toast.error(`Failed to load voice sample for ${getVoiceName(voiceId)}`);
       });
 
       // Handle successful loading
       audio.addEventListener("canplaythrough", () => {
         audio.play();
-        toast.success(`Playing test audio with ${voiceId} voice`);
+        toast.success(`Playing test audio with ${getVoiceName(voiceId)} voice`);
       });
 
       // Set the source and start loading
@@ -113,25 +120,40 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
     }
   };
 
-  const isFormValid = selectedVoice !== "" && selectedAccent !== "";
+  const isFormValid = selectedVoice !== "";
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
+    <motion.div 
+      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.div 
+        className="text-center"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+      >
         <h2 className="text-2xl font-bold text-gray-900">Select a Voice</h2>
         <p className="mt-2 text-gray-600">
           Choose the voice that best represents your business
         </p>
-      </div>
+      </motion.div>
 
-      <div className="space-y-4">
+      <motion.div 
+        className="space-y-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
         <Label className="text-sm font-medium text-gray-700">
           Voice Selection *
         </Label>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {VOICE_OPTIONS.map((voice) => (
-            <button
+          {VOICE_OPTIONS.map((voice, index) => (
+            <motion.button
               key={voice.id}
               type="button"
               className={`w-full text-left border rounded-lg p-4 cursor-pointer transition-all ${
@@ -140,6 +162,11 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
                   : "border-gray-200 hover:border-gray-300"
               }`}
               onClick={() => setSelectedVoice(voice.id)}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 + (index * 0.1) }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -155,68 +182,89 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      testVoice(voice.id);
-                    }}
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-3"
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                   >
-                    <Headphones className="h-4 w-4 mr-1" />
-                    Test
-                  </Button>
-                  <div className={`w-4 h-4 rounded-full border-2 ${
-                    selectedVoice === voice.id
-                      ? "border-blue-500 bg-blue-500"
-                      : "border-gray-300"
-                  }`}>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        testVoice(voice.id);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3"
+                    >
+                      <Headphones className="h-4 w-4 mr-1" />
+                      Test
+                    </Button>
+                  </motion.div>
+                  <motion.div 
+                    className={`w-4 h-4 rounded-full border-2 ${
+                      selectedVoice === voice.id
+                        ? "border-blue-500 bg-blue-500"
+                        : "border-gray-300"
+                    }`}
+                    animate={{
+                      scale: selectedVoice === voice.id ? [1, 1.1, 1] : 1,
+                    }}
+                    transition={{
+                      scale: {
+                        duration: 0.3,
+                        repeat: selectedVoice === voice.id ? 1 : 0,
+                      },
+                    }}
+                  >
                     {selectedVoice === voice.id && (
-                      <div className="w-full h-full rounded-full bg-white scale-50" />
+                      <motion.div 
+                        className="w-full h-full rounded-full bg-white scale-50"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 0.5 }}
+                        transition={{ duration: 0.2 }}
+                      />
                     )}
-                  </div>
+                  </motion.div>
                 </div>
               </div>
-            </button>
+            </motion.button>
           ))}
         </div>
-      </div>
+      </motion.div>
 
-      <div className="space-y-4">
-        <Label className="text-sm font-medium text-gray-700">
-          Accent Selection *
-        </Label>
-        <Select value={selectedAccent} onValueChange={setSelectedAccent}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select an accent" />
-          </SelectTrigger>
-          <SelectContent>
-            {ACCENT_OPTIONS.map((accent) => (
-              <SelectItem key={accent.value} value={accent.value}>
-                {accent.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
-      <div className="flex justify-between pt-6">
-        <Button
-          variant="outline"
-          onClick={onBack}
-          className="px-8"
+      <motion.div 
+        className="flex justify-between pt-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
+      >
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ duration: 0.2 }}
         >
-          Back
-        </Button>
-        <Button
-          onClick={handleNext}
-          disabled={!isFormValid}
-          className="px-8"
+          <Button
+            variant="outline"
+            onClick={onBack}
+            className="px-8"
+          >
+            Back
+          </Button>
+        </motion.div>
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ duration: 0.2 }}
         >
-          Next
-        </Button>
-      </div>
-    </div>
+          <Button
+            onClick={handleNext}
+            disabled={!isFormValid}
+            className="px-8"
+          >
+            Next
+          </Button>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
