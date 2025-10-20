@@ -42,14 +42,14 @@ const VOICE_OPTIONS = [
     name: "Emmanuel",
     description: "Confident, authoritative voice",
     gender: "Male",
-    accent: "American"
+    accent: "Nigerian"
   },
   {
     id: "stella",
     name: "Stella",
     description: "Energetic, engaging voice",
     gender: "Female",
-    accent: "American"
+    accent: "Nigerian"
   }
 ];
 
