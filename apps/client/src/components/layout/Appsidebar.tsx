@@ -36,6 +36,7 @@ import {
   BookOpen,
   Mic,
   Users,
+  FileText,
 } from "lucide-react";
 import { useAgentContext } from "@/contexts/AgentContext";
 
@@ -63,6 +64,7 @@ const navigation = [
       { name: "CRM", component: "crm", icon: Users },
     ]
   },
+  { name: "Blog", href: "/blog", icon: FileText },
   // { name: "Settings", href: "/settings", icon: Cog },
 //   { name: "Integrations", href: "/integrations", icon: Puzzle },
 ];

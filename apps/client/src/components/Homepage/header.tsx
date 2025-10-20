@@ -46,6 +46,7 @@ export default function Header() {
   const navItems = [
     { name: "Features", href: "#features", onClick: () => scrollToSection('features') },
     { name: "Pricing", href: "/pricing", onClick: null },
+    { name: "Blog", href: "/blog", onClick: null },
     { name: "Testimonials", href: "#testimonials", onClick: () => scrollToSection('testimonials') },
     { name: "Contact", href: "/contact", onClick: null },
   ];
