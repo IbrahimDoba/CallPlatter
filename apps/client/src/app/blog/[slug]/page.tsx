@@ -74,27 +74,26 @@ async function Page({ params }: PageProps) {
   );
   const authors = data.post.authors
   return (
-    <div className="min-h-screen bg-background">
-      <Container className='py-14'>
+    <div className="min-h-screen py-14">
         <section className='space-y-6 lg:space-y-8 max-w-3xl mx-auto'>
           <Link 
             href="/blog" 
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Blog
+            Back to Blogs
           </Link>
           
-          <div className='flex flex-col items-center gap-4 text-center'>
+          <div className='flex flex-col items-start gap-4 text-start'>
             <h1 className='font-serif text-3xl lg:text-4xl text-foreground'>
               {data.post.title}
             </h1>
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <div className="flex flex-col items-start gap-2 text-muted-foreground">
               <time dateTime={data.post.publishedAt.toString()}>
                 {formattedDate}
               </time>
-              {data.post.authors && data.post.authors.length > 0 && data.post.authors[0] && (
-                <div className='flex items-center gap-2'>
+              {/* {data.post.authors && data.post.authors.length > 0 && data.post.authors[0] && (
+                <div className='flex items-start gap-2'>
                   {data.post.authors[0].image && (
                     <Image
                       src={data.post.authors[0].image}
@@ -107,7 +106,7 @@ async function Page({ params }: PageProps) {
                   )}
                   <p className='text-muted-foreground'>{data.post.authors[0].name}</p>
                 </div>
-              )}
+              )} */}
             </div>
           </div>
           
@@ -127,7 +126,6 @@ async function Page({ params }: PageProps) {
             <Prose html={data.post.content} />
           </div>
         </section>
-      </Container>
     </div>
   );
 }
