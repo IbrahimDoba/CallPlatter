@@ -22,25 +22,29 @@ const steps = [
     icon: Phone,
     title: "Customer Calls",
     description: "Customer dials your business number during off-hours or when you're busy",
-    gradient: "from-blue-500 to-blue-600",
+    bgColor: "bg-white",
+    textColor: "text-primary",
   },
   {
     icon: Bot,
     title: "AI Answers",
     description: "Our AI receptionist picks up with a personalized greeting using your business name",
-    gradient: "from-green-500 to-green-600",
+    bgColor: "bg-primary",
+    textColor: "text-white",
   },
   {
     icon: MessageCircle,
     title: "Natural Conversation",
     description: "AI understands customer intent and handles the conversation naturally",
-    gradient: "from-purple-500 to-purple-600",
+    bgColor: "bg-white",
+    textColor: "text-primary",
   },
   {
     icon: Calendar,
     title: "Appointment Booked",
     description: "Appointment is automatically scheduled and appears in your dashboard",
-    gradient: "from-orange-500 to-orange-600",
+    bgColor: "bg-primary",
+    textColor: "text-white",
   },
 ]
 
@@ -51,7 +55,7 @@ export default function HowItWorks() {
         <div className="text-center mb-16">
           <motion.h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6" {...fadeInUp}>
             How It{" "}
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Works</span>
+            <span className="text-primary">Works</span>
           </motion.h2>
           <motion.p
             className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto"
@@ -74,11 +78,11 @@ export default function HowItWorks() {
             return (
               <motion.div key={step.title} variants={fadeInUp} className="text-center relative">
                 <motion.div
-                  className={`w-24 h-24 bg-gradient-to-r ${step.gradient} rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg`}
+                  className={`w-24 h-24 ${step.bgColor} rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg border-2 border-primary/20`}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <IconComponent className="w-10 h-10 text-white" />
+                  <IconComponent className={`w-10 h-10 ${step.textColor}`} />
                 </motion.div>
                 <h3 className="text-2xl font-semibold mb-4 text-gray-900">{step.title}</h3>
                 <p className="text-gray-600 text-lg">{step.description}</p>

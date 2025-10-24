@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Phone, Menu } from "lucide-react"
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Phone, Menu } from "lucide-react";
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -21,41 +21,46 @@ export default function Header() {
   }, []);
 
   const scrollToSection = (sectionId: string) => {
-    if (sectionId === 'testimonials') {
-      const testimonialSection = document.querySelector('.animate-marquee');
+    if (sectionId === "testimonials") {
+      const testimonialSection = document.querySelector(".animate-marquee");
       if (testimonialSection) {
         const yOffset = -100; // Offset to account for the fixed header
-        const y = testimonialSection.getBoundingClientRect().top + window.pageYOffset + yOffset;
-        window.scrollTo({ top: y, behavior: 'smooth' });
+        const y =
+          testimonialSection.getBoundingClientRect().top +
+          window.pageYOffset +
+          yOffset;
+        window.scrollTo({ top: y, behavior: "smooth" });
       }
-    } else if (sectionId === 'cta') {
-      const ctaSection = document.querySelector('.button-gradient');
+    } else if (sectionId === "cta") {
+      const ctaSection = document.querySelector(".button-gradient");
       if (ctaSection) {
         const yOffset = -100;
-        const y = ctaSection.getBoundingClientRect().top + window.pageYOffset + yOffset;
-        window.scrollTo({ top: y, behavior: 'smooth' });
+        const y =
+          ctaSection.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: "smooth" });
       }
     } else {
       const element = document.getElementById(sectionId);
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth' });
+        element.scrollIntoView({ behavior: "smooth" });
       }
     }
   };
 
-  const navItems = [
-    { name: "Features", href: "#features", onClick: () => scrollToSection('features') },
+  const navItems: Array<{
+    name: string;
+    href: string;
+    onClick?: (() => void) | null;
+  }> = [
     { name: "Pricing", href: "/pricing", onClick: null },
-    { name: "Blog", href: "/blog", onClick: null },
-    { name: "Testimonials", href: "#testimonials", onClick: () => scrollToSection('testimonials') },
-    { name: "Contact", href: "/contact", onClick: null },
+    { name: "Sign in", href: "/signin", onClick: null },
   ];
 
   return (
     <header
       className={`fixed top-3.5 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 rounded-full ${
-        isScrolled 
-          ? "h-14 bg-background/40 backdrop-blur-xl border border-border scale-95 w-[90%] max-w-3xl" 
+        isScrolled
+          ? "h-14 bg-background/40 backdrop-blur-xl border border-border scale-95 w-[90%] max-w-3xl"
           : "h-14 bg-background/60 backdrop-blur-md w-[95%] max-w-3xl"
       }`}
     >
@@ -69,9 +74,7 @@ export default function Header() {
             >
               <Phone className="w-4 h-4 text-primary-foreground" />
             </motion.div>
-            <span className="font-bold text-base text-primary">
-              DailZero
-            </span>
+            <span className="font-bold text-base text-primary">DailZero</span>
           </div>
 
           {/* Desktop Navigation */}
@@ -92,7 +95,7 @@ export default function Header() {
               </a>
             ))}
             <Link href="/waitlist">
-              <Button 
+              <Button
                 size="sm"
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
@@ -105,7 +108,11 @@ export default function Header() {
           <div className="md:hidden">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="bg-background/10 border-border text-foreground hover:bg-background/20">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="bg-background/10 border-border text-foreground hover:bg-background/20"
+                >
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
@@ -129,7 +136,7 @@ export default function Header() {
                   ))}
                   <div className="pt-4 border-t border-border">
                     <Link href="/waitlist" className="block w-full">
-                      <Button 
+                      <Button
                         className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={() => setIsMobileMenuOpen(false)}
                       >

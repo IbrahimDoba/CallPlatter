@@ -10,7 +10,6 @@ import { BusinessDetailsStep } from "./components/BusinessDetailsStep";
 import { VoiceSelectionStep } from "./components/VoiceSelectionStep";
 import { AgentSettingsStep } from "./components/AgentSettingsStep";
 import { PhoneNumberStep } from "./components/PhoneNumberStep";
-import { StepSuccessAnimation } from "./components/StepSuccessAnimation";
 import { LoadingAnimation } from "./components/LoadingAnimation";
 import { ProgressCelebration } from "./components/ProgressCelebration";
 
@@ -26,7 +25,11 @@ export interface OnboardingData {
 }
 
 const STEPS = [
-  { id: 1, title: "Business Details", description: "Tell us about your business" },
+  {
+    id: 1,
+    title: "Business Details",
+    description: "Tell us about your business",
+  },
   { id: 2, title: "Voice Selection", description: "Choose your AI voice" },
   { id: 3, title: "Agent Settings", description: "Configure your AI agent" },
   { id: 4, title: "Phone Number", description: "Select your phone number" },
@@ -38,7 +41,6 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [showLoadingAnimation, setShowLoadingAnimation] = useState(false);
   const [showProgressCelebration, setShowProgressCelebration] = useState(false);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({
@@ -55,13 +57,13 @@ export default function OnboardingPage() {
   // Check if user has already completed onboarding
   useEffect(() => {
     if (status === "loading") return; // Still loading session
-    
+
     if (!session) {
       // Not authenticated, redirect to waitlist
       router.push("/waitlist");
       return;
     }
-    
+
     if (session.user?.onboardingCompleted && session.user?.businessId) {
       // Already completed onboarding, redirect to calls
       router.push("/calls");
@@ -71,26 +73,18 @@ export default function OnboardingPage() {
 
   const handleNext = async () => {
     if (currentStep < STEPS.length) {
-      // Show success animation
-      setShowSuccessAnimation(true);
-      
-      // Wait for success animation to complete
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      setShowSuccessAnimation(false);
-      
       // Show progress celebration for steps 2 and 3
       if (currentStep >= 2) {
         setShowProgressCelebration(true);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         setShowProgressCelebration(false);
       }
-      
+
       setIsTransitioning(true);
-      
+
       // Add a small delay for the transition animation
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       setCurrentStep(currentStep + 1);
       setIsTransitioning(false);
     }
@@ -99,10 +93,10 @@ export default function OnboardingPage() {
   const handleBack = async () => {
     if (currentStep > 1) {
       setIsTransitioning(true);
-      
+
       // Add a small delay for the transition animation
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       setCurrentStep(currentStep - 1);
       setIsTransitioning(false);
     }
@@ -112,37 +106,39 @@ export default function OnboardingPage() {
     // Use the passed phone number or the one from state
     const finalData = {
       ...onboardingData,
-      selectedPhoneNumber: phoneNumber || onboardingData.selectedPhoneNumber
+      selectedPhoneNumber: phoneNumber || onboardingData.selectedPhoneNumber,
     };
-    
-    console.log('Onboarding - Final data being sent:', finalData);
+
+    console.log("Onboarding - Final data being sent:", finalData);
     setIsCompleting(true);
     setShowLoadingAnimation(true);
-    
+
     try {
-      const response = await fetch('/api/onboarding', {
-        method: 'POST',
+      const response = await fetch("/api/onboarding", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(finalData),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to complete onboarding');
+        throw new Error(error.error || "Failed to complete onboarding");
       }
 
       // Show success toast and redirect
-      toast.success('Onboarding completed successfully! Redirecting to your dashboard...');
-      
+      toast.success(
+        "Onboarding completed successfully! Redirecting to your dashboard..."
+      );
+
       // Wait a moment for the database update to complete, then redirect
       setTimeout(() => {
-        window.location.href = '/calls';
+        window.location.href = "/calls";
       }, 500);
     } catch (error) {
-      console.error('Onboarding completion error:', error);
-      toast.error('Failed to complete onboarding. Please try again.');
+      console.error("Onboarding completion error:", error);
+      toast.error("Failed to complete onboarding. Please try again.");
     } finally {
       setIsCompleting(false);
       setShowLoadingAnimation(false);
@@ -150,7 +146,7 @@ export default function OnboardingPage() {
   };
 
   const updateData = (updates: Partial<OnboardingData>) => {
-    setOnboardingData(prev => ({ ...prev, ...updates }));
+    setOnboardingData((prev) => ({ ...prev, ...updates }));
   };
 
   const renderStep = () => {
@@ -242,30 +238,30 @@ export default function OnboardingPage() {
   }
 
   // Don't render if user should be redirected
-  if (!session || (session.user?.onboardingCompleted && session.user?.businessId)) {
+  if (
+    !session ||
+    (session.user?.onboardingCompleted && session.user?.businessId)
+  ) {
     return null;
   }
 
   return (
     <>
-      <motion.div 
+      <motion.div
         className="max-w-4xl mx-auto"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <motion.div 
+        <motion.div
           className="bg-white rounded-lg border border-gray-200 p-8"
           initial={{ scale: 0.95 }}
           animate={{ scale: 1 }}
           transition={{ duration: 0.4, delay: 0.2 }}
         >
-          <OnboardingStepper
-            steps={STEPS}
-            currentStep={currentStep}
-          />
-          
-          <motion.div 
+          <OnboardingStepper steps={STEPS} currentStep={currentStep} />
+
+          <motion.div
             className="mt-8"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -275,18 +271,13 @@ export default function OnboardingPage() {
           </motion.div>
         </motion.div>
       </motion.div>
-      
-      <StepSuccessAnimation 
-        isVisible={showSuccessAnimation}
-        onComplete={() => setShowSuccessAnimation(false)}
-      />
-      
-      <LoadingAnimation 
+
+      <LoadingAnimation
         isVisible={showLoadingAnimation}
         message="Completing your setup..."
       />
-      
-      <ProgressCelebration 
+
+      <ProgressCelebration
         isVisible={showProgressCelebration}
         stepNumber={currentStep}
         totalSteps={STEPS.length}

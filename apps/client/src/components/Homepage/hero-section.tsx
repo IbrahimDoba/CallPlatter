@@ -4,9 +4,10 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { Badge } from "@/components/ui/badge";
-import { PartyPopper, Phone } from "lucide-react";
+import { PartyPopper, Phone, Play } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -23,6 +24,8 @@ const staggerContainer = {
 };
 
 export default function HeroSection() {
+  const [showVideo, setShowVideo] = useState(false);
+
   return (
     <main className="relative flex items-center justify-center overflow-hidden bg-white">
       {/* Grid background */}
@@ -60,8 +63,7 @@ export default function HeroSection() {
             transition={{ delay: 0.2, duration: 0.8 }}
           >
             DailZero is the AI receptionist that answers, filters, and manages
-            every call just like a real assistant, so you never miss a customer.
-            Time is money.
+            every call just like a real assistant, so you <strong>never miss a customer. Time is money.</strong>
           </motion.p>
 
           <motion.div
@@ -93,18 +95,58 @@ export default function HeroSection() {
               <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-2xl" />
 
               {/* Main image container */}
-              <div className="relative w-full border-4 border-primary/40 rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-white to-gray-50">
-                <Image
-                  src="/hero-img.png"
-                  alt="DailZero AI Receptionist Dashboard"
-                  width={1400}
-                  height={800}
-                  className="w-full h-auto object-cover"
-                  priority
-                />
+              <div className="relative w-full max-w-7xl mx-auto border-4 border-primary/40 rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-white to-gray-50">
+                {showVideo ? (
+                  <div className="relative w-full aspect-video">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src="https://www.youtube.com/embed/XjoQN_BA2vk?si=m6W1eJSL00by1f-K&autoplay=1"
+                      title="YouTube video player"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                      className="w-full h-full"
+                    />
+                    <button
+                      onClick={() => setShowVideo(false)}
+                      className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-full aspect-video">
+                      <Image
+                        src="/hero-img.png"
+                        alt="DailZero AI Receptionist Dashboard"
+                        width={1400}
+                        height={800}
+                        className="w-full h-full object-cover"
+                        priority
+                      />
+                    </div>
 
-                {/* Subtle overlay gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
+                    {/* Play button overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <motion.button
+                        onClick={() => setShowVideo(true)}
+                        className="bg-primary/90 hover:bg-primary text-white rounded-full p-6 shadow-2xl transition-all duration-300 hover:scale-110"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Play className="w-12 h-12 ml-1" fill="currentColor" />
+                      </motion.button>
+                    </div>
+
+                    {/* Subtle overlay gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
