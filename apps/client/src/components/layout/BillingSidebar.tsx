@@ -97,12 +97,12 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN'
-    }).format(amount);
-  };
+  // const formatCurrency = (amount: number) => {
+  //   return new Intl.NumberFormat('en-NG', {
+  //     style: 'currency',
+  //     currency: 'NGN'
+  //   }).format(amount);
+  // };
 
   const usagePercentage = usage ? (usage.minutesUsed / usage.minutesIncluded) * 100 : 0;
   const isNearLimit = usagePercentage > 75;
@@ -167,7 +167,7 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
         </div>
       )} */}
 
-      {/* Action Button */}
+      {/* Action Buttons */}
       {subscription.planType === 'FREE' ? (
         <PricingModal currentPlan={subscription.planType}>
           <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
@@ -176,12 +176,26 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
           </Button>
         </PricingModal>
       ) : (
-        <PricingModal currentPlan={subscription.planType}>
-          <Button size="sm" variant="outline" className="w-full">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Manage Plan
+        <div className="space-y-2">
+          <PricingModal currentPlan={subscription.planType}>
+            <Button size="sm" variant="outline" className="w-full">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Change Plan
+            </Button>
+          </PricingModal>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="w-full"
+            onClick={() => {
+              // Redirect to Polar customer portal
+              window.location.href = '/portal';
+            }}
+          >
+            <CreditCard className="h-4 w-4 mr-2" />
+            Manage Billing
           </Button>
-        </PricingModal>
+        </div>
       )}
 
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Mail, MessageCircle, Phone, Twitter } from "lucide-react"
+import { Mail, Instagram, Phone, Twitter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function Footer() {
@@ -22,18 +22,28 @@ export default function Footer() {
                 AI-powered receptionist service designed for modern businesses worldwide.
               </p>
               <div className="flex space-x-4">
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-card/10">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-muted-foreground hover:text-foreground hover:bg-card/10"
+                  onClick={() => window.open('https://x.com/DobaIbrahim', '_blank')}
+                >
                   <Twitter className="w-4 h-4" />
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   className="text-muted-foreground hover:text-foreground hover:bg-card/10"
-                  onClick={() => window.open('https://discord.gg/Xc89m7sRFc', '_blank')}
+                  onClick={() => window.open('https://www.instagram.com/dailzero', '_blank')}
                 >
-                  <MessageCircle className="w-4 h-4" />
+                  <Instagram className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-card/10">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-muted-foreground hover:text-foreground hover:bg-card/10"
+                  onClick={() => window.open('mailto:support@dailzero.com', '_blank')}
+                >
                   <Mail className="w-4 h-4" />
                 </Button>
               </div>

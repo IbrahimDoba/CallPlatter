@@ -14,7 +14,16 @@
         "UPLOADTHING_TOKEN",
         "NEXTAUTH_URL",
         "NEXTAUTH_SECRET",
-        "OPENAI_API_KEY"
+        "OPENAI_API_KEY",
+        "POLAR_ACCESS_TOKEN",
+        "POLAR_WEBHOOK_SECRET",
+        "SUCCESS_URL",
+        "POLAR_SERVER",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "DISCORD_CLIENT_ID",
+        "DISCORD_CLIENT_SECRET",
+        "MARBLE_WEBHOOK_SECRET"
       ]
     },
     "lint": {

@@ -3,6 +3,7 @@ import { db } from "@repo/db";
 import { logger } from "../utils/logger";
 import { downloadAndUploadRecording } from "../lib/uploadthing";
 import { transcribeCall } from "../services/transcriptionService";
+import crypto from "crypto";
 
 // Map to track active calls by conversation ID
 const activeCallsByConversation = new Map<string, {
@@ -29,18 +30,122 @@ export const unregisterActiveCall = (streamSid: string) => {
 
 const router: Router = Router();
 
+// Security middleware for webhook verification
+const verifyWebhookSignature = (secret: string, signature: string, body: string): boolean => {
+  if (!secret || !signature) {
+    return false;
+  }
+  
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(body, 'utf8')
+    .digest('hex');
+  
+  return crypto.timingSafeEqual(
+    Buffer.from(signature, 'hex'),
+    Buffer.from(expectedSignature, 'hex')
+  );
+};
+
+// IP whitelist for webhook sources (add your trusted IPs)
+const ALLOWED_WEBHOOK_IPS = [
+  '127.0.0.1',
+  '::1',
+  // Add Twilio IPs, Africa's Talking IPs, etc.
+  // You can get these from their documentation
+];
+
+const checkIPWhitelist = (req: any): boolean => {
+  // Always allow - signature verification is the primary security
+  // IP whitelisting is optional and can be added later if needed
+  return true;
+};
+
+// Rate limiting for webhooks (5 requests per minute per IP)
+const webhookRateLimit = new Map<string, { count: number; resetTime: number }>();
+
+const checkRateLimit = (req: any): boolean => {
+  const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = 5;
+  
+  const current = webhookRateLimit.get(clientIP);
+  
+  if (!current || now > current.resetTime) {
+    webhookRateLimit.set(clientIP, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  
+  if (current.count >= maxRequests) {
+    return false;
+  }
+  
+  current.count++;
+  return true;
+};
+
 // POST /api/webhooks/appointments
 router.post("/appointments", async (req, res) => {
   try {
+    // Security checks
+    if (!checkIPWhitelist(req)) {
+      logger.warn("Webhook request from unauthorized IP", { 
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      return res.status(403).json({ 
+        success: false, 
+        error: "Unauthorized IP address" 
+      });
+    }
+
+    if (!checkRateLimit(req)) {
+      logger.warn("Webhook rate limit exceeded", { 
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      return res.status(429).json({ 
+        success: false, 
+        error: "Rate limit exceeded" 
+      });
+    }
+
+    // Verify webhook signature if secret is provided
+    const webhookSecret = process.env.APPOINTMENTS_WEBHOOK_SECRET;
+    const signature = req.headers['x-webhook-signature'] as string;
+    
+    if (webhookSecret && signature) {
+      const bodyString = JSON.stringify(req.body);
+      if (!verifyWebhookSignature(webhookSecret, signature, bodyString)) {
+        logger.warn("Invalid webhook signature", { 
+          ip: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+        return res.status(401).json({ 
+          success: false, 
+          error: "Invalid signature" 
+        });
+      }
+    }
+    
     const body = req.body;
     
-    // Verify webhook signature (in production, you'd verify the webhook signature)
-    // const signature = req.headers['x-webhook-signature'];
-    
-    logger.info("Webhook received:", { body });
+    logger.info("Webhook received:", { 
+      body,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
 
     // Process the webhook data
     const { event, data } = body;
+
+    if (!event || !data) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing event or data in payload"
+      });
+    }
 
     switch (event) {
       case 'appointment.created':
@@ -76,7 +181,7 @@ router.post("/appointments", async (req, res) => {
 });
 
 // GET /api/webhooks/appointments
-router.get("/appointments", async (req, res) => {
+router.get("/appointments", async (_req, res) => {
   // Webhook verification endpoint
   return res.json({ 
     message: "Webhook endpoint is active",
@@ -87,6 +192,47 @@ router.get("/appointments", async (req, res) => {
 // POST /api/webhooks/recording-status
 router.post("/recording-status", async (req, res) => {
   try {
+    // Security checks
+    if (!checkIPWhitelist(req)) {
+      logger.warn("Recording webhook request from unauthorized IP", { 
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      return res.status(403).json({ 
+        success: false, 
+        error: "Unauthorized IP address" 
+      });
+    }
+
+    if (!checkRateLimit(req)) {
+      logger.warn("Recording webhook rate limit exceeded", { 
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      return res.status(429).json({ 
+        success: false, 
+        error: "Rate limit exceeded" 
+      });
+    }
+
+    // Verify Twilio webhook signature
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+    const signature = req.headers['x-twilio-signature'] as string;
+    
+    if (twilioAuthToken && signature) {
+      const bodyString = JSON.stringify(req.body);
+      if (!verifyWebhookSignature(twilioAuthToken, signature, bodyString)) {
+        logger.warn("Invalid Twilio webhook signature", { 
+          ip: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+        return res.status(401).json({ 
+          success: false, 
+          error: "Invalid signature" 
+        });
+      }
+    }
+
     // Add this debug logging at the very beginning
     console.log("🎵 RECORDING WEBHOOK HIT! Raw body:", req.body);
     console.log("🎵 Headers:", req.headers);
@@ -268,7 +414,6 @@ router.post("/end-call", async (req, res) => {
       if (callContext) {
         callId = callContext.callId;
         twilioCallSid = callContext.twilioCallSid;
-        businessId = callContext.businessId;
         logger.info("✅ Found call context from conversation ID", { conversationId, callId, twilioCallSid });
       }
     }

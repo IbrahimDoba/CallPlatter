@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Headphones } from "lucide-react";
-import { OnboardingData } from "../page";
+import type { OnboardingData } from "../page";
+import { getVoiceName, getTestAudioFileName, getVoiceOptionsForOnboarding } from "@/lib/voiceConfig";
 
 interface VoiceSelectionStepProps {
   data: OnboardingData;
@@ -15,43 +16,7 @@ interface VoiceSelectionStepProps {
   onBack: () => void;
 }
 
-const VOICE_OPTIONS = [
-  {
-    id: "james",
-    name: "James",
-    description: "Neutral, balanced tone",
-    gender: "Male",
-    accent: "American"
-  },
-  {
-    id: "peter",
-    name: "Peter",
-    description: "Professional, clear voice",
-    gender: "Male",
-    accent: "American"
-  },
-  {
-    id: "hope",
-    name: "Hope",
-    description: "Warm, friendly voice",
-    gender: "Female",
-    accent: "American"
-  },
-  {
-    id: "emmanuel",
-    name: "Emmanuel",
-    description: "Confident, authoritative voice",
-    gender: "Male",
-    accent: "Nigerian"
-  },
-  {
-    id: "stella",
-    name: "Stella",
-    description: "Energetic, engaging voice",
-    gender: "Female",
-    accent: "Nigerian"
-  }
-];
+const VOICE_OPTIONS = getVoiceOptionsForOnboarding();
 
 
 export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSelectionStepProps) {
@@ -62,18 +27,6 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
     onNext();
   };
 
-  // Helper function to get voice name from voice ID
-  const getVoiceName = (voiceId: string): string => {
-    const voiceMap: Record<string, string> = {
-      'james': 'James',
-      'peter': 'Peter', 
-      'hope': 'Hope',
-      'emmanuel': 'Emmanuel',
-      'stella': 'Stella'
-    };
-    return voiceMap[voiceId] || voiceId;
-  };
-
   const testVoice = (voiceId: string) => {
     if (!voiceId) {
       toast.error("Please select a voice first");
@@ -81,16 +34,7 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
     }
 
     try {
-      // Map voice values to test audio files (same as AgentForm)
-      const voiceFileMap: Record<string, string> = {
-        james: "james-test",
-        peter: "peter-test",
-        hope: "hope-test", 
-        emmanuel: "Emmanuel-test",
-        stella: "stella-test",
-      };
-
-      const fileName = voiceFileMap[voiceId];
+      const fileName = getTestAudioFileName(voiceId);
       if (!fileName) {
         toast.error("Voice sample not available");
         return;

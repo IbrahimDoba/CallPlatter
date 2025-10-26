@@ -165,7 +165,6 @@ export const siteConfig = {
     technologies: [
       "OpenAI GPT-4",
       "Twilio Voice API",
-      "WebSocket Real-time",
       "PostgreSQL Database",
       "Next.js Frontend",
       "Express.js Backend"

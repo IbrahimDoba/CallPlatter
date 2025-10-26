@@ -12,7 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CardSpotlight } from "@/components/Homepage/CardSpotlight";
 import { useState } from "react";
-import { siteConfig } from "@/lib/siteConfig";
+import { cn } from "@/lib/utils";
+import { 
+  pricingPlans, 
+  formatPrice,
+  formatAnnualTotal,
+  getAnnualSavings,
+  getProductId
+} from "@/lib/pricingConfig";
+import Footer from "@/components/Homepage/footer";
 import Link from "next/link";
 
 const fadeInUp = {
@@ -29,22 +37,16 @@ const staggerContainer = {
   },
 };
 
-interface PricingPlan {
+interface PricingTierProps {
   name: string;
   price: string;
   period: string;
   description: string;
   features: string[];
   isPopular?: boolean;
+  billingPeriod: "monthly" | "annual";
+  currency: "USD" | "NGN";
 }
-
-const plans: PricingPlan[] = siteConfig.pricing.plans;
-
-// Nigerian pricing structure (Annual and Monthly fees in NGN)
-const nigerianPricing = siteConfig.pricing.nigerianPricing;
-
-// USD pricing structure (Annual fees in USD)
-const usdPricing = siteConfig.pricing.usdPricing;
 
 const PricingTier = ({
   name,
@@ -53,29 +55,55 @@ const PricingTier = ({
   description,
   features,
   isPopular,
-}: {
-  name: string;
-  price: string;
-  period: string;
-  description: string;
-  features: string[];
-  isPopular?: boolean;
-}) => (
+  billingPeriod,
+  currency,
+}: PricingTierProps) => (
   <CardSpotlight
     className={`h-full ${isPopular ? "border-primary" : "border-border"} border-2 bg-muted`}
   >
     <div className="relative h-full p-6 flex flex-col">
       {isPopular && (
-        <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary hover:bg-primary/90 text-primary-foreground">
+        <Badge className="absolute -top-0 left-1/2 -translate-x-1/2 bg-primary hover:bg-primary/90 text-primary-foreground">
           POPULAR
         </Badge>
       )}
       <h3 className="text-xl font-medium mb-2 text-muted-foreground">{name}</h3>
       <div className="mb-4">
-        <span className="text-4xl font-bold text-primary">
-          {price}
-        </span>
-        <span className="text-muted-foreground text-sm ml-1">{period}</span>
+        <div className="flex items-baseline gap-1">
+          <span className="text-4xl font-bold text-primary transition-all duration-300 ease-in-out">
+            {price}
+          </span>
+          <span className="text-muted-foreground text-sm">
+            {billingPeriod === "annual" ? "/month" : "/month"}
+          </span>
+        </div>
+        {/* Reserve space to prevent layout shifts */}
+        <div className="mt-1 h-8 flex flex-col justify-center">
+          <div className="transition-all duration-300 ease-in-out transform">
+            {billingPeriod === "annual" && name !== "FREE" ? (
+              <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
+                <div className="text-xs text-muted-foreground">
+                  Billed annually: {formatAnnualTotal(name, currency)}
+                </div>
+                <div className="text-xs text-green-600 font-medium">
+                  Save {getAnnualSavings(name, currency)}/year
+                </div>
+              </div>
+            ) : name !== "FREE" ? (
+              <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
+                <div className="text-xs text-muted-foreground">
+                  Billed monthly
+                </div>
+              </div>
+            ) : (
+              <div className="opacity-0 h-0 overflow-hidden transition-all duration-300 ease-in-out">
+                <div className="text-xs text-muted-foreground">
+                  Free plan
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <p className="text-muted-foreground mb-6">{description}</p>
       <ul className="space-y-3 mb-8 flex-grow">
@@ -86,7 +114,16 @@ const PricingTier = ({
           </li>
         ))}
       </ul>
-      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground w-full">
+      <Button 
+        className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
+        onClick={() => {
+          // Redirect to Polar checkout with the product ID
+          const productId = getProductId(name);
+          if (productId) {
+            window.location.href = `/checkout?products=${productId}`;
+          }
+        }}
+      >
         Select plan
       </Button>
     </div>
@@ -184,37 +221,8 @@ const faqs = [
 ];
 
 export default function PricingPage() {
-  const [currency, setCurrency] = useState<"USD" | "NGN">("NGN");
-
-  const formatPrice = (planName: string) => {
-    if (currency === "NGN") {
-      const planPricing =
-        nigerianPricing[planName as keyof typeof nigerianPricing];
-      return `₦${planPricing.monthly.toLocaleString()}`;
-    }
-    const planPricing = usdPricing[planName as keyof typeof usdPricing];
-    return `$${planPricing.monthly.toFixed(2)}`;
-  };
-
-  const formatFeatures = (planName: string) => {
-    const plan = plans.find((p) => p.name === planName);
-    if (!plan) return [];
-
-    if (currency === "NGN") {
-      return plan.features;
-    }
-
-    // Convert NGN features to USD features
-    return plan.features.map((feature) => {
-      if (feature.includes("₦1,467/min ($0.89/min)"))
-        return "$0.89/min after limit";
-      if (feature.includes("₦1,000/min ($0.61/min)"))
-        return "$0.61/min after limit";
-      if (feature.includes("₦733/min ($0.44/min)"))
-        return "$0.44/min after limit";
-      return feature;
-    });
-  };
+  const [currency, setCurrency] = useState<"USD" | "NGN">("USD");
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -241,6 +249,58 @@ export default function PricingPage() {
           animate="animate"
           className="space-y-16"
         >
+          {/* Billing Period Toggle - Centered */}
+          <motion.div
+            {...fadeInUp}
+            className="flex items-center justify-center gap-4 mb-8"
+          >
+            <span
+              className={cn(
+                "text-sm transition-all duration-200",
+                billingPeriod === "monthly"
+                  ? "font-bold text-foreground"
+                  : "font-medium text-muted-foreground"
+              )}
+            >
+              Monthly
+            </span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setBillingPeriod(
+                    billingPeriod === "monthly" ? "annual" : "monthly"
+                  )
+                }
+                className="relative inline-flex h-6 w-11 items-center rounded-full bg-primary transition-colors focus:outline-none"
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out",
+                    billingPeriod === "annual"
+                      ? "translate-x-6"
+                      : "translate-x-1"
+                  )}
+                />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "text-sm transition-all duration-200",
+                  billingPeriod === "annual"
+                    ? "font-bold text-foreground"
+                    : "font-medium text-muted-foreground"
+                )}
+              >
+                Annually
+              </span>
+              <Badge className="bg-primary text-primary-foreground text-xs">
+                Save 20%
+              </Badge>
+            </div>
+          </motion.div>
+
           {/* Currency Toggle */}
           <motion.div
             {...fadeInUp}
@@ -279,15 +339,17 @@ export default function PricingPage() {
             {...fadeInUp}
             className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
-            {plans.map((plan) => (
+            {pricingPlans.filter(plan => plan.name !== "FREE").map((plan) => (
               <PricingTier
                 key={plan.name}
                 name={plan.name}
-                price={formatPrice(plan.name)}
+                price={formatPrice(plan.name, currency, billingPeriod)}
                 period="per month"
-                description={plan.description}
+                description={plan.features[0] || ""}
                 features={plan.features}
                 isPopular={plan.isPopular}
+                billingPeriod={billingPeriod}
+                currency={currency}
               />
             ))}
           </motion.div>
@@ -329,14 +391,19 @@ export default function PricingPage() {
                 Join thousands of businesses using DailZero's AI receptionist
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/waitlist">
-                  <Button
-                    size="lg"
-                    className="bg-background text-foreground hover:bg-accent text-xl font-bold px-8 py-4"
-                  >
-                    Start Free Trial
-                  </Button>
-                </Link>
+                <Button
+                  size="lg"
+                  className="bg-background text-foreground hover:bg-accent text-xl font-bold px-8 py-4"
+                  onClick={() => {
+                    // Redirect to Polar checkout for Starter plan
+                    const productId = getProductId('Starter');
+                    if (productId) {
+                      window.location.href = `/checkout?products=${productId}`;
+                    }
+                  }}
+                >
+                  Start Free Trial
+                </Button>
                 <Link href="/contact">
                   <Button
                     size="lg"
@@ -360,6 +427,9 @@ export default function PricingPage() {
           </Link>
         </motion.div>
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

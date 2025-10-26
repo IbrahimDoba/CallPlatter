@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { db } from '@repo/db';
 import { logger } from '../utils/logger';
+import { getAllVoices } from '../utils/voiceConfig';
 
 const router: Router = Router();
 
@@ -274,44 +275,8 @@ router.get('/voices', async (req: Request, res: Response) => {
       select: { voiceId: true, voiceName: true }
     });
 
-    // Available voices with descriptions and ElevenLabs voice IDs
-    const availableVoices = [
-      {
-        id: 'james',
-        name: 'James',
-        description: 'Neutral, balanced tone',
-        voiceId: 'Smxkoz0xiOoHo5WcSskf',
-        category: 'Standard'
-      },
-      {
-        id: 'peter',
-        name: 'Peter',
-        description: 'Professional, clear voice',
-        voiceId: 'ChO6kqkVouUn0s7HMunx',
-        category: 'Standard'
-      },
-      {
-        id: 'hope',
-        name: 'Hope',
-        description: 'Warm, friendly voice',
-        voiceId: 'zGjIP4SZlMnY9m93k97r',
-        category: 'Standard'
-      },
-      {
-        id: 'emmanuel',
-        name: 'Emmanuel',
-        description: 'Confident, authoritative voice',
-        voiceId: '77aEIu0qStu8Jwv1EdhX',
-        category: 'Standard'
-      },
-      {
-        id: 'stella',
-        name: 'Stella',
-        description: 'Energetic, engaging voice',
-        voiceId: '2vbhUP8zyKg4dEZaTWGn',
-        category: 'Standard'
-      }
-    ];
+    // Get available voices from centralized configuration
+    const availableVoices = getAllVoices();
 
     res.json({
       success: true,
