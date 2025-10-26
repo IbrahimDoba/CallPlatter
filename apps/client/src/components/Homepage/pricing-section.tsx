@@ -6,24 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CardSpotlight } from "./CardSpotlight";
 import { useState } from "react";
-import { siteConfig } from "@/lib/siteConfig";
+import { cn } from "@/lib/utils";
+import { 
+  pricingPlans, 
+  formatPrice,
+  formatAnnualTotal,
+  getAnnualSavings
+} from "@/lib/pricingConfig";
 
-interface PricingPlan {
+interface PricingTierProps {
   name: string;
   price: string;
   period: string;
   description: string;
   features: string[];
   isPopular?: boolean;
+  billingPeriod: "monthly" | "annual";
+  currency: "USD" | "NGN";
 }
-
-const plans: PricingPlan[] = siteConfig.pricing.plans;
-
-// Nigerian pricing structure (Annual and Monthly fees in NGN)
-const nigerianPricing = siteConfig.pricing.nigerianPricing;
-
-// USD pricing structure (Annual fees in USD)
-const usdPricing = siteConfig.pricing.usdPricing;
 
 const PricingTier = ({
   name,
@@ -32,14 +32,9 @@ const PricingTier = ({
   description,
   features,
   isPopular,
-}: {
-  name: string;
-  price: string;
-  period: string;
-  description: string;
-  features: string[];
-  isPopular?: boolean;
-}) => (
+  billingPeriod,
+  currency,
+}: PricingTierProps) => (
   <CardSpotlight
     className={`h-full ${isPopular ? "border-blue-500" : "border-white/10"} border-2`}
   >
@@ -51,10 +46,41 @@ const PricingTier = ({
       )}
       <h3 className="text-xl font-medium mb-2 text-white">{name}</h3>
       <div className="mb-4">
-        <span className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-          {price}
-        </span>
-        <span className="text-gray-400 text-sm ml-1">{period}</span>
+        <div className="flex items-baseline gap-1">
+          <span className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent transition-all duration-300 ease-in-out">
+            {price}
+          </span>
+          <span className="text-gray-400 text-sm">
+            {billingPeriod === "annual" ? "/month" : "/month"}
+          </span>
+        </div>
+        {/* Reserve space to prevent layout shifts */}
+        <div className="mt-1 h-8 flex flex-col justify-center">
+          <div className="transition-all duration-300 ease-in-out transform">
+            {billingPeriod === "annual" && name !== "FREE" ? (
+              <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
+                <div className="text-xs text-gray-400">
+                  Billed annually: {formatAnnualTotal(name, currency)}
+                </div>
+                <div className="text-xs text-green-400 font-medium">
+                  Save {getAnnualSavings(name, currency)}/year
+                </div>
+              </div>
+            ) : name !== "FREE" ? (
+              <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
+                <div className="text-xs text-gray-400">
+                  Billed monthly
+                </div>
+              </div>
+            ) : (
+              <div className="opacity-0 h-0 overflow-hidden transition-all duration-300 ease-in-out">
+                <div className="text-xs text-gray-400">
+                  Free plan
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <p className="text-gray-400 mb-6">{description}</p>
       <ul className="space-y-3 mb-8 flex-grow">
@@ -73,17 +99,8 @@ const PricingTier = ({
 );
 
 export default function PricingSection() {
-  const [currency, setCurrency] = useState<"USD" | "NGN">("NGN");
-
-  const formatPrice = (planName: string) => {
-    if (currency === "NGN") {
-      const planPricing =
-        nigerianPricing[planName as keyof typeof nigerianPricing];
-      return `₦${planPricing.monthly.toLocaleString()}`;
-    }
-    const planPricing = usdPricing[planName as keyof typeof usdPricing];
-    return `$${planPricing.monthly.toFixed(2)}`;
-  };
+  const [currency, setCurrency] = useState<"USD" | "NGN">("USD");
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
 
   return (
     <section
@@ -115,8 +132,67 @@ export default function PricingSection() {
           </motion.p>
         </div>
 
+        {/* Billing Period Toggle - Centered */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="flex items-center justify-center gap-4 mb-8"
+        >
+          <span
+            className={cn(
+              "text-sm transition-all duration-200",
+              billingPeriod === "monthly"
+                ? "font-bold text-white"
+                : "font-medium text-gray-400"
+            )}
+          >
+            Monthly
+          </span>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() =>
+                setBillingPeriod(
+                  billingPeriod === "monthly" ? "annual" : "monthly"
+                )
+              }
+              className="relative inline-flex h-6 w-11 items-center rounded-full bg-gradient-to-r from-blue-600 to-purple-600 transition-colors focus:outline-none"
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out",
+                  billingPeriod === "annual"
+                    ? "translate-x-6"
+                    : "translate-x-1"
+                )}
+              />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "text-sm transition-all duration-200",
+                billingPeriod === "annual"
+                  ? "font-bold text-white"
+                  : "font-medium text-gray-400"
+              )}
+            >
+              Annually
+            </span>
+            <Badge className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs">
+              Save 20%
+            </Badge>
+          </div>
+        </motion.div>
+
         {/* Currency Toggle */}
-        <div className="flex items-center justify-center gap-4 mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+          className="flex items-center justify-center gap-4 mb-8"
+        >
           <Button
             variant={currency === "USD" ? "default" : "outline"}
             size="sm"
@@ -143,21 +219,28 @@ export default function PricingSection() {
             <Globe className="h-4 w-4" />
             NGN
           </Button>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {plans.map((plan) => (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto"
+        >
+          {pricingPlans.map((plan) => (
             <PricingTier
               key={plan.name}
               name={plan.name}
-              price={formatPrice(plan.name)}
+              price={formatPrice(plan.name, currency, billingPeriod)}
               period="per month"
-              description={plan.description}
+              description={plan.features[0] || ""}
               features={plan.features}
               isPopular={plan.isPopular}
+              billingPeriod={billingPeriod}
+              currency={currency}
             />
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

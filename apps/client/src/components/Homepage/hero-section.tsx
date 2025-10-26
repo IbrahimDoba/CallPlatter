@@ -63,7 +63,8 @@ export default function HeroSection() {
             transition={{ delay: 0.2, duration: 0.8 }}
           >
             DailZero is the AI receptionist that answers, filters, and manages
-            every call just like a real assistant, so you <strong>never miss a customer. Time is money.</strong>
+            every call just like a real assistant, so you{" "}
+            <strong>never miss a customer. Time is money.</strong>
           </motion.p>
 
           <motion.div
@@ -113,8 +114,18 @@ export default function HeroSection() {
                       onClick={() => setShowVideo(false)}
                       className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
                     >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                     </button>
                   </div>

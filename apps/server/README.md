@@ -16,7 +16,7 @@ A Node.js backend that powers an AI receptionist MVP, enabling web-based voice c
 - **Runtime**: Node.js with TypeScript
 - **Framework**: Express.js
 - **Database**: PostgreSQL with Prisma ORM
-- **WebSocket**: Socket.IO for real-time communication
+- **WebSocket**: WebSocket for real-time communication
 - **AI Services**: OpenAI (GPT-4, Whisper STT, TTS)
 - **Logging**: Winston for structured logging
 - **Development**: tsx, nodemon for hot reloading
@@ -152,7 +152,7 @@ The backend extends the existing database schema with new models:
   - New API endpoints for AI conversations
 
 - 🔄 **Phase 3**: WebSocket Integration
-  - Socket.IO server setup
+  - WebSocket server setup
   - Audio streaming handlers
   - Real-time conversation flow
 

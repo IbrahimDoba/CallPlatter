@@ -338,7 +338,7 @@ export default function AppointmentsPage() {
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
-              className="rounded-md border"
+              className="rounded-md border w-full"
             />
           </CardContent>
         </Card>

@@ -18,6 +18,7 @@ model User {
   otpExpiresAt          DateTime? // OTP expiration time
   role                  String    @default("USER")
   onboardingCompleted   Boolean?   @default(false)
+  polarCustomerId       String?   @unique // Polar customer ID for billing
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   businessId            String?
@@ -328,6 +329,8 @@ model Subscription {
   overageRate        Decimal            @db.Decimal(10, 2) // Rate per minute for overage (in NGN)
   trialEndsAt        DateTime?          // When trial period ends
   cancelledAt        DateTime?          // When subscription was cancelled
+  polarSubscriptionId String?           @unique // Polar subscription ID
+  polarCustomerId    String?            // Polar customer ID
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -335,6 +338,8 @@ model Subscription {
   @@index([businessId])
   @@index([status])
   @@index([currentPeriodEnd])
+  @@index([polarSubscriptionId])
+  @@index([polarCustomerId])
   @@map("subscriptions")
 }
 

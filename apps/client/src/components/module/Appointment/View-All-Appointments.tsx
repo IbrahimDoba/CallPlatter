@@ -109,7 +109,7 @@ export function AllAppointmentsList({ appointments, onAppointmentClick }: AllApp
   });
 
   const sortedAppointments = filteredAppointments.sort((a, b) => 
-    new Date(b.appointmentTime).getTime() - new Date(a.appointmentTime).getTime()
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
   const handleAppointmentClick = (appointment: Appointment) => {

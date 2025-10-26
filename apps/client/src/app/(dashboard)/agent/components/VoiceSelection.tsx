@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -23,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { getVoiceName, getElevenLabsVoiceId, getTestAudioFileName, getAllVoices } from "@/lib/voiceConfig";
 
 interface VoiceSelectionProps {
   voice: string;
@@ -37,29 +37,6 @@ export default function VoiceSelection({
   businessId,
   loadAgentConfig,
 }: VoiceSelectionProps) {
-  // Helper function to get voice name from voice ID
-  const getVoiceName = (voiceId: string): string => {
-    const voiceMap: Record<string, string> = {
-      'james': 'James',
-      'peter': 'Peter', 
-      'hope': 'Hope',
-      'emmanuel': 'Emmanuel',
-      'stella': 'Stella'
-    };
-    return voiceMap[voiceId] || voiceId;
-  };
-
-  // Helper function to get ElevenLabs voice ID from voice name
-  const getElevenLabsVoiceId = (voiceName: string): string => {
-    const voiceIdMap: Record<string, string> = {
-      'james': 'Smxkoz0xiOoHo5WcSskf',
-      'peter': 'ChO6kqkVouUn0s7HMunx',
-      'hope': 'zGjIP4SZlMnY9m93k97r',
-      'emmanuel': '77aEIu0qStu8Jwv1EdhX',
-      'stella': '2vbhUP8zyKg4dEZaTWGn'
-    };
-    return voiceIdMap[voiceName] || voiceName;
-  };
 
   const updateVoice = async (newVoice: string) => {
     if (!businessId) {
@@ -90,16 +67,7 @@ export default function VoiceSelection({
     }
 
     try {
-      // Map voice values to test audio files
-      const voiceFileMap: Record<string, string> = {
-        james: "james-test",
-        peter: "peter-test",
-        hope: "hope-test", 
-        emmanuel: "Emmanuel-test",
-        stella: "stella-test",
-      };
-
-      const fileName = voiceFileMap[voice];
+      const fileName = getTestAudioFileName(voice);
       if (!fileName) {
         toast.error("Voice sample not available");
         return;
@@ -157,21 +125,11 @@ export default function VoiceSelection({
                 <SelectValue placeholder="Select a voice" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="james">
-                  James - Neutral, balanced tone
-                </SelectItem>
-                <SelectItem value="peter">
-                  Peter - Professional, clear voice
-                </SelectItem>
-                <SelectItem value="hope">
-                  Hope - Warm, friendly voice
-                </SelectItem>
-                <SelectItem value="emmanuel">
-                  Emmanuel - Confident, authoritative voice
-                </SelectItem>
-                <SelectItem value="stella">
-                  Stella - Energetic, engaging voice
-                </SelectItem>
+                {getAllVoices().map((voiceOption) => (
+                  <SelectItem key={voiceOption.id} value={voiceOption.id}>
+                    {voiceOption.name} - {voiceOption.description}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button

@@ -10,6 +10,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@next-auth/prisma-adapter": "^1.0.7",
+    "@polar-sh/nextjs": "^0.4.11",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -52,7 +53,6 @@
     "react-dom": "19.1.0",
     "react-hook-form": "^7.62.0",
     "recordrtc": "^5.6.2",
-    "socket.io-client": "^4.7.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
