@@ -1,62 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AlertTriangle, X, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { billingApi, type Subscription } from "@/lib/billingApi";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { useSubscription } from "@/hooks/useSubscription";
 
 interface SubscriptionBannerProps {
   businessId: string;
 }
 
 export function SubscriptionBanner({ businessId }: SubscriptionBannerProps) {
-  const { data: session } = useSession();
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isDismissed, setIsDismissed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { subscription, isLoading, error } = useSubscription(businessId);
 
-  useEffect(() => {
-    if (!businessId || !session?.user?.businessId) {
-      setIsLoading(false);
-      return;
-    }
-
-    const fetchSubscriptionStatus = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const { subscription: subData } = await billingApi.getCurrentUsage();
-        setSubscription(subData);
-      } catch (err) {
-        console.error("Error fetching subscription status:", err);
-        setError("Failed to load subscription status");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSubscriptionStatus();
-  }, [businessId, session?.user?.businessId]);
-
-  // Check if subscription is expired or has no credits
+  // Check if subscription is expired, cancelled, past due, or suspended
   const isSubscriptionExpired = () => {
-    if (!subscription) return false;
+    if (!subscription) return true; // No subscription = expired
+    
+    // Check subscription status
+    if (subscription.status === 'CANCELLED' || 
+        subscription.status === 'PAST_DUE' || 
+        subscription.status === 'SUSPENDED') {
+      return true;
+    }
     
     const now = new Date();
     const periodEnd = new Date(subscription.currentPeriodEnd);
     
     // Check if period has ended
     if (now > periodEnd) return true;
-    
-    // Check if it's a FREE plan with no minutes left
-    if (subscription.planType === "FREE" && subscription.minutesUsed >= subscription.minutesIncluded) {
-      return true;
-    }
     
     // Check if any plan has exceeded included minutes and has no overage allowance
     if (subscription.minutesUsed > subscription.minutesIncluded && subscription.overageRate === 0) {
@@ -92,7 +66,16 @@ export function SubscriptionBanner({ businessId }: SubscriptionBannerProps) {
 
   const getBannerMessage = () => {
     if (isExpired) {
-      if (subscription.planType === "FREE") {
+      if (subscription.status === 'CANCELLED') {
+        return "Your subscription has been cancelled. Please renew to continue receiving calls.";
+      }
+      if (subscription.status === 'PAST_DUE') {
+        return "Your subscription payment failed. Please update your payment method to continue receiving calls.";
+      }
+      if (subscription.status === 'SUSPENDED') {
+        return "Your subscription has been suspended. Please contact support to reactivate your account.";
+      }
+      if (subscription.planType === "TRIAL") {
         return "Your free minutes have been used up. Upgrade to continue receiving calls.";
       }
       return "Your subscription has expired. Renew to continue receiving calls.";
@@ -107,6 +90,15 @@ export function SubscriptionBanner({ businessId }: SubscriptionBannerProps) {
 
   const getBannerTitle = () => {
     if (isExpired) {
+      if (subscription.status === 'CANCELLED') {
+        return "Subscription Cancelled";
+      }
+      if (subscription.status === 'PAST_DUE') {
+        return "Payment Failed";
+      }
+      if (subscription.status === 'SUSPENDED') {
+        return "Subscription Suspended";
+      }
       return "Subscription Expired";
     }
     return "Subscription Expiring Soon";
@@ -132,9 +124,9 @@ export function SubscriptionBanner({ businessId }: SubscriptionBannerProps) {
         </div>
         <div className="flex items-center gap-2 ml-4">
           <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700 text-white">
-            <Link href="/profile">
+            <Link href={isExpired ? "/pricing" : "/profile"}>
               <CreditCard className="h-3 w-3 mr-1" />
-              Manage Billing
+              {isExpired ? "Renew Subscription" : "Manage Billing"}
             </Link>
           </Button>
           <Button

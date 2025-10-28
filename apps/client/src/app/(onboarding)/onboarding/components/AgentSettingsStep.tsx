@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,18 @@ export function AgentSettingsStep({ data, onUpdate, onNext, onBack }: AgentSetti
   const [greeting, setGreeting] = useState(data.greeting);
   const [recordingConsent, setRecordingConsent] = useState(data.recordingConsent);
 
+  // Sync local state with data prop changes
+  useEffect(() => {
+    if (data.greeting && data.greeting !== greeting) {
+      console.log('🤖 AgentSettingsStep: Syncing greeting from data prop:', data.greeting);
+      setGreeting(data.greeting);
+    }
+    if (data.recordingConsent !== recordingConsent) {
+      console.log('🤖 AgentSettingsStep: Syncing recordingConsent from data prop:', data.recordingConsent);
+      setRecordingConsent(data.recordingConsent);
+    }
+  }, [data.greeting, data.recordingConsent, greeting, recordingConsent]);
+
   const handleNext = () => {
     onUpdate({
       greeting,
@@ -26,7 +38,7 @@ export function AgentSettingsStep({ data, onUpdate, onNext, onBack }: AgentSetti
     onNext();
   };
 
-  const isFormValid = greeting.trim() !== "" && recordingConsent;
+  const isFormValid = greeting.trim() !== "";
 
   return (
     <div className="space-y-6">
@@ -65,7 +77,7 @@ export function AgentSettingsStep({ data, onUpdate, onNext, onBack }: AgentSetti
             />
             <div className="space-y-1">
               <Label htmlFor="recordingConsent" className="text-sm font-medium text-gray-700">
-                Recording Consent *
+                Recording Consent (Optional)
               </Label>
               <p className="text-sm text-gray-600">
                 I acknowledge and agree that calls are recorded. I am responsible for notifying callers, as may be required by law.

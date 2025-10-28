@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,14 @@ const VOICE_OPTIONS = getVoiceOptionsForOnboarding();
 
 export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSelectionStepProps) {
   const [selectedVoice, setSelectedVoice] = useState(data.selectedVoice);
+
+  // Sync local state with data prop changes
+  useEffect(() => {
+    if (data.selectedVoice && data.selectedVoice !== selectedVoice) {
+      console.log('🎤 VoiceSelectionStep: Syncing selectedVoice from data prop:', data.selectedVoice);
+      setSelectedVoice(data.selectedVoice);
+    }
+  }, [data.selectedVoice, selectedVoice]);
 
   const handleNext = () => {
     onUpdate({ selectedVoice });

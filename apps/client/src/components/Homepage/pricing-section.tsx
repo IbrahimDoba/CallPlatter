@@ -57,7 +57,7 @@ const PricingTier = ({
         {/* Reserve space to prevent layout shifts */}
         <div className="mt-1 h-8 flex flex-col justify-center">
           <div className="transition-all duration-300 ease-in-out transform">
-            {billingPeriod === "annual" && name !== "FREE" ? (
+            {billingPeriod === "annual" && name !== "Starter" ? (
               <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
                 <div className="text-xs text-gray-400">
                   Billed annually: {formatAnnualTotal(name, currency)}
@@ -66,7 +66,7 @@ const PricingTier = ({
                   Save {getAnnualSavings(name, currency)}/year
                 </div>
               </div>
-            ) : name !== "FREE" ? (
+            ) : name !== "Starter" ? (
               <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
                 <div className="text-xs text-gray-400">
                   Billed monthly

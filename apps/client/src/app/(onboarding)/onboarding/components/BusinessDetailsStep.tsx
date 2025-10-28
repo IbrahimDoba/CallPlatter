@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,18 @@ interface BusinessDetailsStepProps {
 export function BusinessDetailsStep({ data, onUpdate, onNext }: BusinessDetailsStepProps) {
   const [businessName, setBusinessName] = useState(data.businessName);
   const [businessDescription, setBusinessDescription] = useState(data.businessDescription);
+
+  // Sync local state with data prop changes
+  useEffect(() => {
+    if (data.businessName && data.businessName !== businessName) {
+      console.log('🏢 BusinessDetailsStep: Syncing businessName from data prop:', data.businessName);
+      setBusinessName(data.businessName);
+    }
+    if (data.businessDescription && data.businessDescription !== businessDescription) {
+      console.log('🏢 BusinessDetailsStep: Syncing businessDescription from data prop:', data.businessDescription);
+      setBusinessDescription(data.businessDescription);
+    }
+  }, [data.businessName, data.businessDescription, businessName, businessDescription]);
 
   const handleNext = () => {
     onUpdate({

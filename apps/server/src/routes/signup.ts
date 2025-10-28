@@ -11,7 +11,7 @@ const router: Router = Router();
 const signupSchema = z.object({
   name: z.string().min(2, "Business name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  phoneNumber: z.string().min(10, "Phone number must be at least 10 characters"),
+  phoneNumber: z.string().min(10, "Phone number must be at least 10 characters").optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -31,15 +31,17 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Check if business with same phone number already exists
-    const existingBusiness = await db.business.findFirst({
-      where: { phoneNumber },
-    });
-
-    if (existingBusiness) {
-      return res.status(400).json({
-        message: "Business with this phone number already exists"
+    // Check if business with same phone number already exists (only if phone number provided)
+    if (phoneNumber) {
+      const existingBusiness = await db.business.findFirst({
+        where: { phoneNumber },
       });
+
+      if (existingBusiness) {
+        return res.status(400).json({
+          message: "Business with this phone number already exists"
+        });
+      }
     }
 
     // Check rate limiting for OTP requests
@@ -63,7 +65,7 @@ router.post("/", async (req, res) => {
       const business = await tx.business.create({
         data: {
           name,
-          phoneNumber,
+          phoneNumber: phoneNumber || null, // Set to null if not provided
         },
       });
 

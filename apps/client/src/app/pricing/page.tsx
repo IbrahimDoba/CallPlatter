@@ -80,7 +80,7 @@ const PricingTier = ({
         {/* Reserve space to prevent layout shifts */}
         <div className="mt-1 h-8 flex flex-col justify-center">
           <div className="transition-all duration-300 ease-in-out transform">
-            {billingPeriod === "annual" && name !== "FREE" ? (
+            {billingPeriod === "annual" && name !== "Starter" ? (
               <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
                 <div className="text-xs text-muted-foreground">
                   Billed annually: {formatAnnualTotal(name, currency)}
@@ -89,7 +89,7 @@ const PricingTier = ({
                   Save {getAnnualSavings(name, currency)}/year
                 </div>
               </div>
-            ) : name !== "FREE" ? (
+            ) : name !== "Starter" ? (
               <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
                 <div className="text-xs text-muted-foreground">
                   Billed monthly
@@ -339,7 +339,7 @@ export default function PricingPage() {
             {...fadeInUp}
             className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
-            {pricingPlans.filter(plan => plan.name !== "FREE").map((plan) => (
+            {pricingPlans.map((plan) => (
               <PricingTier
                 key={plan.name}
                 name={plan.name}

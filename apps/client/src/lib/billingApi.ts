@@ -39,6 +39,9 @@ export interface BillingTransaction {
 export class BillingApi {
   private cachedBusinessId: string | null = null;
   private sessionPromise: Promise<any> | null = null;
+  private cachedUsageData: { data: any; timestamp: number } | null = null;
+  private usagePromise: Promise<any> | null = null;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   private async getBusinessId(): Promise<string> {
     // Return cached value if available
@@ -80,17 +83,52 @@ export class BillingApi {
   clearCache(): void {
     this.cachedBusinessId = null;
     this.sessionPromise = null;
+    this.cachedUsageData = null;
+    this.usagePromise = null;
   }
 
   /**
-   * Get current usage for the business
+   * Get current usage for the business with caching and deduplication
    */
   async getCurrentUsage(): Promise<{
     subscription: Subscription;
     currentUsage: BillingUsage;
   }> {
+    // Check if we have valid cached data
+    if (this.cachedUsageData && 
+        Date.now() - this.cachedUsageData.timestamp < this.CACHE_DURATION) {
+      return this.cachedUsageData.data;
+    }
+
+    // Use existing promise if one is in progress to avoid duplicate requests
+    if (this.usagePromise) {
+      return await this.usagePromise;
+    }
+
+    // Create new request promise
+    this.usagePromise = this.fetchUsageData();
+    
+    try {
+      const result = await this.usagePromise;
+      return result;
+    } finally {
+      this.usagePromise = null;
+    }
+  }
+
+  private async fetchUsageData(): Promise<{
+    subscription: Subscription;
+    currentUsage: BillingUsage;
+  }> {
     const headers = await this.getHeaders();
     const response = await apiRequest("/billing/usage", { headers });
+    
+    // Cache the result
+    this.cachedUsageData = {
+      data: response.data,
+      timestamp: Date.now()
+    };
+    
     return response.data;
   }
 
@@ -118,7 +156,7 @@ export class BillingApi {
    * Create subscription for business
    */
   async createSubscription(
-    planType: "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE"
+    planType: "STARTER" | "BUSINESS" | "ENTERPRISE"
   ): Promise<Subscription> {
     const headers = await this.getHeaders();
     const response = await apiRequest("/billing/subscription", {
@@ -133,7 +171,7 @@ export class BillingApi {
    * Update subscription plan for business
    */
   async updateSubscription(
-    planType: "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE"
+    planType: "STARTER" | "BUSINESS" | "ENTERPRISE"
   ): Promise<Subscription> {
     const headers = await this.getHeaders();
     const response = await apiRequest("/billing/subscription", {

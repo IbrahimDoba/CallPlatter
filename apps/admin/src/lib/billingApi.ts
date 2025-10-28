@@ -102,7 +102,7 @@ export class BillingApi {
    * Create subscription for business
    */
   async createSubscription(
-    planType: "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE"
+    planType: "STARTER" | "BUSINESS" | "ENTERPRISE"
   ): Promise<Subscription> {
     const response = await this.apiRequest("/api/billing/subscription", {
       method: "POST",
@@ -115,7 +115,7 @@ export class BillingApi {
    * Update subscription plan for business
    */
   async updateSubscription(
-    planType: "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE"
+    planType: "STARTER" | "BUSINESS" | "ENTERPRISE"
   ): Promise<Subscription> {
     const response = await this.apiRequest("/api/billing/subscription", {
       method: "PUT",

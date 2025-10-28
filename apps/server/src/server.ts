@@ -34,6 +34,7 @@ import verifyEmailRoutes from "./routes/verify-email";
 import forgotPasswordRoutes from "./routes/forgot-password";
 import verifyResetOTPRoutes from "./routes/verify-reset-otp";
 import resetPasswordRoutes from "./routes/reset-password";
+import twilioRoutes from "./routes/twilio";
 
 // Load environment variables
 dotenv.config();
@@ -44,6 +45,9 @@ validateEnvironment();
 const app = express() as express.Express;
 const server = createServer(app);
 const PORT = Number.parseInt(process.env.PORT || "3001");
+
+// Trust proxy for ngrok and other reverse proxies
+app.set('trust proxy', true);
 
 // Middleware
 // const allowedOrigins = process.env.CORS_ORIGIN
@@ -106,6 +110,7 @@ app.use("/api/verify-email", authLimiter, verifyEmailRoutes);
 app.use("/api/forgot-password", authLimiter, forgotPasswordRoutes);
 app.use("/api/verify-reset-otp", authLimiter, verifyResetOTPRoutes);
 app.use("/api/reset-password", authLimiter, resetPasswordRoutes);
+app.use("/api/twilio", apiLimiter, twilioRoutes);
 
 app.use("/api/openai-realtime", apiLimiter, openaiRealtimeRoutes);
 app.use("/api/elevenlabs-agent", apiLimiter, elevenLabsAgentRoutes);

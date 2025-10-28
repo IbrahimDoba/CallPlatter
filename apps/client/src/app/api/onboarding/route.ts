@@ -24,9 +24,11 @@ export async function POST(request: NextRequest) {
       selectedVoice,
       selectedAccent,
       greeting,
-      recordingConsent,
       selectedPhoneNumber,
-      selectedPhoneNumberId
+      selectedPhoneNumberId,
+      // selectedPlan, // Will be used when implementing Polar integration
+      // trialActivated, // Will be used when implementing Polar integration  
+      // polarCustomerId // Will be used when implementing Polar integration
     } = body;
 
     // TODO: Use selectedAccent after running database migration
@@ -48,69 +50,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!recordingConsent) {
-      return NextResponse.json(
-        { error: 'Recording consent is required' },
-        { status: 400 }
-      );
-    }
-
-    // Check if phone number is available and assign it
-    const phoneNumberRecord = await db.phoneNumber.findUnique({
-      where: { id: selectedPhoneNumberId },
-    });
-
-    if (!phoneNumberRecord) {
-      return NextResponse.json(
-        { error: 'Selected phone number not found' },
-        { status: 400 }
-      );
-    }
-
-    if (phoneNumberRecord.isAssigned) {
-      return NextResponse.json(
-        { error: 'Selected phone number is already assigned' },
-        { status: 400 }
-      );
-    }
+    // Recording consent is optional - no validation needed
 
     // Create or update business
     if (!businessId) {
-      // Create new business
       const business = await db.business.create({
         data: {
           name: businessName,
           description: businessDescription,
-          phoneNumber: selectedPhoneNumber,
-          phoneNumberId: selectedPhoneNumberId,
-        }
+          phoneNumber: selectedPhoneNumber, // Required field
+        },
       });
       businessId = business.id;
-      
-      // Update user with businessId
-      await db.user.update({
-        where: { id: session.user.id },
-        data: { businessId: businessId }
-      });
     } else {
-      // Update existing business
       await db.business.update({
         where: { id: businessId },
         data: {
           name: businessName,
           description: businessDescription,
-          phoneNumber: selectedPhoneNumber,
-          phoneNumberId: selectedPhoneNumberId,
-        }
+          phoneNumber: selectedPhoneNumber, // Required field
+        },
       });
     }
 
-    // Assign the phone number to the business
-    await db.phoneNumber.update({
-      where: { id: selectedPhoneNumberId },
+    // Create phone number record with Twilio details
+    const phoneNumberRecord = await db.phoneNumber.create({
       data: {
-        isAssigned: true,
+        number: selectedPhoneNumber,
+        countryCode: selectedPhoneNumber.substring(0, 4),
         assignedTo: businessId,
+        isAssigned: true,
+      },
+    });
+
+    // Update business with phone number
+    await db.business.update({
+      where: { id: businessId },
+      data: {
+        phoneNumberId: phoneNumberRecord.id,
       },
     });
 
@@ -140,10 +117,95 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Mark user as having completed onboarding
+    // Check if user has a subscription from Polar webhook
+    // If not, create a default trial subscription
+    const existingSubscription = await db.subscription.findUnique({
+      where: { businessId: businessId }
+    });
+
+    if (!existingSubscription) {
+      console.log('No subscription found, checking for Polar customer ID...');
+      
+      // Check if user has a Polar customer ID (from onboarding progress or user record)
+      const userWithPolarId = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: { polarCustomerId: true }
+      });
+      
+      // Also check onboarding progress for Polar customer ID
+      const onboardingProgress = await db.onboardingProgress.findUnique({
+        where: { userId: session.user.id },
+        select: { polarCustomerId: true, selectedPlan: true, trialActivated: true }
+      });
+      
+      const polarCustomerId = userWithPolarId?.polarCustomerId || onboardingProgress?.polarCustomerId;
+      const selectedPlan = onboardingProgress?.selectedPlan;
+      const trialActivated = onboardingProgress?.trialActivated;
+      
+      console.log('Polar customer ID:', polarCustomerId, 'Selected plan:', selectedPlan, 'Trial activated:', trialActivated);
+      
+      if (polarCustomerId && selectedPlan) {
+        // User has Polar customer ID and selected plan, create subscription based on their choice
+        const planType = selectedPlan.toUpperCase() as "STARTER" | "BUSINESS" | "ENTERPRISE";
+        const isTrial = trialActivated || selectedPlan.toLowerCase() === 'starter';
+        
+        await db.subscription.create({
+          data: {
+            businessId: businessId,
+            planType,
+            status: isTrial ? "TRIAL" : "ACTIVE",
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + (isTrial ? 14 : 30) * 24 * 60 * 60 * 1000),
+            minutesIncluded: planType === "STARTER" ? 40 : planType === "BUSINESS" ? 110 : 300,
+            minutesUsed: 0,
+            overageRate: planType === "STARTER" ? 0.89 : planType === "BUSINESS" ? 0.61 : 0.44,
+            trialEndsAt: isTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null,
+            trialActivated: isTrial,
+            polarCustomerId: polarCustomerId,
+          }
+        });
+        
+        console.log(`Created ${isTrial ? 'trial' : 'active'} subscription for business ${businessId} with plan ${planType}`);
+      } else {
+        // No Polar customer ID, create default trial subscription
+        console.log('No Polar customer ID found, creating default trial subscription for business:', businessId);
+        
+        await db.subscription.create({
+          data: {
+            businessId: businessId,
+            planType: "STARTER", // Default to STARTER plan
+            status: "TRIAL",
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
+            minutesIncluded: 40, // Starter plan minutes
+            minutesUsed: 0,
+            overageRate: 0.89, // USD overage rate
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
+            trialActivated: true,
+          }
+        });
+        
+        console.log('Created default trial subscription for business:', businessId);
+      }
+    } else {
+      console.log('Subscription already exists for business:', businessId, 'status:', existingSubscription.status);
+    }
+
+    // Update user onboarding status
     await db.user.update({
       where: { id: session.user.id },
-      data: { onboardingCompleted: true }
+      data: {
+        onboardingCompleted: true,
+        businessId,
+      },
+    });
+
+    // Clean up onboarding progress
+    await db.onboardingProgress.delete({
+      where: { userId: session.user.id }
+    }).catch(error => {
+      // Ignore error if no progress record exists
+      console.log('No onboarding progress to clean up:', error.message);
     });
 
     console.log('Onboarding completed successfully for user:', session.user.id, 'business:', businessId);

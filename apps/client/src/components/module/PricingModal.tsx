@@ -14,15 +14,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { billingApi } from "@/lib/billingApi";
 import { toast } from "sonner";
 import {
   pricingPlans,
-  planTypeMap,
   formatPrice,
   formatAnnualTotal,
   getAnnualSavings,
   getProductId,
+  planTypeMap,
 } from "@/lib/pricingConfig";
 
 interface PricingModalProps {
@@ -34,7 +33,6 @@ interface PricingModalProps {
 export function PricingModal({
   children,
   currentPlan,
-  onPlanChange,
 }: PricingModalProps) {
   const [currency, setCurrency] = useState<"USD" | "NGN">("USD");
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">(
@@ -43,89 +41,67 @@ export function PricingModal({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
+  // Map plan type (STARTER, BUSINESS, etc.) to plan name (Starter, Business, etc.)
+  const mapPlanTypeToName = (planType: string): string => {
+    const reverseMap: Record<string, string> = {};
+    Object.entries(planTypeMap).forEach(([name, type]) => {
+      reverseMap[type] = name;
+    });
+    return reverseMap[planType] || planType;
+  };
+
+  const currentPlanName = currentPlan ? mapPlanTypeToName(currentPlan) : undefined;
+  
+  // Debug logging
+  console.log('PricingModal - Current Plan Debug:', {
+    currentPlan,
+    currentPlanName,
+    planTypeMap
+  });
+
   const handlePlanSelection = async (planName: string) => {
-    if (planName === currentPlan) {
+    if (planName === currentPlanName) {
       return; // Don't do anything if it's the same plan
     }
 
-    // Handle FREE plan - no payment required
-    if (planName === "FREE") {
-      setIsLoading(true);
-      setSelectedPlan(planName);
+    // Handle Custom plan differently
+    if (planName === 'Custom') {
+      // Open Discord link for custom pricing inquiries
+      window.open(process.env.NEXT_PUBLIC_DISCORD_LINK || 'https://discord.gg/Xc89m7sRFc', '_blank');
+      return;
+    }
 
-      try {
-        const planType = planTypeMap[planName];
-        if (!planType) {
-          throw new Error("Invalid plan selected");
-        }
+    setIsLoading(true);
+    setSelectedPlan(planName);
 
-        // Try to update existing subscription first, then create if it doesn't exist
-        try {
-          await billingApi.updateSubscription(
-            planType as "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE"
-          );
-          toast.success(`Successfully updated to ${planName} plan!`);
-        } catch (updateError: unknown) {
-          // If update fails because subscription doesn't exist, try to create
-          const error = updateError as { response?: { status: number }; message?: string };
-          if (
-            error?.response?.status === 404 ||
-            error?.message?.includes("No subscription found")
-          ) {
-            await billingApi.createSubscription(
-              planType as "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE"
-            );
-            toast.success(`Successfully subscribed to ${planName} plan!`);
-          } else {
-            // Re-throw other errors
-            throw updateError;
-          }
-        }
-
-        // Call the callback to refresh the parent component
-        if (onPlanChange) {
-          onPlanChange(planName);
-        }
-
-        // Close the modal after successful update
-        setTimeout(() => {
-          window.location.reload(); // Simple refresh to update the UI
-        }, 1000);
-      } catch (error) {
-        console.error("Error updating subscription:", error);
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to update subscription. Please try again."
-        );
-      } finally {
-        setIsLoading(false);
-        setSelectedPlan(null);
+    try {
+      const productId = getProductId(planName);
+      if (!productId) {
+        toast.error("Product not found. Please contact support.");
+        return;
       }
-      return;
-    }
 
-    // Handle paid plans - redirect to Polar checkout
-    const productId = getProductId(planName);
-    if (!productId) {
-      toast.error("Product not found. Please contact support.");
-      return;
-    }
+      // Build checkout URL with customer information
+      const checkoutUrl = new URL('/checkout', window.location.origin);
+      checkoutUrl.searchParams.set('products', productId);
+      
+      // Add billing period information
+      if (billingPeriod === 'annual') {
+        checkoutUrl.searchParams.set('metadata', JSON.stringify({
+          billingPeriod: 'annual',
+          currency: currency
+        }));
+      }
 
-    // Build checkout URL with customer information
-    const checkoutUrl = new URL('/checkout', window.location.origin);
-    checkoutUrl.searchParams.set('products', productId);
-    
-    // Add billing period information
-    if (billingPeriod === 'annual') {
-      checkoutUrl.searchParams.set('metadata', JSON.stringify({
-        billingPeriod: 'annual',
-        currency: currency
-      }));
+      // Redirect to Polar checkout
+      window.location.href = checkoutUrl.toString();
+    } catch (error) {
+      console.error("Error processing plan selection:", error);
+      toast.error("Failed to process plan selection. Please try again.");
+    } finally {
+      setIsLoading(false);
+      setSelectedPlan(null);
     }
-
-    // Redirect to Polar checkout
-    window.location.href = checkoutUrl.toString();
   };
 
   return (
@@ -219,8 +195,8 @@ export function PricingModal({
               className={cn(
                 "relative rounded-lg border p-6 bg-card flex flex-col",
                 plan.isPopular && "border-green-600 shadow-lg",
-                plan.name === "FREE" && "border-blue-200 bg-blue-50",
-                currentPlan === plan.name &&
+                plan.name === "Starter" && "border-blue-200 bg-blue-50",
+                currentPlanName === plan.name &&
                   "border-blue-600 bg-blue-50 shadow-lg"
               )}
             >
@@ -229,7 +205,7 @@ export function PricingModal({
                   POPULAR
                 </Badge>
               )}
-              {currentPlan === plan.name && (
+              {currentPlanName === plan.name && (
                 <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-blue-600 hover:bg-blue-600 text-white">
                   CURRENT PLAN
                 </Badge>
@@ -244,15 +220,23 @@ export function PricingModal({
                         <span className="text-3xl font-bold transition-all duration-300 ease-in-out">
                           {formatPrice(plan.name, currency, billingPeriod)}
                         </span>
-                        <span className="text-muted-foreground text-sm">
-                          {billingPeriod === "annual" ? "/month" : "/month"}
-                        </span>
+                        {plan.name !== 'Custom' && (
+                          <span className="text-muted-foreground text-sm">
+                            {billingPeriod === "annual" ? "/month" : "/month"}
+                          </span>
+                        )}
                       </div>
                       {/* Reserve space to prevent modal shifting */}
                       <div className="mt-1 h-8 flex flex-col justify-center">
                         <div className="transition-all duration-300 ease-in-out transform">
-                          {billingPeriod === "annual" &&
-                          plan.name !== "FREE" ? (
+                          {plan.name === "Custom" ? (
+                            <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
+                              <div className="text-xs text-muted-foreground">
+                                Custom pricing available
+                              </div>
+                            </div>
+                          ) : billingPeriod === "annual" &&
+                          plan.name !== "Starter" ? (
                             <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
                               <div className="text-xs text-muted-foreground">
                                 Billed annually:{" "}
@@ -263,7 +247,7 @@ export function PricingModal({
                                 /year
                               </div>
                             </div>
-                          ) : plan.name !== "FREE" ? (
+                          ) : plan.name !== "Starter" ? (
                             <div className="opacity-100 translate-y-0 transition-all duration-300 ease-in-out">
                               <div className="text-xs text-muted-foreground">
                                 Billed monthly
@@ -296,16 +280,18 @@ export function PricingModal({
                 <div className="mt-6">
                   <Button
                     onClick={() => handlePlanSelection(plan.name)}
-                    disabled={isLoading || currentPlan === plan.name}
+                    disabled={isLoading || currentPlanName === plan.name}
                     className={cn(
                       "w-full",
-                      currentPlan === plan.name
+                      currentPlanName === plan.name
                         ? "bg-blue-600 hover:bg-blue-700 text-white"
-                        : plan.name === "FREE"
+                        : plan.name === "Starter"
                           ? "bg-blue-600 hover:bg-blue-700 text-white"
-                          : plan.isPopular
-                            ? "bg-green-600 hover:bg-green-700 text-white"
-                            : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                          : plan.name === "Custom"
+                            ? "bg-purple-600 hover:bg-purple-700 text-white"
+                            : plan.isPopular
+                              ? "bg-green-600 hover:bg-green-700 text-white"
+                              : "bg-muted hover:bg-muted/80 text-muted-foreground"
                     )}
                   >
                     {isLoading && selectedPlan === plan.name ? (
@@ -313,10 +299,12 @@ export function PricingModal({
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Updating...
                       </>
-                    ) : currentPlan === plan.name ? (
+                    ) : currentPlanName === plan.name ? (
                       "Current Plan"
-                    ) : plan.name === "FREE" ? (
+                    ) : plan.name === "Starter" ? (
                       "Get Started"
+                    ) : plan.name === "Custom" ? (
+                      "Contact US"
                     ) : (
                       "Subscribe Now"
                     )}
