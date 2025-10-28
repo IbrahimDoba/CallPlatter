@@ -12,44 +12,40 @@ import {
   TrendingUp,
   AlertTriangle
 } from "lucide-react";
-import { billingApi, type Subscription, type UsageLimits } from "@/lib/billingApi";
+import { billingApi, type UsageLimits } from "@/lib/billingApi";
 import { PricingModal } from "@/components/module/PricingModal";
+import { useSubscription } from "@/hooks/useSubscription";
 
 interface BillingSidebarProps {
   businessId?: string;
 }
 
 export default function BillingSidebar({ businessId }: BillingSidebarProps) {
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [loading, setLoading] = useState(true);
+  const { subscription, isLoading: subscriptionLoading } = useSubscription(businessId);
 
   useEffect(() => {
-    const fetchBillingData = async () => {
+    const fetchUsageData = async () => {
       if (!businessId) {
         setLoading(false);
         return;
       }
 
       try {
-        const [subscriptionData, usageData] = await Promise.all([
-          billingApi.getCurrentUsage(),
-          billingApi.getUsageLimits()
-        ]);
-        
-        setSubscription(subscriptionData.subscription);
+        const usageData = await billingApi.getUsageLimits();
         setUsage(usageData);
       } catch (error) {
-        console.error('Error fetching billing data:', error);
+        console.error('Error fetching usage data:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBillingData();
+    fetchUsageData();
   }, [businessId]);
 
-  if (loading) {
+  if (loading || subscriptionLoading) {
     return (
       <div className="mx-2 mb-4 p-3 bg-gray-50 rounded-lg border">
         <div className="animate-pulse">
@@ -60,16 +56,17 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
     );
   }
 
+  // Handle no subscription case - show pricing prompt
   if (!subscription) {
     return (
-      <div className="mx-2 mb-4 p-3 bg-gray-50 rounded-lg border">
+      <div className="mx-2 mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
         <div className="flex items-center gap-2 mb-2">
-          <CreditCard className="h-4 w-4 text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">No Plan</span>
+          <CreditCard className="h-4 w-4 text-red-600" />
+          <span className="text-sm font-medium text-red-700">Subscription Required</span>
         </div>
-        <p className="text-xs text-gray-500 mb-3">Get started with a plan</p>
+        <p className="text-xs text-red-600 mb-3">Choose a plan to access the app</p>
         <PricingModal>
-          <Button size="sm" className="w-full">
+          <Button size="sm" className="w-full bg-red-600 hover:bg-red-700">
             Choose Plan
           </Button>
         </PricingModal>
@@ -79,7 +76,6 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
 
   const getPlanIcon = (planType: string) => {
     switch (planType) {
-      case 'FREE': return <Zap className="h-4 w-4" />;
       case 'STARTER': return <Zap className="h-4 w-4" />;
       case 'BUSINESS': return <Crown className="h-4 w-4" />;
       case 'ENTERPRISE': return <Building className="h-4 w-4" />;
@@ -89,7 +85,6 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
 
   const getPlanColor = (planType: string) => {
     switch (planType) {
-      case 'FREE': return 'bg-green-100 text-green-800 border-green-200';
       case 'STARTER': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'BUSINESS': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'ENTERPRISE': return 'bg-gold-100 text-gold-800 border-gold-200';
@@ -168,7 +163,7 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
       )} */}
 
       {/* Action Buttons */}
-      {subscription.planType === 'FREE' ? (
+      {subscription.status === 'TRIAL' ? (
         <PricingModal currentPlan={subscription.planType}>
           <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
             <Crown className="h-4 w-4 mr-2" />

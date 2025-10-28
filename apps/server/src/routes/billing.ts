@@ -95,7 +95,7 @@ router.post('/subscription', async (req: Request, res: Response) => {
 
     const { planType } = req.body;
     
-    if (!planType || !['FREE', 'STARTER', 'BUSINESS', 'ENTERPRISE'].includes(planType)) {
+    if (!planType || !['STARTER', 'BUSINESS', 'ENTERPRISE'].includes(planType)) {
       return res.status(400).json({ 
         success: false, 
         error: 'Invalid plan type' 
@@ -143,7 +143,7 @@ router.put('/subscription', async (req: Request, res: Response) => {
 
     const { planType } = req.body;
     
-    if (!planType || !['FREE', 'STARTER', 'BUSINESS', 'ENTERPRISE'].includes(planType)) {
+    if (!planType || !['STARTER', 'BUSINESS', 'ENTERPRISE'].includes(planType)) {
       return res.status(400).json({ 
         success: false, 
         error: 'Invalid plan type' 

@@ -11,14 +11,16 @@ import {
 import DashboardHeader from "@/components/layout/AppHeader";
 import AppSidebar, { navigation } from "@/components/layout/Appsidebar";
 import { SubscriptionBanner } from "@/components/layout/SubscriptionBanner";
+import { SubscriptionStatus } from "@/components/layout/SubscriptionStatus";
 import { getBusinessInfo } from "@/app/actions/business";
+import { LoadingScreen } from "@/components/ui/loader";
+import { useSubscription } from "@/hooks/useSubscription";
 import { AgentProvider, useAgentContext } from "@/contexts/AgentContext";
 
 interface DashboardLayoutProps {
   children: ReactNode;
   title?: string;
   headerActions?: ReactNode;
-  searchPlaceholder?: string;
 }
 
 // Wrapper component to set business ID in context
@@ -39,13 +41,18 @@ export default function DashboardLayout({
   children,
   title,
   headerActions,
-  searchPlaceholder = "Search...",
 }: DashboardLayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [businessInfo, setBusinessInfo] = useState<{id: string; name: string; phoneNumber: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Get businessId early for hook usage
+  const businessId = businessInfo?.id || '';
+  
+  // Check subscription status (must be called unconditionally)
+  const { isSubscriptionInvalid } = useSubscription(businessId);
 
   useEffect(() => {
     async function fetchBusinessInfo() {
@@ -80,18 +87,9 @@ export default function DashboardLayout({
 
   // Show loading state while session is being checked or business info is loading
   if (status === 'loading' || isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"/>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading..." />;
   }
 
-  const businessId = businessInfo?.id || '';
-  const businessName = businessInfo?.name || 'Your Business';
   const businessPhoneNumber = businessInfo?.phoneNumber || '';
 
   // Redirect to signin if not authenticated
@@ -102,6 +100,11 @@ export default function DashboardLayout({
 
   if (!session) {
     return null;
+  }
+
+  // Show subscription status if invalid
+  if (isSubscriptionInvalid) {
+    return <SubscriptionStatus businessId={businessId} />;
   }
 
   // Get page title from pathname if not provided
@@ -118,11 +121,8 @@ export default function DashboardLayout({
           <SidebarInset>
             <DashboardHeader
               pageTitle={pageTitle}
-              businessName={businessName}
-              businessId={businessId}
               businessPhoneNumber={businessPhoneNumber}
               headerActions={headerActions}
-              searchPlaceholder={searchPlaceholder}
             />
 
             <main className="flex-1 p-4 sm:p-6">

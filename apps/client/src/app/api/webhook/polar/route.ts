@@ -1,26 +1,27 @@
 import { Webhooks } from "@polar-sh/nextjs";
 import { db } from "@repo/db";
-import type { PlanType } from "@prisma/client";
+
+// Local PlanType definition to match our current schema
+type PlanType = "STARTER" | "BUSINESS" | "ENTERPRISE";
 
 // Note: Using 'any' type for Polar webhook payloads as the exact types are not available
 // The payload structure may vary and we need to access properties dynamically
 
 // Helper function to map Polar plan to our PlanType
 function mapPolarPlanToPlanType(polarProductName?: string): PlanType {
-  if (!polarProductName) return "FREE";
+  if (!polarProductName) return "STARTER"; // Default to STARTER instead of FREE
   
   const name = polarProductName.toLowerCase();
   if (name.includes("starter")) return "STARTER";
   if (name.includes("business")) return "BUSINESS";
   if (name.includes("enterprise")) return "ENTERPRISE";
   
-  return "FREE";
+  return "STARTER"; // Default to STARTER instead of FREE
 }
 
 // Helper function to get billing plan details - using accurate USD values from pricing config
 function getBillingPlanDetails(planType: PlanType) {
   const plans: Record<PlanType, { minutesIncluded: number; overageRate: number; monthlyPrice: number }> = {
-    FREE: { minutesIncluded: 5, overageRate: 0, monthlyPrice: 0 },
     STARTER: { minutesIncluded: 40, overageRate: 0.89, monthlyPrice: 20 },
     BUSINESS: { minutesIncluded: 110, overageRate: 0.61, monthlyPrice: 45 },
     ENTERPRISE: { minutesIncluded: 300, overageRate: 0.44, monthlyPrice: 120 },
@@ -117,8 +118,16 @@ export const POST = Webhooks({
         include: { business: true }
       });
       
-      if (!user?.business) {
-        console.error(`No business found for user ${customer.email}`);
+      if (!user) {
+        console.error(`No user found for email ${customer.email}`);
+        return;
+      }
+      
+      if (!user.business) {
+        console.error(`No business found for user ${customer.email}. User ID: ${user.id}`);
+        // If user exists but no business, we might need to wait for onboarding to complete
+        // Store the subscription info for later processing
+        console.log("User exists but no business yet. This might be a timing issue with onboarding.");
         return;
       }
       
@@ -130,23 +139,51 @@ export const POST = Webhooks({
       const currentPeriodStart = new Date(subscription.current_period_start || Date.now());
       const currentPeriodEnd = new Date(subscription.current_period_end || Date.now());
       
-      // Create subscription record
-      await db.subscription.create({
-        data: {
-          businessId: user.business.id,
-          planType,
-          status: "ACTIVE",
-          currentPeriodStart,
-          currentPeriodEnd,
-          minutesIncluded: planDetails.minutesIncluded,
-          minutesUsed: 0,
-          overageRate: planDetails.overageRate,
-          polarSubscriptionId: subscription.id,
-          polarCustomerId: customer.id,
-        }
+      // Check if this is a trial subscription
+      const isTrial = subscription.status === 'trialing' || subscription.trial_end;
+      const subscriptionStatus = isTrial ? "TRIAL" : "ACTIVE";
+      
+      // Check if subscription already exists (upsert to handle race conditions)
+      const existingSubscription = await db.subscription.findUnique({
+        where: { businessId: user.business.id }
       });
       
-      console.log(`Created subscription for business ${user.business.id} with plan ${planType}`);
+      if (existingSubscription) {
+        // Update existing subscription
+        await db.subscription.update({
+          where: { id: existingSubscription.id },
+          data: {
+            planType,
+            status: subscriptionStatus,
+            currentPeriodStart,
+            currentPeriodEnd,
+            minutesIncluded: planDetails.minutesIncluded,
+            overageRate: planDetails.overageRate,
+            trialEndsAt: isTrial && subscription.trial_end ? new Date(subscription.trial_end) : null,
+            polarSubscriptionId: subscription.id,
+            polarCustomerId: customer.id,
+          }
+        });
+        console.log(`Updated existing subscription for business ${user.business.id} with plan ${planType}`);
+      } else {
+        // Create new subscription record
+        await db.subscription.create({
+          data: {
+            businessId: user.business.id,
+            planType,
+            status: subscriptionStatus,
+            currentPeriodStart,
+            currentPeriodEnd,
+            minutesIncluded: planDetails.minutesIncluded,
+            minutesUsed: 0,
+            overageRate: planDetails.overageRate,
+            trialEndsAt: isTrial && subscription.trial_end ? new Date(subscription.trial_end) : null,
+            polarSubscriptionId: subscription.id,
+            polarCustomerId: customer.id,
+          }
+        });
+        console.log(`Created ${isTrial ? 'trial' : 'active'} subscription for business ${user.business.id} with plan ${planType}`);
+      }
     } catch (error) {
       console.error("Error handling subscription created:", error);
       throw error;
@@ -167,7 +204,7 @@ export const POST = Webhooks({
       // Find the user by email
       const user = await db.user.findUnique({
         where: { email: customer.email },
-        include: { business: true }
+        include: { business: { include: { phoneNumberRecord: true } } }
       });
       
       if (!user?.business) {
@@ -175,13 +212,47 @@ export const POST = Webhooks({
         return;
       }
       
-      // Determine plan type from subscription
+      // Check if subscription is revoked (immediate loss of access)
+      if (subscription.status === "canceled" || subscription.status === "revoked") {
+        console.log(`Subscription ${subscription.status} for business ${user.business.id}`);
+        
+        // Update subscription status to cancelled
+        await db.subscription.updateMany({
+          where: { 
+            businessId: user.business.id,
+            polarSubscriptionId: subscription.id 
+          },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+          }
+        });
+        
+        // Release phone number if business has one
+        if (user.business.phoneNumberRecord?.twilioSid) {
+          try {
+            const { twilioService } = await import("../../../../../../server/src/services/twilioService");
+            await twilioService.releaseBusinessPhoneNumber(user.business.id);
+            console.log(`Released phone number for business ${user.business.id} due to ${subscription.status} subscription`);
+          } catch (phoneError) {
+            console.error("Error releasing phone number:", phoneError);
+            // Don't throw - we still want to cancel the subscription even if phone release fails
+          }
+        }
+        
+        return;
+      }
+      
+      // Handle normal subscription updates (active, trial, etc.)
       const planType = mapPolarPlanToPlanType(subscription.product?.name);
       const planDetails = getBillingPlanDetails(planType);
       
       // Calculate period dates
       const currentPeriodStart = new Date(subscription.current_period_start || Date.now());
       const currentPeriodEnd = new Date(subscription.current_period_end || Date.now());
+      
+      // Check if this is a trial conversion (trial ending and becoming active)
+      const isTrialConversion = subscription.status === "active" && subscription.trial_end;
       
       // Update subscription record
       await db.subscription.updateMany({
@@ -196,10 +267,11 @@ export const POST = Webhooks({
           currentPeriodEnd,
           minutesIncluded: planDetails.minutesIncluded,
           overageRate: planDetails.overageRate,
+          trialEndsAt: isTrialConversion ? null : undefined, // Clear trial end date on conversion
         }
       });
       
-      console.log(`Updated subscription for business ${user.business.id} with plan ${planType}`);
+      console.log(`${isTrialConversion ? 'Converted trial to active' : 'Updated'} subscription for business ${user.business.id} with plan ${planType}`);
     } catch (error) {
       console.error("Error handling subscription updated:", error);
       throw error;
@@ -220,7 +292,7 @@ export const POST = Webhooks({
       // Find the user by email
       const user = await db.user.findUnique({
         where: { email: customer.email },
-        include: { business: true }
+        include: { business: { include: { phoneNumberRecord: true } } }
       });
       
       if (!user?.business) {
@@ -239,6 +311,18 @@ export const POST = Webhooks({
           cancelledAt: new Date(),
         }
       });
+      
+      // Release phone number if business has one
+      if (user.business.phoneNumberRecord?.twilioSid) {
+        try {
+          const { twilioService } = await import("../../../../../../server/src/services/twilioService");
+          await twilioService.releaseBusinessPhoneNumber(user.business.id);
+          console.log(`Released phone number for business ${user.business.id}`);
+        } catch (phoneError) {
+          console.error("Error releasing phone number:", phoneError);
+          // Don't throw - we still want to cancel the subscription even if phone release fails
+        }
+      }
       
       console.log(`Cancelled subscription for business ${user.business.id}`);
     } catch (error) {
@@ -287,6 +371,7 @@ export const POST = Webhooks({
       throw error;
     }
   },
+
   
   // Handle refunds
   onRefundCreated: async (payload) => {

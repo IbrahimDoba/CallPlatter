@@ -98,7 +98,7 @@ export default function ProfilePage() {
       isMounted = false;
       hasFetched.current = false;
     };
-  }, [session?.user?.businessId]); // Only depend on businessId, not entire session
+  }, [session?.user?.businessId, fetching]); // Include fetching in dependencies
 
   if (status === "loading" || loading) {
     return (
@@ -118,7 +118,7 @@ export default function ProfilePage() {
 
   const getPlanColor = (planType: string) => {
     switch (planType) {
-      case 'FREE': return 'bg-green-100 text-green-800 border-green-200';
+      case 'TRIAL': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'STARTER': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'BUSINESS': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'ENTERPRISE': return 'bg-gold-100 text-gold-800 border-gold-200';
@@ -128,7 +128,7 @@ export default function ProfilePage() {
 
   const getPlanIcon = (planType: string) => {
     switch (planType) {
-      case 'FREE': return <Zap className="h-4 w-4" />;
+      case 'TRIAL': return <Zap className="h-4 w-4" />;
       case 'STARTER': return <Zap className="h-4 w-4" />;
       case 'BUSINESS': return <Crown className="h-4 w-4" />;
       case 'ENTERPRISE': return <Building className="h-4 w-4" />;
@@ -292,7 +292,7 @@ export default function ProfilePage() {
                         <p className="text-xs text-gray-500 mt-1">
                           {((usage.minutesUsed / usage.minutesIncluded) * 100).toFixed(1)}% used
                         </p>
-                        {subscription.planType === 'FREE' && usage.minutesUsed >= usage.minutesIncluded && (
+                        {subscription.status === 'TRIAL' && usage.minutesUsed >= usage.minutesIncluded && (
                           <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
                             <p className="text-xs text-yellow-800">
                               ⚠️ You've used all your free minutes. Upgrade to continue making calls.
@@ -304,7 +304,7 @@ export default function ProfilePage() {
                   )}
 
                   <div className="flex gap-2">
-                    {subscription.planType === 'FREE' ? (
+                    {subscription.status === 'TRIAL' ? (
                       <PricingModal currentPlan={subscription.planType}>
                         <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                           <Crown className="h-4 w-4 mr-2" />

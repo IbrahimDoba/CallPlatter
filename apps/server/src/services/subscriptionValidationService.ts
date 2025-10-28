@@ -3,8 +3,9 @@ import { logger } from "../utils/logger";
 
 export interface SubscriptionValidationResult {
   isBlocked: boolean;
-  reason: 'expired' | 'no_credits' | 'cancelled' | 'none';
+  reason: 'expired' | 'no_credits' | 'cancelled' | 'past_due' | 'suspended' | 'none';
   message: string;
+  redirectToPricing?: boolean;
   subscription?: {
     planType: string;
     status: string;
@@ -42,6 +43,41 @@ export class SubscriptionValidationService {
           isBlocked: true,
           reason: 'cancelled',
           message: 'Your subscription has been cancelled. Please renew to continue receiving calls.',
+          redirectToPricing: true,
+          subscription: {
+            planType: subscription.planType,
+            status: subscription.status,
+            minutesUsed: subscription.minutesUsed,
+            minutesIncluded: subscription.minutesIncluded,
+            currentPeriodEnd: periodEnd,
+          },
+        };
+      }
+
+      // Check if subscription is past due
+      if (subscription.status === 'PAST_DUE') {
+        return {
+          isBlocked: true,
+          reason: 'past_due',
+          message: 'Your subscription payment failed. Please update your payment method to continue receiving calls.',
+          redirectToPricing: true,
+          subscription: {
+            planType: subscription.planType,
+            status: subscription.status,
+            minutesUsed: subscription.minutesUsed,
+            minutesIncluded: subscription.minutesIncluded,
+            currentPeriodEnd: periodEnd,
+          },
+        };
+      }
+
+      // Check if subscription is suspended
+      if (subscription.status === 'SUSPENDED') {
+        return {
+          isBlocked: true,
+          reason: 'suspended',
+          message: 'Your subscription has been suspended. Please contact support to reactivate your account.',
+          redirectToPricing: true,
           subscription: {
             planType: subscription.planType,
             status: subscription.status,
@@ -58,6 +94,7 @@ export class SubscriptionValidationService {
           isBlocked: true,
           reason: 'expired',
           message: 'Your subscription has expired. Please renew to continue receiving calls.',
+          redirectToPricing: true,
           subscription: {
             planType: subscription.planType,
             status: subscription.status,
@@ -70,22 +107,6 @@ export class SubscriptionValidationService {
 
       // Check if credits/minutes are exhausted
       if (subscription.minutesUsed >= subscription.minutesIncluded) {
-        // For FREE plan, block if no minutes left
-        if (subscription.planType === 'FREE') {
-          return {
-            isBlocked: true,
-            reason: 'no_credits',
-            message: 'Your free minutes have been used up. Upgrade to continue receiving calls.',
-            subscription: {
-              planType: subscription.planType,
-              status: subscription.status,
-              minutesUsed: subscription.minutesUsed,
-              minutesIncluded: subscription.minutesIncluded,
-              currentPeriodEnd: periodEnd,
-            },
-          };
-        }
-
         // For paid plans, check if overage is allowed
         if (subscription.overageRate.toNumber() === 0) {
           return {
@@ -134,12 +155,13 @@ export class SubscriptionValidationService {
       case 'expired':
         return 'Your subscription has expired. Please renew your subscription to continue receiving calls.';
       case 'no_credits':
-        if (result.subscription?.planType === 'FREE') {
-          return 'Your free minutes have been used up. Please upgrade your plan to continue receiving calls.';
-        }
         return 'You have used all your included minutes. Please upgrade your plan to continue receiving calls.';
       case 'cancelled':
         return 'Your subscription has been cancelled. Please renew your subscription to continue receiving calls.';
+      case 'past_due':
+        return 'Your subscription payment failed. Please update your payment method to continue receiving calls.';
+      case 'suspended':
+        return 'Your subscription has been suspended. Please contact support to reactivate your account.';
       default:
         return 'We are unable to process your call at this time. Please try again later.';
     }

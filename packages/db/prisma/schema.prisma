@@ -25,8 +25,32 @@ model User {
   sessions              Session[]
   accounts              Account[]
   business              Business? @relation(fields: [businessId], references: [id])
+  onboardingProgress    OnboardingProgress?
 
   @@map("users")
+}
+
+model OnboardingProgress {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  currentStep           Int       @default(1)
+  businessName          String?
+  businessDescription   String?
+  selectedVoice         String?
+  selectedAccent        String?
+  greeting              String?
+  recordingConsent      Boolean   @default(false)
+  selectedPlan          String?
+  trialActivated        Boolean   @default(false)
+  polarCustomerId       String?
+  selectedPhoneNumber   String?
+  selectedPhoneNumberId String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_progress")
 }
 
 /// NextAuth account links (for OAuth providers)
@@ -118,21 +142,28 @@ model Business {
 }
 
 model PhoneNumber {
-  id          String    @id @default(cuid())
-  number      String    @unique // The actual phone number (e.g., "+2348012345678")
-  countryCode String    // e.g., "+234" for Nigeria
-  isActive    Boolean   @default(true)
-  isAssigned  Boolean   @default(false) // Whether this number is assigned to a business
-  assignedTo  String?   @unique // Business ID if assigned, null if available
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  number            String    @unique // The actual phone number (e.g., "+2348012345678")
+  countryCode       String    // e.g., "+234" for Nigeria
+  isActive          Boolean   @default(true)
+  isAssigned        Boolean   @default(false) // Whether this number is assigned to a business
+  assignedTo        String?   @unique // Business ID if assigned, null if available
+  twilioSid         String?   @unique // NEW: Twilio SID
+  twilioPhoneNumber String?   // NEW: Twilio phone number
+  webhookUrl         String?   // NEW: Webhook URL
+  capabilities       Json?     // NEW: Voice, SMS, MMS capabilities
+  purchaseDate       DateTime? // NEW: When purchased from Twilio
+  monthlyCost        Decimal?  @db.Decimal(10, 2) // NEW: Monthly cost
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   
   // Relations
-  business    Business? @relation(fields: [assignedTo], references: [id])
+  business          Business? @relation(fields: [assignedTo], references: [id])
   
   @@index([isAssigned])
   @@index([isActive])
   @@index([assignedTo])
+  @@index([twilioSid])
   @@map("phone_numbers")
 }
 
@@ -328,6 +359,9 @@ model Subscription {
   minutesUsed        Int                @default(0) // Minutes used in current period
   overageRate        Decimal            @db.Decimal(10, 2) // Rate per minute for overage (in NGN)
   trialEndsAt        DateTime?          // When trial period ends
+  trialStartedAt     DateTime?          // NEW: When trial started
+  trialActivated     Boolean            @default(false) // NEW: Trial activation flag
+  trialPlanType      String?            // NEW: Plan type during trial
   cancelledAt        DateTime?          // When subscription was cancelled
   polarSubscriptionId String?           @unique // Polar subscription ID
   polarCustomerId    String?            // Polar customer ID
@@ -412,7 +446,6 @@ enum AppointmentStatus {
 }
 
 enum PlanType {
-  FREE
   STARTER
   BUSINESS
   ENTERPRISE

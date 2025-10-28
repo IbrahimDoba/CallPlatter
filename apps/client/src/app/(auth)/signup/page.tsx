@@ -14,7 +14,7 @@ export default function SignUpPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    phoneNumber: "",
+    // phoneNumber: "", // Commented out for now
     password: "",
     confirmPassword: "",
   });
@@ -47,10 +47,10 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      const response = await api.auth.signup({
+      await api.auth.signup({
         name: formData.name,
         email: formData.email,
-        phoneNumber: formData.phoneNumber,
+        // phoneNumber: formData.phoneNumber, // Commented out for now
         password: formData.password,
       });
 
@@ -190,7 +190,8 @@ export default function SignUpPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
+            {/* Phone number field commented out for now */}
+            {/* <div className="space-y-2">
               <Label
                 htmlFor="phoneNumber"
                 className="text-sm font-medium text-gray-700"
@@ -207,7 +208,7 @@ export default function SignUpPage() {
                 className="h-11"
                 required
               />
-            </div>
+            </div> */}
             <div className="space-y-2">
               <Label
                 htmlFor="password"

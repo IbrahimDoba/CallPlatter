@@ -2,9 +2,10 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle, Loader2 } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { LoadingScreen } from "@/components/ui/loader";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -43,15 +44,10 @@ function SuccessContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Processing your payment...</h1>
-          <p className="text-muted-foreground">
-            Please wait while we confirm your subscription.
-          </p>
-        </div>
-      </div>
+      <LoadingScreen 
+        message="Processing your payment..." 
+        className="bg-background"
+      />
     );
   }
 
@@ -104,15 +100,10 @@ function SuccessContent() {
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Loading...</h1>
-        <p className="text-muted-foreground">
-          Please wait while we process your request.
-        </p>
-      </div>
-    </div>
+    <LoadingScreen 
+      message="Please wait while we process your request."
+      className="bg-background"
+    />
   );
 }
 

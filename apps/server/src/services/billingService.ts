@@ -1,7 +1,22 @@
 import { db } from "@repo/db";
+import type { PrismaClient } from "@prisma/client";
 
 // Temporary string literals until database migration is complete
-type PlanType = "FREE" | "STARTER" | "BUSINESS" | "ENTERPRISE";
+type PlanType = "STARTER" | "BUSINESS" | "ENTERPRISE";
+
+// Polar subscription interface
+interface PolarSubscription {
+  id: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  trial_end?: string;
+  trial_start?: string;
+  customer_id: string;
+  product?: {
+    name: string;
+  };
+}
 
 export interface BillingPlan {
   name: string;
@@ -15,14 +30,6 @@ export interface BillingPlan {
 // Exchange rate constant
 
 export const BILLING_PLANS: Record<PlanType, BillingPlan> = {
-  FREE: {
-    name: "Free",
-    monthlyPrice: 0, // ₦0
-    monthlyPriceUSD: 0, // $0
-    minutesIncluded: 5, // 5 minutes free
-    overageRate: 0, // No overage charges for free plan
-    overageRateUSD: 0, // $0 per minute
-  },
   STARTER: {
     name: "Starter",
     monthlyPrice: 30000, // ₦30,000
@@ -50,6 +57,75 @@ export const BILLING_PLANS: Record<PlanType, BillingPlan> = {
 };
 
 export class BillingService {
+  /**
+   * Map Polar plan name to our internal plan type
+   */
+  private mapPolarPlanToPlanType(polarPlanName: string): PlanType {
+    const planMap: Record<string, PlanType> = {
+      'Starter': 'STARTER',
+      'Business': 'BUSINESS',
+      'Enterprise': 'ENTERPRISE',
+    };
+    
+    return planMap[polarPlanName] || 'STARTER'; // Default to STARTER
+  }
+
+  /**
+   * Get billing plan details for a plan type
+   */
+  private getBillingPlanDetails(planType: PlanType): BillingPlan {
+    return BILLING_PLANS[planType];
+  }
+
+  /**
+   * Create subscription from Polar webhook (trial or paid)
+   * Polar handles all trial logic - we just sync the data
+   */
+  async syncSubscriptionFromPolar(polarSubscription: PolarSubscription, businessId: string) {
+    const isTrial = polarSubscription.status === 'trialing';
+    const planType = this.mapPolarPlanToPlanType(polarSubscription.product?.name || '');
+    
+    const subscriptionData = {
+      businessId,
+      planType,
+      status: isTrial ? 'TRIAL' as const : 'ACTIVE' as const,
+      currentPeriodStart: polarSubscription.current_period_start ? new Date(polarSubscription.current_period_start) : new Date(),
+      currentPeriodEnd: polarSubscription.current_period_end ? new Date(polarSubscription.current_period_end) : new Date(),
+      minutesIncluded: this.getBillingPlanDetails(planType).minutesIncluded,
+      minutesUsed: 0,
+      overageRate: this.getBillingPlanDetails(planType).overageRate,
+      trialEndsAt: isTrial && polarSubscription.trial_end ? new Date(polarSubscription.trial_end) : null,
+      polarSubscriptionId: polarSubscription.id,
+      polarCustomerId: polarSubscription.customer_id,
+    };
+
+    return await db.subscription.upsert({
+      where: { businessId },
+      create: subscriptionData,
+      update: subscriptionData,
+    });
+  }
+
+  /**
+   * Handle trial conversion (called by Polar webhook)
+   */
+  async handleTrialConversion(polarSubscription: PolarSubscription, businessId: string) {
+    const planType = this.mapPolarPlanToPlanType(polarSubscription.product?.name || '');
+    
+    return await db.subscription.update({
+      where: { businessId },
+      data: {
+        planType,
+        status: 'ACTIVE' as const,
+        currentPeriodStart: polarSubscription.current_period_start ? new Date(polarSubscription.current_period_start) : new Date(),
+        currentPeriodEnd: polarSubscription.current_period_end ? new Date(polarSubscription.current_period_end) : new Date(),
+        minutesIncluded: this.getBillingPlanDetails(planType).minutesIncluded,
+        overageRate: this.getBillingPlanDetails(planType).overageRate,
+        trialEndsAt: null, // Trial ended
+      }
+    });
+  }
+
   /**
    * Create a new subscription for a business
    */
@@ -158,7 +234,10 @@ export class BillingService {
         });
 
         // Update subscription usage
-        const subscription = call.business.subscription!;
+        const subscription = call.business.subscription;
+        if (!subscription) {
+          throw new Error("Subscription not found");
+        }
         const newMinutesUsed = subscription.minutesUsed + durationMinutes;
 
         await tx.subscription.update({
@@ -190,7 +269,7 @@ export class BillingService {
     businessId: string,
     callDate: Date,
     minutesUsed: number,
-    tx?: any // Prisma transaction client
+    tx?: any // Prisma transaction client - using any for flexibility
   ) {
     const prisma = tx || db;
     const month = callDate.getMonth() + 1; // 1-12
@@ -261,13 +340,16 @@ export class BillingService {
    * Get current usage for a business
    */
   async getCurrentUsage(businessId: string) {
-    let subscription = await db.subscription.findUnique({
+    const subscription = await db.subscription.findUnique({
       where: { businessId },
     });
 
-    // If no subscription exists, create a default FREE subscription
+    // Return null if no subscription exists - no auto-creation
     if (!subscription) {
-      subscription = await this.createSubscription(businessId, "FREE");
+      return {
+        subscription: null,
+        currentUsage: null
+      };
     }
 
     const currentDate = new Date();
@@ -308,6 +390,17 @@ export class BillingService {
   }> {
     const { subscription, currentUsage } =
       await this.getCurrentUsage(businessId);
+
+    // If no subscription exists, return limits exceeded
+    if (!subscription || !currentUsage) {
+      return {
+        withinLimits: false,
+        minutesUsed: 0,
+        minutesIncluded: 0,
+        overageMinutes: 0,
+        percentageUsed: 100,
+      };
+    }
 
     const minutesUsed = Number(currentUsage.totalMinutes);
     const minutesIncluded = subscription.minutesIncluded;
