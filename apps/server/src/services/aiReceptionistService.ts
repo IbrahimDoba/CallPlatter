@@ -2,7 +2,6 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-// Removed ffmpeg dependency - using WebM directly with Whisper
 import { logger } from '../utils/logger';
 
 // Supported OpenAI TTS voices (as per API error enum)

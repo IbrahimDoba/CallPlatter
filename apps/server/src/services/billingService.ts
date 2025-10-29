@@ -1,10 +1,8 @@
 import { db } from "@repo/db";
-import type { PrismaClient } from "@prisma/client";
 
 // Temporary string literals until database migration is complete
 type PlanType = "STARTER" | "BUSINESS" | "ENTERPRISE";
 
-// Polar subscription interface
 interface PolarSubscription {
   id: string;
   status: string;
@@ -20,10 +18,10 @@ interface PolarSubscription {
 
 export interface BillingPlan {
   name: string;
-  monthlyPrice: number; // in NGN
-  monthlyPriceUSD: number; // in USD
+  monthlyPrice: number;
+  monthlyPriceUSD: number; 
   minutesIncluded: number;
-  overageRate: number; // per minute in NGN
+  overageRate: number; 
   overageRateUSD: number;
 }
 

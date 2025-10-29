@@ -64,7 +64,7 @@ export const pricingPlans: PricingPlan[] = [
     annualPriceMonthly: 0,
     annualPriceYearly: 0,
     features: [
-      "Unlimited minutes",
+      "Custom minutes",
       "Custom overage rates",
       "24/7 AI answering",
       "Instant call summaries",
