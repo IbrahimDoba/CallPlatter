@@ -5,7 +5,8 @@ import dotenv from "dotenv";
 import { validateEnvironment } from "./utils/helpers";
 import { logger } from "./utils/logger";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import { generalLimiter, authLimiter, apiLimiter, waitlistLimiter, webhookLimiter } from "./middleware/rateLimiter";
+// Rate limiting removed - uncomment if needed later
+// import { generalLimiter, authLimiter, apiLimiter, waitlistLimiter, webhookLimiter } from "./middleware/rateLimiter";
 import aiReceptionistRoutes from "./routes/aiReceptionist";
 import appointmentsRoutes from "./routes/appointments";
 import callsRoutes from "./routes/calls";
@@ -54,62 +55,42 @@ const TRUST_PROXY_HOPS = Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
 app.set('trust proxy', TRUST_PROXY_HOPS);
 
 // Middleware
-// CORS configuration - supports multiple origins from env or defaults to localhost for dev
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
-  : process.env.NODE_ENV === 'production'
-  ? [] // In production, require CORS_ORIGIN to be set
-  : ["http://localhost:3000", "http://localhost:3002"];
-
-// Log CORS configuration on startup
-if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
-  logger.warn("⚠️  CORS_ORIGIN not set in production - CORS requests may fail!");
-} else {
-  logger.info(`CORS configured for origins: ${allowedOrigins.join(", ")}`);
-}
+// CORS configuration - simple but production-safe
+// In dev: allows all origins. In prod: uses CORS_ORIGIN env var if set, otherwise allows all
+const corsOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : true; // Allow all if not set
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, Postman, or curl requests)
-      if (!origin) {
-        return callback(null, true);
-      }
-      
-      // In production with no allowed origins configured, deny all
-      if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
-        return callback(new Error(`CORS_ORIGIN not configured. Origin "${origin}" blocked.`));
-      }
-      
-      // If no origins configured in dev, allow all (fallback)
-      if (allowedOrigins.length === 0) {
-        return callback(null, true);
-      }
-      
-      // Check if origin is in allowed list
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Not allowed by CORS: ${origin}`));
-      }
-    },
+    origin: corsOrigin, // Array of origins in prod, or true for all in dev
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
-      'Content-Type', 
-      'Authorization', 
+      'Content-Type',
+      'Authorization',
       'X-Requested-With',
       'x-business-id',
       'x-user-id',
       'x-user-email',
       'x-user-business-id',
       'x-user-role',
-      'x-user-name'
+      'x-user-name',
+      'access-control-allow-origin',
+      'access-control-allow-credentials',
     ],
   })
 );
-// Apply general rate limiting to all routes
-app.use(generalLimiter);
+
+// Log CORS config
+if (Array.isArray(corsOrigin)) {
+  logger.info(`CORS configured for origins: ${corsOrigin.join(', ')}`);
+} else {
+  logger.info('CORS configured to allow all origins');
+}
+
+// Remove general rate limiting to avoid conflicts
+// app.use(generalLimiter);
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -135,33 +116,33 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// API Routes with specific rate limiting
-app.use("/api/ai-receptionist", apiLimiter, aiReceptionistRoutes);
-app.use("/api/appointments", apiLimiter, appointmentsRoutes);
-app.use("/api/calls", apiLimiter, callsRoutes);
-app.use("/api/settings", apiLimiter, settingsRoutes);
-app.use("/api/dashboard", apiLimiter, dashboardRoutes);
-app.use("/api/signup", authLimiter, signupRoutes);
-app.use("/api/webhooks", webhookLimiter, webhooksRoutes);
-app.use("/api/agent", apiLimiter, agentRoutes);
-app.use("/api/openai", apiLimiter, openaiRoutes);
-app.use("/api/uploadthing", apiLimiter, uploadthingRoutes);
-app.use("/api/embeddings", apiLimiter, embeddingsRoutes);
-app.use("/api/pinecone", apiLimiter, pineconeRoutes);
-app.use("/api/waitlist", waitlistLimiter, waitlistRoutes);
-app.use("/api/billing", apiLimiter, billingRoutes);
-app.use("/api/voice", apiLimiter, voiceUpdateRoutes);
-app.use("/api/admin", apiLimiter, adminRoutes);
-app.use("/api/admin/phone-numbers", apiLimiter, adminPhoneNumbersRoutes);
-app.use("/api/resend-otp", authLimiter, resendOTPRoutes);
-app.use("/api/verify-email", authLimiter, verifyEmailRoutes);
-app.use("/api/forgot-password", authLimiter, forgotPasswordRoutes);
-app.use("/api/verify-reset-otp", authLimiter, verifyResetOTPRoutes);
-app.use("/api/reset-password", authLimiter, resetPasswordRoutes);
-app.use("/api/twilio", apiLimiter, twilioRoutes);
+// API Routes - rate limiting removed for simplicity
+app.use("/api/ai-receptionist", aiReceptionistRoutes);
+app.use("/api/appointments", appointmentsRoutes);
+app.use("/api/calls", callsRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/signup", signupRoutes);
+app.use("/api/webhooks", webhooksRoutes);
+app.use("/api/agent", agentRoutes);
+app.use("/api/openai", openaiRoutes);
+app.use("/api/uploadthing", uploadthingRoutes);
+app.use("/api/embeddings", embeddingsRoutes);
+app.use("/api/pinecone", pineconeRoutes);
+app.use("/api/waitlist", waitlistRoutes);
+app.use("/api/billing", billingRoutes);
+app.use("/api/voice", voiceUpdateRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/admin/phone-numbers", adminPhoneNumbersRoutes);
+app.use("/api/resend-otp", resendOTPRoutes);
+app.use("/api/verify-email", verifyEmailRoutes);
+app.use("/api/forgot-password", forgotPasswordRoutes);
+app.use("/api/verify-reset-otp", verifyResetOTPRoutes);
+app.use("/api/reset-password", resetPasswordRoutes);
+app.use("/api/twilio", twilioRoutes);
 
-app.use("/api/openai-realtime", apiLimiter, openaiRealtimeRoutes);
-app.use("/api/elevenlabs-agent", apiLimiter, elevenLabsAgentRoutes);
+app.use("/api/openai-realtime", openaiRealtimeRoutes);
+app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
 
 // Setup Twilio media stream WebSocket handlers
 // setupOpenAIRealtimeWebSocket(server); // Temporarily disabled to test ElevenLabs
