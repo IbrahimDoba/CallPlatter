@@ -54,16 +54,34 @@ const TRUST_PROXY_HOPS = Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
   : (process.env.NODE_ENV === 'production' ? 1 : 0);
 app.set('trust proxy', TRUST_PROXY_HOPS);
 
-// Middleware
-// CORS configuration - simple but production-safe
-// In dev: allows all origins. In prod: uses CORS_ORIGIN env var if set, otherwise allows all
-const corsOrigin = process.env.CORS_ORIGIN
+// Middleware - CORS must be FIRST
+// CORS configuration - production-ready with proper origin handling
+const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
-  : true; // Allow all if not set
+  : null; // null means allow all
 
 app.use(
   cors({
-    origin: corsOrigin, // Array of origins in prod, or true for all in dev
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // If CORS_ORIGIN is not set, allow all origins
+      if (!corsOrigins) {
+        return callback(null, true);
+      }
+      
+      // Check if origin is in allowed list
+      if (corsOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        // Log rejected origin for debugging
+        logger.warn(`CORS: Origin "${origin}" not in allowed list: ${corsOrigins.join(', ')}`);
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
@@ -76,15 +94,42 @@ app.use(
       'x-user-business-id',
       'x-user-role',
       'x-user-name',
-      'access-control-allow-origin',
-      'access-control-allow-credentials',
     ],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   })
 );
 
+// Note: CORS middleware above handles OPTIONS automatically
+// But we add explicit OPTIONS handler as fallback to ensure headers are always set
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  if (origin) {
+    // If CORS_ORIGIN is set, only allow listed origins
+    if (corsOrigins) {
+      if (corsOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      }
+      // If origin not in list, don't set Access-Control-Allow-Origin
+      // (browser will reject, which is expected)
+    } else {
+      // Allow all origins if CORS_ORIGIN not set
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-business-id, x-user-id, x-user-email, x-user-business-id, x-user-role, x-user-name');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.status(204).end();
+});
+
 // Log CORS config
-if (Array.isArray(corsOrigin)) {
-  logger.info(`CORS configured for origins: ${corsOrigin.join(', ')}`);
+if (corsOrigins) {
+  logger.info(`CORS configured for origins: ${corsOrigins.join(', ')}`);
 } else {
   logger.info('CORS configured to allow all origins');
 }
