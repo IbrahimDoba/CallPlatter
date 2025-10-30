@@ -54,14 +54,48 @@ const TRUST_PROXY_HOPS = Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
 app.set('trust proxy', TRUST_PROXY_HOPS);
 
 // Middleware
-// const allowedOrigins = process.env.CORS_ORIGIN
-//   ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
-//   : ["http://localhost:3000", "http://localhost:3002"];
+// CORS configuration - supports multiple origins from env or defaults to localhost for dev
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+  : process.env.NODE_ENV === 'production'
+  ? [] // In production, require CORS_ORIGIN to be set
+  : ["http://localhost:3000", "http://localhost:3002"];
+
+// Log CORS configuration on startup
+if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+  logger.warn("⚠️  CORS_ORIGIN not set in production - CORS requests may fail!");
+} else {
+  logger.info(`CORS configured for origins: ${allowedOrigins.join(", ")}`);
+}
 
 app.use(
   cors({
-    origin: true, // Temporarily allow all origins for debugging
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, or curl requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // In production with no allowed origins configured, deny all
+      if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+        return callback(new Error(`CORS_ORIGIN not configured. Origin "${origin}" blocked.`));
+      }
+      
+      // If no origins configured in dev, allow all (fallback)
+      if (allowedOrigins.length === 0) {
+        return callback(null, true);
+      }
+      
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Not allowed by CORS: ${origin}`));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
 // Apply general rate limiting to all routes
