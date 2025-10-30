@@ -95,7 +95,17 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-Requested-With',
+      'x-business-id',
+      'x-user-id',
+      'x-user-email',
+      'x-user-business-id',
+      'x-user-role',
+      'x-user-name'
+    ],
   })
 );
 // Apply general rate limiting to all routes

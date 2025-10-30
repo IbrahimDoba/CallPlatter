@@ -13,6 +13,8 @@ export const generalLimiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skipSuccessfulRequests: false,
   skipFailedRequests: false,
+  // Skip OPTIONS requests (CORS preflight) - they're handled by CORS middleware
+  skip: (req: Request) => req.method === 'OPTIONS',
   // Configure validation to match Express trust proxy hop count
   validate: {
     trustProxy: (
@@ -22,7 +24,13 @@ export const generalLimiter = rateLimit({
     ) > 0,
     xForwardedForHeader: true
   },
-  handler: (_req: Request, res: Response) => {
+  handler: (req: Request, res: Response) => {
+    // Include CORS headers in rate limit error responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.status(429).json({
       error: 'Too many requests from this IP, please try again later.',
       retryAfter: '15 minutes'
@@ -40,6 +48,8 @@ export const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight) - they're handled by CORS middleware
+  skip: (req: Request) => req.method === 'OPTIONS',
   // Configure validation to match Express trust proxy hop count
   validate: {
     trustProxy: (
@@ -49,7 +59,13 @@ export const authLimiter = rateLimit({
     ) > 0,
     xForwardedForHeader: true
   },
-  handler: (_req: Request, res: Response) => {
+  handler: (req: Request, res: Response) => {
+    // Include CORS headers in rate limit error responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.status(429).json({
       error: 'Too many authentication attempts from this IP, please try again later.',
       retryAfter: '15 minutes'
@@ -67,6 +83,8 @@ export const apiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight) - they're handled by CORS middleware
+  skip: (req: Request) => req.method === 'OPTIONS',
   // Configure validation to match Express trust proxy hop count
   validate: {
     trustProxy: (
@@ -76,7 +94,13 @@ export const apiLimiter = rateLimit({
     ) > 0,
     xForwardedForHeader: true
   },
-  handler: (_req: Request, res: Response) => {
+  handler: (req: Request, res: Response) => {
+    // Include CORS headers in rate limit error responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.status(429).json({
       error: 'Too many API requests from this IP, please try again later.',
       retryAfter: '15 minutes'
@@ -94,6 +118,8 @@ export const waitlistLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight) - they're handled by CORS middleware
+  skip: (req: Request) => req.method === 'OPTIONS',
   // Configure validation to match Express trust proxy hop count
   validate: {
     trustProxy: (
@@ -103,7 +129,13 @@ export const waitlistLimiter = rateLimit({
     ) > 0,
     xForwardedForHeader: true
   },
-  handler: (_req: Request, res: Response) => {
+  handler: (req: Request, res: Response) => {
+    // Include CORS headers in rate limit error responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.status(429).json({
       error: 'Too many waitlist signup attempts from this IP, please try again later.',
       retryAfter: '1 hour'
@@ -121,6 +153,8 @@ export const contactLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight) - they're handled by CORS middleware
+  skip: (req: Request) => req.method === 'OPTIONS',
   // Configure validation to match Express trust proxy hop count
   validate: {
     trustProxy: (
@@ -130,7 +164,13 @@ export const contactLimiter = rateLimit({
     ) > 0,
     xForwardedForHeader: true
   },
-  handler: (_req: Request, res: Response) => {
+  handler: (req: Request, res: Response) => {
+    // Include CORS headers in rate limit error responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.status(429).json({
       error: 'Too many contact form submissions from this IP, please try again later.',
       retryAfter: '1 hour'
@@ -148,6 +188,8 @@ export const webhookLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight) - they're handled by CORS middleware
+  skip: (req: Request) => req.method === 'OPTIONS',
   // Configure validation to match Express trust proxy hop count
   validate: {
     trustProxy: (
@@ -157,7 +199,13 @@ export const webhookLimiter = rateLimit({
     ) > 0,
     xForwardedForHeader: true
   },
-  handler: (_req: Request, res: Response) => {
+  handler: (req: Request, res: Response) => {
+    // Include CORS headers in rate limit error responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     res.status(429).json({
       error: 'Too many webhook requests from this IP, please try again later.',
       retryAfter: '1 minute'
