@@ -16,6 +16,13 @@ export function errorHandler(
     ip: req.ip,
   });
 
+  // Preserve CORS headers in error responses
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
   if (error instanceof Error && 'statusCode' in error) {
     const appError = error as AppError;
     res.status(appError.statusCode).json({
@@ -34,6 +41,13 @@ export function errorHandler(
 }
 
 export function notFoundHandler(req: Request, res: Response): void {
+  // Preserve CORS headers in 404 responses
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  
   res.status(404).json({
     success: false,
     error: 'Route not found',
