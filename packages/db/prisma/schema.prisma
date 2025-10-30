@@ -119,7 +119,7 @@ model Business {
   id               String             @id @default(cuid())
   name             String
   description      String?
-  phoneNumber      String
+  phoneNumber      String?
   address          String?
   website          String?
   createdAt        DateTime           @default(now())
