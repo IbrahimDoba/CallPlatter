@@ -46,8 +46,12 @@ const app = express() as express.Express;
 const server = createServer(app);
 const PORT = Number.parseInt(process.env.PORT || "3001");
 
-// Trust proxy for ngrok and other reverse proxies
-app.set('trust proxy', true);
+// Trust proxy for reverse proxies (set an explicit hop count to avoid permissive config)
+// Use env TRUST_PROXY_HOPS if provided; default to 1 in production, 0 otherwise
+const TRUST_PROXY_HOPS = Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+  ? Number(process.env.TRUST_PROXY_HOPS)
+  : (process.env.NODE_ENV === 'production' ? 1 : 0);
+app.set('trust proxy', TRUST_PROXY_HOPS);
 
 // Middleware
 // const allowedOrigins = process.env.CORS_ORIGIN

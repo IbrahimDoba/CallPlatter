@@ -13,9 +13,13 @@ export const generalLimiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skipSuccessfulRequests: false,
   skipFailedRequests: false,
-  // Configure validation to match Express trust proxy setting
+  // Configure validation to match Express trust proxy hop count
   validate: {
-    trustProxy: true,
+    trustProxy: (
+      Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+        ? Number(process.env.TRUST_PROXY_HOPS)
+        : (process.env.NODE_ENV === 'production' ? 1 : 0)
+    ) > 0,
     xForwardedForHeader: true
   },
   handler: (_req: Request, res: Response) => {
@@ -36,9 +40,13 @@ export const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Configure validation to match Express trust proxy setting
+  // Configure validation to match Express trust proxy hop count
   validate: {
-    trustProxy: true,
+    trustProxy: (
+      Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+        ? Number(process.env.TRUST_PROXY_HOPS)
+        : (process.env.NODE_ENV === 'production' ? 1 : 0)
+    ) > 0,
     xForwardedForHeader: true
   },
   handler: (_req: Request, res: Response) => {
@@ -59,9 +67,13 @@ export const apiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Configure validation to match Express trust proxy setting
+  // Configure validation to match Express trust proxy hop count
   validate: {
-    trustProxy: true,
+    trustProxy: (
+      Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+        ? Number(process.env.TRUST_PROXY_HOPS)
+        : (process.env.NODE_ENV === 'production' ? 1 : 0)
+    ) > 0,
     xForwardedForHeader: true
   },
   handler: (_req: Request, res: Response) => {
@@ -82,9 +94,13 @@ export const waitlistLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Configure validation to match Express trust proxy setting
+  // Configure validation to match Express trust proxy hop count
   validate: {
-    trustProxy: true,
+    trustProxy: (
+      Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+        ? Number(process.env.TRUST_PROXY_HOPS)
+        : (process.env.NODE_ENV === 'production' ? 1 : 0)
+    ) > 0,
     xForwardedForHeader: true
   },
   handler: (_req: Request, res: Response) => {
@@ -105,9 +121,13 @@ export const contactLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Configure validation to match Express trust proxy setting
+  // Configure validation to match Express trust proxy hop count
   validate: {
-    trustProxy: true,
+    trustProxy: (
+      Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+        ? Number(process.env.TRUST_PROXY_HOPS)
+        : (process.env.NODE_ENV === 'production' ? 1 : 0)
+    ) > 0,
     xForwardedForHeader: true
   },
   handler: (_req: Request, res: Response) => {
@@ -128,9 +148,13 @@ export const webhookLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Configure validation to match Express trust proxy setting
+  // Configure validation to match Express trust proxy hop count
   validate: {
-    trustProxy: true,
+    trustProxy: (
+      Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
+        ? Number(process.env.TRUST_PROXY_HOPS)
+        : (process.env.NODE_ENV === 'production' ? 1 : 0)
+    ) > 0,
     xForwardedForHeader: true
   },
   handler: (_req: Request, res: Response) => {
