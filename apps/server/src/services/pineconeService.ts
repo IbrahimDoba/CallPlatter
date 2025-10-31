@@ -1,4 +1,4 @@
-import { index, getBusinessNamespace } from "../config/pinecone";
+import { index, getBusinessNamespace, isPineconeAvailable } from "../config/pinecone";
 import { EmbeddingsService } from "./embeddingsService";
 
 export interface VectorChunk {
@@ -27,6 +27,11 @@ export async function storeChunks(
   chunks: VectorChunk[],
   embeddings: number[][]
 ): Promise<void> {
+  if (!isPineconeAvailable() || !index) {
+    console.warn("Pinecone is not available. Skipping vector storage.");
+    return;
+  }
+
   // Use business namespace so vectors can be found during searches
   const namespace = getBusinessNamespace(businessId);
 
@@ -161,6 +166,11 @@ export async function searchByPhoneNumber(
   phoneNumber: string,
   topK = 3 // Reduced for more relevant results
 ): Promise<SearchResult[]> {
+  if (!isPineconeAvailable() || !index) {
+    console.warn("Pinecone is not available. Returning empty search results.");
+    return [];
+  }
+
   const namespace = getBusinessNamespace(businessId);
   
   try {
@@ -232,6 +242,11 @@ export async function searchByText(
   queryEmbedding: number[],
   topK = 5
 ): Promise<SearchResult[]> {
+  if (!isPineconeAvailable() || !index) {
+    console.warn("Pinecone is not available. Returning empty search results.");
+    return [];
+  }
+
   const namespace = getBusinessNamespace(businessId);
 
   try {
@@ -262,6 +277,11 @@ export async function searchCustomerInfo(
   phoneNumber: string,
   topK = 3 // Reduced to fewer, more relevant results
 ): Promise<SearchResult[]> {
+  if (!isPineconeAvailable() || !index) {
+    console.warn("Pinecone is not available. Returning empty search results.");
+    return [];
+  }
+
   const namespace = getBusinessNamespace(businessId);
   
   try {
@@ -332,6 +352,11 @@ export async function deleteImportVectors(
   businessId: string,
   importId: string
 ): Promise<void> {
+  if (!isPineconeAvailable() || !index) {
+    console.warn("Pinecone is not available. Skipping vector deletion.");
+    return;
+  }
+
   const namespace = getBusinessNamespace(businessId);
 
   try {
@@ -355,6 +380,14 @@ export async function getVectorStats(businessId: string): Promise<{
   totalVectors: number;
   namespaces: string[];
 }> {
+  if (!isPineconeAvailable() || !index) {
+    console.warn("Pinecone is not available. Returning empty stats.");
+    return {
+      totalVectors: 0,
+      namespaces: [],
+    };
+  }
+
   try {
     const stats = await index.describeIndexStats();
     const businessNamespace = getBusinessNamespace(businessId);

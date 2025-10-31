@@ -37,17 +37,14 @@ import verifyResetOTPRoutes from "./routes/verify-reset-otp";
 import resetPasswordRoutes from "./routes/reset-password";
 import twilioRoutes from "./routes/twilio";
 
-// Load environment variables
 dotenv.config();
 
-// Validate required environment variables
 validateEnvironment();
 
 const app = express() as express.Express;
 const server = createServer(app);
 const PORT = Number.parseInt(process.env.PORT || "3001");
 
-// Trust proxy for reverse proxies (set an explicit hop count to avoid permissive config)
 // Use env TRUST_PROXY_HOPS if provided; default to 1 in production, 0 otherwise
 const TRUST_PROXY_HOPS = Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
   ? Number(process.env.TRUST_PROXY_HOPS)
@@ -58,7 +55,7 @@ app.set('trust proxy', TRUST_PROXY_HOPS);
 // CORS configuration - production-ready with proper origin handling
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
-  : null; // null means allow all
+  : null; 
 
 // Helper function to normalize origin (remove trailing slashes)
 const normalizeOrigin = (origin: string): string => {
@@ -72,8 +69,7 @@ const isOriginAllowed = (origin: string): boolean => {
   return corsOrigins.some(allowed => normalizeOrigin(allowed) === normalized);
 };
 
-// Handle OPTIONS preflight requests FIRST, before cors middleware
-// This ensures proper CORS headers are always sent for preflight requests
+
 app.options('*', (req, res) => {
   const origin = req.headers.origin;
   
@@ -105,16 +101,13 @@ app.use(
         return callback(null, true);
       }
       
-      // If CORS_ORIGIN is not set, allow all origins
       if (!corsOrigins) {
         return callback(null, true);
       }
       
-      // Check if origin is in allowed list (with normalization)
       if (isOriginAllowed(origin)) {
         callback(null, true);
       } else {
-        // Log rejected origin for debugging
         logger.warn(`CORS: Origin "${origin}" not in allowed list: ${corsOrigins.join(', ')}`);
         callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
@@ -150,7 +143,6 @@ if (corsOrigins) {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Request logging middleware
 app.use((req, _res, next) => {
   logger.info(`${req.method} ${req.url}`, {
     method: req.method,
@@ -199,18 +191,16 @@ app.use("/api/twilio", twilioRoutes);
 app.use("/api/openai-realtime", openaiRealtimeRoutes);
 app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
 
-// Setup Twilio media stream WebSocket handlers
-// setupOpenAIRealtimeWebSocket(server); // Temporarily disabled to test ElevenLabs
+
 setupElevenLabsAgentWebSocket(server);
 
-// 404 handler
 app.use(notFoundHandler);
 
-// Global error handler
 app.use(errorHandler);
 
-// Start server
-server.listen(PORT, () => {
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server successfully listening on 0.0.0.0:${PORT}`);
   logger.info(`Server is running on port ${PORT}`, {
     port: PORT,
     environment: process.env.NODE_ENV,
@@ -218,7 +208,6 @@ server.listen(PORT, () => {
   });
 });
 
-// Graceful shutdown
 process.on("SIGTERM", () => {
   logger.info("SIGTERM received, shutting down gracefully");
   const aiService = AIReceptionistService.getInstance();
@@ -239,5 +228,4 @@ process.on("SIGINT", () => {
   });
 });
 
-// Export app and server for use in other modules
 export { app, server };
