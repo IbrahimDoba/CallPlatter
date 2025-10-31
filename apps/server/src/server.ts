@@ -60,6 +60,43 @@ const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
   : null; // null means allow all
 
+// Helper function to normalize origin (remove trailing slashes)
+const normalizeOrigin = (origin: string): string => {
+  return origin.endsWith('/') ? origin.slice(0, -1) : origin;
+};
+
+// Helper function to check if origin is allowed
+const isOriginAllowed = (origin: string): boolean => {
+  if (!corsOrigins) return true; // Allow all if CORS_ORIGIN not set
+  const normalized = normalizeOrigin(origin);
+  return corsOrigins.some(allowed => normalizeOrigin(allowed) === normalized);
+};
+
+// Handle OPTIONS preflight requests FIRST, before cors middleware
+// This ensures proper CORS headers are always sent for preflight requests
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  // Always set CORS headers for preflight requests
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-business-id, x-user-id, x-user-email, x-user-business-id, x-user-role, x-user-name');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  if (origin) {
+    if (isOriginAllowed(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      // Log rejected origin for debugging
+      logger.warn(`CORS Preflight: Origin "${origin}" not in allowed list: ${corsOrigins?.join(', ') || 'none'}`);
+      // Don't set Access-Control-Allow-Origin for rejected origins
+      // Browser will reject the preflight, which is expected
+    }
+  }
+  
+  res.status(204).end();
+});
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -73,8 +110,8 @@ app.use(
         return callback(null, true);
       }
       
-      // Check if origin is in allowed list
-      if (corsOrigins.includes(origin)) {
+      // Check if origin is in allowed list (with normalization)
+      if (isOriginAllowed(origin)) {
         callback(null, true);
       } else {
         // Log rejected origin for debugging
@@ -99,33 +136,6 @@ app.use(
     optionsSuccessStatus: 204,
   })
 );
-
-// Note: CORS middleware above handles OPTIONS automatically
-// But we add explicit OPTIONS handler as fallback to ensure headers are always set
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  
-  if (origin) {
-    // If CORS_ORIGIN is set, only allow listed origins
-    if (corsOrigins) {
-      if (corsOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-      }
-      // If origin not in list, don't set Access-Control-Allow-Origin
-      // (browser will reject, which is expected)
-    } else {
-      // Allow all origins if CORS_ORIGIN not set
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-    }
-  }
-  
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-business-id, x-user-id, x-user-email, x-user-business-id, x-user-role, x-user-name');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  res.status(204).end();
-});
 
 // Log CORS config
 if (corsOrigins) {
