@@ -208,13 +208,13 @@ async function updateAgentFullConfig(
               quality: "high",
               provider: "elevenlabs",
               user_input_audio_format: "ulaw_8000",
-              no_speech_threshold: 0.3, // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
+              no_speech_threshold: 0.4, // Increased to 0.4 (40%) - faster detection that user stopped speaking
             },
             tts: {
               voice_id: voiceId,
               model_id: "eleven_flash_v2",
               agent_output_audio_format: "ulaw_8000",
-              optimize_streaming_latency: 3, // Reduced from 4 to 3 - balance between speed and quality
+              optimize_streaming_latency: 2, // Reduced to 2 for faster response streaming
               stability: 0.5,
               similarity_boost: 0.5,
               speed: 1.0,
@@ -435,13 +435,13 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
         quality: "high",
         provider: "elevenlabs",
         user_input_audio_format: "ulaw_8000",
-        no_speech_threshold: 0.3, // Increased from 0.1 to 0.3 (30%) - less sensitive to silence
+        no_speech_threshold: 0.4, // Increased to 0.4 (40%) - faster detection that user stopped speaking
       },
       tts: {
         voice_id: voice.voice_id,
         model_id: "eleven_flash_v2",
         agent_output_audio_format: "ulaw_8000",
-        optimize_streaming_latency: 3, // Reduced from 4 to 3 - balance between speed and quality
+        optimize_streaming_latency: 2, // Reduced to 2 for faster response streaming
         stability: 0.5,
         similarity_boost: 0.5,
         speed: 1.0,

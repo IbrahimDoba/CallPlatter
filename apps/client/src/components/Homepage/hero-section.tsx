@@ -52,7 +52,8 @@ export default function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.8 }}
           >
-            AI that secures your calls while you{" "}
+            AI that secures your calls while you
+            <br />
             <span className="text-primary">focus on your business</span>
           </motion.h1>
 

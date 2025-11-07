@@ -420,7 +420,33 @@ model BillingTransaction {
   @@map("billing_transactions")
 }
 
+model DemoRequest {
+  id             String   @id @default(cuid())
+  firstName      String
+  email          String
+  companyName    String
+  industry       String
+  companySocials String?
+  demoEmail      String
+  status         DemoRequestStatus @default(PENDING)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+  @@map("demo_requests")
+}
+
 // Enums
+enum DemoRequestStatus {
+  PENDING
+  CONTACTED
+  DEMO_SENT
+  COMPLETED
+  CANCELLED
+}
+
 enum CRMImportStatus {
   PENDING
   PROCESSING

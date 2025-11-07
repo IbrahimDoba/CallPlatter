@@ -36,6 +36,7 @@ import forgotPasswordRoutes from "./routes/forgot-password";
 import verifyResetOTPRoutes from "./routes/verify-reset-otp";
 import resetPasswordRoutes from "./routes/reset-password";
 import twilioRoutes from "./routes/twilio";
+import demoRequestRoutes from "./routes/demo-request";
 
 dotenv.config();
 
@@ -52,7 +53,6 @@ const TRUST_PROXY_HOPS = Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
 app.set('trust proxy', TRUST_PROXY_HOPS);
 
 // Middleware - CORS must be FIRST
-// CORS configuration - production-ready with proper origin handling
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
   : null; 
@@ -187,6 +187,7 @@ app.use("/api/forgot-password", forgotPasswordRoutes);
 app.use("/api/verify-reset-otp", verifyResetOTPRoutes);
 app.use("/api/reset-password", resetPasswordRoutes);
 app.use("/api/twilio", twilioRoutes);
+app.use("/api/demo-request", demoRequestRoutes);
 
 app.use("/api/openai-realtime", openaiRealtimeRoutes);
 app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
