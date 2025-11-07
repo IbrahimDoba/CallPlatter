@@ -294,7 +294,7 @@ export const emailTemplates = {
     </html>
   `,
 
-  waitlistConfirmation: (email: string) => `
+  waitlistConfirmation: () => `
     <!DOCTYPE html>
      <html>
       <head>
@@ -368,6 +368,203 @@ export const emailTemplates = {
                     <p style="margin: 0; font-size: 13px; color: #9ca3af;">
                       <a href="https://twitter.com/Dobaibrahim" style="color: #6b7280; text-decoration: none; margin-right: 16px;">Twitter</a>
                       <a href="https://dailzero.com" style="color: #6b7280; text-decoration: none;">Website</a>
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `,
+
+  // Demo Request Confirmation (to user)
+  demoRequestConfirmation: (firstName: string, companyName: string) => `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Demo Request Received - DailZero</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                
+                <!-- Header -->
+                <tr>
+                  <td style="padding: 40px 40px 30px 40px;">
+                    <h1 style="margin: 0 0 20px 0; font-size: 48px; font-weight: 400; font-style: italic; font-family: 'Brush Script MT', 'Lucida Handwriting', 'Apple Chancery', 'Comic Sans MS', cursive; color: #667eea; text-align: center; letter-spacing: 2px;">DAILZERO</h1>
+                    <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600; color: #111827; text-align: center;">Demo Request Received!</h2>
+                    <p style="margin: 0; font-size: 15px; color: #6b7280; text-align: center;">We're preparing your personalized demo</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 0 40px 30px 40px;">
+                    <p style="margin: 0 0 20px 0; font-size: 15px; color: #374151; line-height: 1.6;">
+                      Hi ${firstName},
+                    </p>
+                    <p style="margin: 0 0 20px 0; font-size: 15px; color: #374151; line-height: 1.6;">
+                      Thanks for requesting a demo of DailZero for ${companyName}! Our team is excited to show you how our AI receptionist can transform your business communications.
+                    </p>
+                    <p style="margin: 0; font-size: 15px; color: #374151; line-height: 1.6;">
+                      You'll receive your personalized demo video and setup guide within the next 24 hours at the email address you provided.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- What's Next Section -->
+                <tr>
+                  <td style="padding: 0 40px 30px 40px;">
+                    <div style="background-color: #f0f9ff; border-left: 3px solid #667eea; padding: 20px; border-radius: 6px;">
+                      <p style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #111827;">What's next?</p>
+                      <p style="margin: 0 0 8px 0; font-size: 14px; color: #0c4a6e; line-height: 1.5;">→ We're creating your custom demo</p>
+                      <p style="margin: 0 0 8px 0; font-size: 14px; color: #0c4a6e; line-height: 1.5;">→ You'll receive it within 24 hours</p>
+                      <p style="margin: 0; font-size: 14px; color: #0c4a6e; line-height: 1.5;">→ Book a live demo if you want to dive deeper</p>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- CTA Button -->
+                <tr>
+                  <td style="padding: 0 40px 40px 40px; text-align: center;">
+                    <a href="https://dailzero.com" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 500;">
+                      Explore DailZero Features
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="padding: 30px 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0; font-size: 13px; color: #6b7280; text-align: center;">
+                      Questions? Reply to this email or reach out at <a href="mailto:support@dailzero.com" style="color: #667eea; text-decoration: none;">support@dailzero.com</a>
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `,
+
+  // Demo Request Notification (to admin)
+  demoRequestNotification: (data: {
+    firstName: string;
+    email: string;
+    companyName: string;
+    industry: string;
+    companySocials: string | null;
+    demoEmail: string;
+  }) => `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Demo Request</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                
+                <!-- Header -->
+                <tr>
+                  <td style="padding: 40px 40px 30px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #ffffff; text-align: center;">🎯 New Demo Request</h1>
+                  </td>
+                </tr>
+
+                <!-- Contact Details -->
+                <tr>
+                  <td style="padding: 30px 40px;">
+                    <h2 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 600; color: #111827;">Contact Information</h2>
+                    
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                      <tr>
+                        <td style="padding: 12px; background-color: #f9fafb; border-radius: 6px; margin-bottom: 8px;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280; font-weight: 500;">First Name</p>
+                          <p style="margin: 0; font-size: 15px; color: #111827; font-weight: 600;">${data.firstName}</p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                      <tr>
+                        <td style="padding: 12px; background-color: #f9fafb; border-radius: 6px;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280; font-weight: 500;">Email</p>
+                          <p style="margin: 0; font-size: 15px; color: #667eea; font-weight: 600;"><a href="mailto:${data.email}" style="color: #667eea; text-decoration: none;">${data.email}</a></p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                      <tr>
+                        <td style="padding: 12px; background-color: #f9fafb; border-radius: 6px;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280; font-weight: 500;">Company Name</p>
+                          <p style="margin: 0; font-size: 15px; color: #111827; font-weight: 600;">${data.companyName}</p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                      <tr>
+                        <td style="padding: 12px; background-color: #f9fafb; border-radius: 6px;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280; font-weight: 500;">Industry</p>
+                          <p style="margin: 0; font-size: 15px; color: #111827; font-weight: 600;">${data.industry}</p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    ${data.companySocials ? `
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                      <tr>
+                        <td style="padding: 12px; background-color: #f9fafb; border-radius: 6px;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280; font-weight: 500;">Website/Socials</p>
+                          <p style="margin: 0; font-size: 15px; color: #667eea; font-weight: 600;"><a href="${data.companySocials}" style="color: #667eea; text-decoration: none;">${data.companySocials}</a></p>
+                        </td>
+                      </tr>
+                    </table>
+                    ` : ''}
+
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 12px; background-color: #fef2f2; border-left: 3px solid #dc2626; border-radius: 6px;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #dc2626; font-weight: 500;">Send Demo To</p>
+                          <p style="margin: 0; font-size: 15px; color: #111827; font-weight: 600;"><a href="mailto:${data.demoEmail}" style="color: #dc2626; text-decoration: none;">${data.demoEmail}</a></p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Action Required -->
+                <tr>
+                  <td style="padding: 0 40px 40px 40px;">
+                    <div style="background-color: #fef3c7; border-left: 3px solid #f59e0b; padding: 16px; border-radius: 6px;">
+                      <p style="margin: 0; font-size: 14px; color: #92400e; line-height: 1.5;">
+                        <strong>Action Required:</strong> Prepare and send a personalized demo to ${data.firstName} at ${data.demoEmail} within 24 hours.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="padding: 20px 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                      Demo requested at ${new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' })} WAT
                     </p>
                   </td>
                 </tr>
@@ -536,7 +733,7 @@ export const sendWaitlistConfirmation = async (data: { email: string }) => {
       from: process.env.RESEND_FROM_EMAIL || "DailZero <noreply@dailzero.com>",
       to: [data.email],
       subject: "Welcome to DailZero Waitlist! 🎉",
-      html: emailTemplates.waitlistConfirmation(data.email),
+      html: emailTemplates.waitlistConfirmation(),
     });
 
     return {
@@ -547,6 +744,73 @@ export const sendWaitlistConfirmation = async (data: { email: string }) => {
     };
   } catch (error) {
     console.error("Resend email error:", error);
+    throw error;
+  }
+};
+
+// Helper function to send demo request confirmation to user
+export const sendDemoRequestConfirmation = async (data: {
+  firstName: string;
+  email: string;
+  companyName: string;
+}) => {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY environment variable is required");
+    }
+
+    const result = await getResendClient().emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "DailZero <noreply@dailzero.com>",
+      to: [data.email],
+      subject: "Demo Request Received - DailZero",
+      html: emailTemplates.demoRequestConfirmation(data.firstName, data.companyName),
+    });
+
+    return {
+      success: true,
+      messageId: result.data?.id || "unknown",
+    };
+  } catch (error) {
+    console.error("Resend demo confirmation email error:", error);
+    throw error;
+  }
+};
+
+// Helper function to send demo request notification to admin
+export const sendDemoRequestNotification = async (data: {
+  firstName: string;
+  email: string;
+  companyName: string;
+  industry: string;
+  companySocials: string | null;
+  demoEmail: string;
+  adminEmail: string;
+}) => {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY environment variable is required");
+    }
+
+    const result = await getResendClient().emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "DailZero <noreply@dailzero.com>",
+      to: [data.adminEmail],
+      subject: `🎯 New Demo Request from ${data.companyName}`,
+      html: emailTemplates.demoRequestNotification({
+        firstName: data.firstName,
+        email: data.email,
+        companyName: data.companyName,
+        industry: data.industry,
+        companySocials: data.companySocials,
+        demoEmail: data.demoEmail,
+      }),
+    });
+
+    return {
+      success: true,
+      messageId: result.data?.id || "unknown",
+    };
+  } catch (error) {
+    console.error("Resend demo notification email error:", error);
     throw error;
   }
 };

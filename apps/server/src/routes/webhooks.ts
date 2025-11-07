@@ -4,6 +4,7 @@ import { logger } from "../utils/logger";
 import { downloadAndUploadRecording } from "../lib/uploadthing";
 import { transcribeCall } from "../services/transcriptionService";
 import crypto from "crypto";
+import twilio from "twilio";
 
 // Map to track active calls by conversation ID
 const activeCallsByConversation = new Map<string, {
@@ -30,21 +31,56 @@ export const unregisterActiveCall = (streamSid: string) => {
 
 const router: Router = Router();
 
-// Security middleware for webhook verification
+// Security middleware for webhook verification (generic)
 const verifyWebhookSignature = (secret: string, signature: string, body: string): boolean => {
   if (!secret || !signature) {
     return false;
   }
   
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(body, 'utf8')
-    .digest('hex');
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(body, 'utf8')
+      .digest('hex');
+    
+    // Strip possible "sha256=" prefix from signature
+    const signatureHex = signature.replace(/^sha256=/, '');
+    
+    // Convert to buffers for comparison
+    const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+    const signatureBuffer = Buffer.from(signatureHex, 'hex');
+    
+    // Lengths must match for timingSafeEqual
+    if (expectedBuffer.length !== signatureBuffer.length) {
+      return false;
+    }
+    
+    return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+  } catch (error) {
+    // If signature format is invalid (e.g., not hex), return false
+    logger.warn("Error verifying webhook signature:", {
+      error: error instanceof Error ? error.message : String(error),
+      signatureLength: signature?.length
+    });
+    return false;
+  }
+};
+
+// Twilio-specific signature verification
+const verifyTwilioSignature = (authToken: string, signature: string, url: string, params: Record<string, string>): boolean => {
+  if (!authToken || !signature) {
+    return false;
+  }
   
-  return crypto.timingSafeEqual(
-    Buffer.from(signature, 'hex'),
-    Buffer.from(expectedSignature, 'hex')
-  );
+  try {
+    // Use Twilio's official validateRequest method
+    return twilio.validateRequest(authToken, signature, url, params);
+  } catch (error) {
+    logger.error("Error verifying Twilio signature:", {
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return false;
+  }
 };
 
 // IP whitelist for webhook sources (add your trusted IPs)
@@ -215,22 +251,45 @@ router.post("/recording-status", async (req, res) => {
       });
     }
 
-    // Verify Twilio webhook signature
+    // Verify Twilio webhook signature using official Twilio method
     const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
     const signature = req.headers['x-twilio-signature'] as string;
     
     if (twilioAuthToken && signature) {
-      const bodyString = JSON.stringify(req.body);
-      if (!verifyWebhookSignature(twilioAuthToken, signature, bodyString)) {
+      // Construct the full webhook URL
+      // Express with trust proxy handles X-Forwarded-Proto and X-Forwarded-Host automatically
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const url = `${protocol}://${host}${req.originalUrl}`;
+      
+      // Verify using Twilio's official method
+      const isValid = verifyTwilioSignature(twilioAuthToken, signature, url, req.body);
+      
+      if (!isValid) {
         logger.warn("Invalid Twilio webhook signature", { 
           ip: req.ip,
-          userAgent: req.get('User-Agent')
+          userAgent: req.get('User-Agent'),
+          url,
+          protocol,
+          host
         });
         return res.status(401).json({ 
           success: false, 
-          error: "Invalid signature" 
+          error: "Invalid Twilio signature" 
         });
       }
+      
+      logger.debug("Twilio webhook signature verified successfully", { url });
+    } else if (twilioAuthToken && !signature) {
+      // Auth token is configured but signature is missing - suspicious
+      logger.warn("Twilio auth token configured but signature missing from request", {
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      return res.status(401).json({ 
+        success: false, 
+        error: "Missing Twilio signature" 
+      });
     }
 
     // Add this debug logging at the very beginning
