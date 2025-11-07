@@ -83,7 +83,6 @@ export default function CarWashPage() {
             imageAlt:
               "Car wash booking software integration with appointment systems",
           },
-
           {
             title: "Car Wash Customer Retention & Membership Management",
             subtitle:
