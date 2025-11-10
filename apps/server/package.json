@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@pinecone-database/pinecone": "^6.1.2",
+    "@polar-sh/sdk": "^0.41.1",
     "@repo/db": "workspace:*",
     "@types/fluent-ffmpeg": "^2.1.27",
     "ai": "^4.1.46",

@@ -164,7 +164,11 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
 
       {/* Action Buttons */}
       {subscription.status === 'TRIAL' ? (
-        <PricingModal currentPlan={subscription.planType}>
+        <PricingModal 
+          currentPlan={subscription.planType}
+          subscriptionStatus={subscription.status}
+          currentPeriodEnd={subscription.currentPeriodEnd}
+        >
           <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
             <Crown className="h-4 w-4 mr-2" />
             Upgrade Plan
@@ -172,7 +176,11 @@ export default function BillingSidebar({ businessId }: BillingSidebarProps) {
         </PricingModal>
       ) : (
         <div className="space-y-2">
-          <PricingModal currentPlan={subscription.planType}>
+          <PricingModal 
+            currentPlan={subscription.planType}
+            subscriptionStatus={subscription.status}
+            currentPeriodEnd={subscription.currentPeriodEnd}
+          >
             <Button size="sm" variant="outline" className="w-full">
               <TrendingUp className="h-4 w-4 mr-2" />
               Change Plan

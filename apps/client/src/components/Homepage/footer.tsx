@@ -47,52 +47,92 @@ export default function Footer() {
           </div>
 
           <div className="space-y-4">
-            <h4 className="font-medium text-foreground">Product</h4>
+            <h4 className="font-medium text-foreground">Solutions</h4>
             <ul className="space-y-2">
               <li>
-                <Link href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Features
+                <Link href="/solutions/24-7-availability" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  24/7 Availability
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Pricing
+                <Link href="/solutions/answering-service" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Answering Service
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  API
+                <Link href="/solutions/appointment-scheduling" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Appointment Scheduling
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Integrations
+                <Link href="/solutions/call-recording" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Call Recording
+                </Link>
+              </li>
+              <li>
+                <Link href="/solutions/call-summary" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Call Summary
+                </Link>
+              </li>
+              <li>
+                <Link href="/solutions/call-transcription" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Call Transcription
+                </Link>
+              </li>
+              <li>
+                <Link href="/solutions/crm-feature" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  CRM Integration
+                </Link>
+              </li>
+              <li>
+                <Link href="/solutions/email-summary" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Email Summary
+                </Link>
+              </li>
+              <li>
+                <Link href="/solutions/voice-options" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Voice Options
                 </Link>
               </li>
             </ul>
           </div>
 
           <div className="space-y-4">
-            <h4 className="font-medium text-foreground">Support</h4>
+            <h4 className="font-medium text-foreground">Industries</h4>
             <ul className="space-y-2">
               <li>
-                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Help Center
+                <Link href="/industries/car-wash" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Car Wash
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Contact Us
+                <Link href="/industries/event-planning" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Event Planning
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Documentation
+                <Link href="/industries/hotels" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Hotels
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Status
+                <Link href="/industries/online-vendors" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Online Vendors
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/real-estate" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Real Estate
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/restaurants" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Restaurants
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/salons" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Salons
                 </Link>
               </li>
             </ul>
@@ -102,18 +142,18 @@ export default function Footer() {
             <h4 className="font-medium text-foreground">Company</h4>
             <ul className="space-y-2">
               <li>
-                <Link href="#about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  About
+                <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Pricing
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Blog
                 </Link>
               </li>
               <li>
                 <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Careers
+                  Contact Us
                 </Link>
               </li>
               <li>

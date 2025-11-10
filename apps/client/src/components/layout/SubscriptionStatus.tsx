@@ -156,7 +156,11 @@ export function SubscriptionStatus({ businessId, onRetry }: SubscriptionStatusPr
             )}
 
             <div className="space-y-2">
-              <PricingModal currentPlan={subscription?.planType}>
+              <PricingModal 
+                currentPlan={subscription?.planType}
+                subscriptionStatus={subscription?.status}
+                currentPeriodEnd={subscription?.currentPeriodEnd}
+              >
                 <Button className="w-full h-11">
                   {statusInfo.primaryAction}
                 </Button>

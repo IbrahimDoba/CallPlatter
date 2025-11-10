@@ -188,7 +188,7 @@ export default function Header() {
             >
               <Phone className="w-4 h-4 text-primary-foreground" />
             </motion.div>
-            <span className="font-bold text-base text-primary">DailZero</span>
+            <Link href="/" className="font-bold text-base text-primary">DailZero</Link>
           </div>
 
           {/* Desktop Navigation */}

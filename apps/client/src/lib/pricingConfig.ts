@@ -14,7 +14,6 @@ export const pricingPlans: PricingPlan[] = [
     annualPriceMonthly: 16,
     annualPriceYearly: 192,
     features: [
-      "14-day free trial",
       "40 minutes included",
       "₦1,467/min ($0.89/min) after limit",
       "24/7 AI answering",
@@ -31,6 +30,7 @@ export const pricingPlans: PricingPlan[] = [
     annualPriceYearly: 432,
     isPopular: true,
     features: [
+      "14-day free trial",
       "110 minutes included",
       "₦1,000/min ($0.61/min) after limit",
       "24/7 AI answering",
@@ -257,12 +257,12 @@ export const polarProductIds: Record<string, string> = {
 export const TRIAL_CONFIG = {
   duration: 14, // 14 days trial
   durationUnit: "day", // Polar trial unit
-  planType: "Starter", // Use existing Starter product with trial
+  planType: "Business", // Use existing Business product with trial
   features: [
     "14-day free trial",
     "Basic AI Agent",
     "Phone Number",
-    "Up to 100 minutes/month",
+    "Up to 110 minutes/month",
   ],
 };
 
