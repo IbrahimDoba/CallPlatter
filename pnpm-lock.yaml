@@ -419,6 +419,9 @@ importers:
       '@pinecone-database/pinecone':
         specifier: ^6.1.2
         version: 6.1.2
+      '@polar-sh/sdk':
+        specifier: ^0.41.1
+        version: 0.41.1
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -1270,6 +1273,9 @@ packages:
 
   '@polar-sh/sdk@0.38.1':
     resolution: {integrity: sha512-UdTaHqmRrY4aOCsfGaI+OM7NMNNXxaHFr4KomDgwuJ7JT4gZn4geCDvM8qf64GGLOXikiAtq+uOcpVPlGk0C9Q==}
+
+  '@polar-sh/sdk@0.41.1':
+    resolution: {integrity: sha512-yMG9HJvdHdqw6Q1JrisqIyTrX47gF4Q1rYaJGyJDuel0EPeZ1P2robrERzg86EM2NIXWy+0vR36nNSw5gRBdPQ==}
 
   '@prisma/client@5.22.0':
     resolution: {integrity: sha512-M0SVXfyHnQREBKxCgyo7sffrKttwE6R8PMq330MIUF0pTwjUhLbW84pFDlf06B27XyCR++VtjugEnIHdr07SVA==}
@@ -5284,6 +5290,11 @@ snapshots:
       next: 15.5.0(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
 
   '@polar-sh/sdk@0.38.1':
+    dependencies:
+      standardwebhooks: 1.0.0
+      zod: 3.25.76
+
+  '@polar-sh/sdk@0.41.1':
     dependencies:
       standardwebhooks: 1.0.0
       zod: 3.25.76

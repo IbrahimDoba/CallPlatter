@@ -37,6 +37,7 @@ import verifyResetOTPRoutes from "./routes/verify-reset-otp";
 import resetPasswordRoutes from "./routes/reset-password";
 import twilioRoutes from "./routes/twilio";
 import demoRequestRoutes from "./routes/demo-request";
+import polarWebhookRoutes from "./routes/polarWebhook";
 
 dotenv.config();
 
@@ -140,6 +141,26 @@ if (corsOrigins) {
 // Remove general rate limiting to avoid conflicts
 // app.use(generalLimiter);
 
+// Middleware to capture raw body for Polar webhook signature verification
+// This must be before express.json() to capture the raw buffer
+app.use('/api/webhooks/polar', express.raw({ type: 'application/json', limit: '10mb' }), (req, res, next) => {
+  // Store raw body buffer for signature verification (before parsing)
+  const rawBodyBuffer = req.body as Buffer;
+  (req as any).rawBody = rawBodyBuffer;
+  
+  // Parse JSON for normal request handling
+  try {
+    const parsedBody = JSON.parse(rawBodyBuffer.toString('utf8'));
+    (req as any).body = parsedBody;
+    // Mark that body is already parsed to prevent express.json() from parsing again
+    (req as any)._body = true;
+  } catch (error) {
+    logger.error('Failed to parse Polar webhook body:', error);
+    return res.status(400).json({ success: false, error: 'Invalid JSON body' });
+  }
+  next();
+});
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -188,6 +209,7 @@ app.use("/api/verify-reset-otp", verifyResetOTPRoutes);
 app.use("/api/reset-password", resetPasswordRoutes);
 app.use("/api/twilio", twilioRoutes);
 app.use("/api/demo-request", demoRequestRoutes);
+app.use("/api/webhooks/polar", polarWebhookRoutes);
 
 app.use("/api/openai-realtime", openaiRealtimeRoutes);
 app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);

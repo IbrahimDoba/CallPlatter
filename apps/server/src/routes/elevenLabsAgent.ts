@@ -228,6 +228,17 @@ async function updateAgentFullConfig(
                 temperature: temperature,
                 max_tokens: 150, // Increased from 80 to 150 - allows for more natural responses
               },
+              tools: [
+                {
+                  type: "system",
+                  name: "end_call",
+                  description:
+                    "End the phone call when conversation is complete, customer says goodbye, or becomes unresponsive. Call this AFTER saying your goodbye message.",
+                  params: {
+                    system_tool_type: "end_call",
+                  },
+                },
+              ],
             },
           },
         }),
@@ -457,37 +468,12 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
         },
         tools: [
           {
-            type: "webhook",
+            type: "system",
             name: "end_call",
             description:
               "End the phone call when conversation is complete, customer says goodbye, or becomes unresponsive. Call this AFTER saying your goodbye message.",
-            response_timeout_secs: 10,
-            disable_interruptions: false,
-            force_pre_tool_speech: false,
-            api_schema: {
-              url: `${process.env.NGROK_URL || "https://server-production-0693e.up.railway.app"}/api/webhooks/end-call`,
-              method: "POST",
-              request_body_schema: {
-                type: "object",
-                properties: {
-                  reason: {
-                    type: "string",
-                    description:
-                      "Why ending call: 'conversation_complete' (normal end), 'customer_requested' (they said goodbye), or 'no_response' (unresponsive)",
-                    enum: [
-                      "conversation_complete",
-                      "customer_requested",
-                      "no_response",
-                    ],
-                  },
-                  summary: {
-                    type: "string",
-                    description:
-                      "What was accomplished in 1 sentence. Examples: 'Booked table for 2 on Friday 7pm for John Smith', 'Provided business hours information', 'Customer will call back later'",
-                  },
-                },
-                required: ["reason", "summary"],
-              },
+            params: {
+              system_tool_type: "end_call",
             },
           },
         ],
@@ -604,6 +590,45 @@ const createCallRecord = async (
   }
 };
 
+// Function to end Twilio call
+const endTwilioCall = async (twilioCallSid: string) => {
+  if (!twilioCallSid) return;
+
+  try {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+
+    if (!accountSid || !authToken) {
+      logger.error("❌ Missing Twilio credentials");
+      return;
+    }
+
+    const twilio = require("twilio");
+    const client = twilio(accountSid, authToken);
+
+    // Get current call status
+    const call = await client.calls(twilioCallSid).fetch();
+    
+    // Only end if call is still in progress
+    if (call.status === "in-progress" || call.status === "ringing") {
+      await client.calls(twilioCallSid).update({
+        status: "completed",
+      });
+      logger.info("✅ Twilio call ended successfully", { twilioCallSid });
+    } else {
+      logger.info("ℹ️ Twilio call already ended", { 
+        twilioCallSid, 
+        status: call.status 
+      });
+    }
+  } catch (error) {
+    logger.error("❌ Error ending Twilio call", {
+      twilioCallSid,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
 // Function to finalize call record and send email
 // Track finalized calls to prevent duplicates
 const finalizedCalls = new Set<string>();
@@ -612,6 +637,7 @@ const finalizeCallRecord = async (
   callId: string,
   callStartTime: Date,
   businessName: string,
+  twilioCallSid?: string,
   businessId?: string
 ) => {
   // Prevent duplicate finalization
@@ -625,6 +651,11 @@ const finalizeCallRecord = async (
 
   try {
     const duration = Math.floor((Date.now() - callStartTime.getTime()) / 1000);
+
+    // End Twilio call if still active
+    if (twilioCallSid) {
+      await endTwilioCall(twilioCallSid);
+    }
 
     // Update call record
     const updatedCall = await db.call.update({
@@ -650,6 +681,7 @@ const finalizeCallRecord = async (
     logger.info("✅ Finalized call record", {
       callId,
       duration,
+      twilioCallSid,
     });
 
     // Email will be sent after summary generation in the transcription process
@@ -803,6 +835,7 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
     let callStartTime: Date | null = null;
     let businessName: string | null = null;
     let businessId: string | null = null;
+    let twilioCallSid: string | null = null;
 
     const connectToElevenLabs = async (agentId: string) => {
       try {
@@ -852,7 +885,27 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         });
 
         elevenLabsWs.on("close", () => {
-          logger.info("🔌 ElevenLabs disconnected");
+          logger.info("🔌 ElevenLabs disconnected - built-in end_call tool may have been used");
+          
+          // When ElevenLabs closes (e.g., from built-in end_call tool), end Twilio call
+          if (twilioCallSid) {
+            endTwilioCall(twilioCallSid).catch((error) => {
+              logger.error("❌ Error ending Twilio call on ElevenLabs disconnect", error);
+            });
+          }
+          
+          // Finalize call record if we have the necessary info
+          if (callId && callStartTime && businessName) {
+            finalizeCallRecord(
+              callId,
+              callStartTime,
+              businessName,
+              twilioCallSid || undefined,
+              businessId || undefined
+            ).catch((error) => {
+              logger.error("❌ Error finalizing call on ElevenLabs disconnect", error);
+            });
+          }
         });
       } catch (error) {
         logger.error("❌ Error connecting to ElevenLabs:", error);
@@ -871,7 +924,7 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         businessId = customParameters.businessId;
         callId = customParameters.callId;
         callStartTime = new Date();
-        const twilioCallSid = customParameters.twilioCallSid;
+        twilioCallSid = customParameters.twilioCallSid || null;
         const shouldStartRecording = customParameters.startRecording === "true";
 
         logger.info("🎬 Stream started", {
@@ -904,7 +957,9 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
             : "https://server-production-0693e.up.railway.app/api/webhooks/recording-status";
 
           setTimeout(async () => {
-            await startRecording(twilioCallSid, webhookUrl);
+            if (twilioCallSid) {
+              await startRecording(twilioCallSid, webhookUrl);
+            }
           }, 2000); // Wait 2 seconds for stream to be fully established
         }
 
@@ -925,12 +980,13 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
       } else if (data.event === "stop") {
         logger.info("⏹️ Stream stopped");
 
-        // Finalize call record
+        // Finalize call record (includes ending Twilio call)
         if (callId && callStartTime && businessName) {
           await finalizeCallRecord(
             callId,
             callStartTime,
             businessName,
+            twilioCallSid || undefined,
             businessId || undefined
           );
         }
@@ -948,12 +1004,13 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         logger.info("🗑️ Removed from active calls", { streamSid });
       }
 
-      // Finalize call record on disconnect
+      // Finalize call record on disconnect (includes ending Twilio call)
       if (callId && callStartTime && businessName) {
         finalizeCallRecord(
           callId,
           callStartTime,
           businessName,
+          twilioCallSid || undefined,
           businessId || undefined
         );
       }

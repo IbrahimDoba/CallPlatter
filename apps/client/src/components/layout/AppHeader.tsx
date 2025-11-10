@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { formatPhoneNumber } from "@/lib/phoneUtils";
 
 interface DashboardHeaderProps {
   pageTitle: string;
@@ -32,17 +39,31 @@ export default function DashboardHeader({
                 <div className="text-xs sm:text-sm text-muted-foreground hidden xs:block">
                   <span className="font-medium hidden sm:inline">Your number:</span>
                   <span className="font-medium sm:hidden">#:</span> 
-                  <span className="hidden sm:inline">{businessPhoneNumber}</span>
+                  <span className="hidden sm:inline">{formatPhoneNumber(businessPhoneNumber)}</span>
                   <span className="sm:hidden">{businessPhoneNumber.replace(/\D/g, '').slice(-4)}</span>
                 </div>
               )}
               
               {/* AI Phone Number Display */}
               {businessPhoneNumber && (
-                <div className="text-xs sm:text-sm text-muted-foreground bg-muted/50 px-2 sm:px-3 py-1 rounded-md">
-                  <span className="font-medium">Call: </span>
-                  <span className="font-mono">{businessPhoneNumber}</span>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/agent"
+                      className="text-sm sm:text-base font-bold text-foreground bg-primary/10 hover:bg-primary/20 border border-primary/20 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all duration-200 hover:scale-105 cursor-pointer flex items-center gap-2"
+                    >
+                      <span className="font-semibold">AI Number:</span>
+                      <span className="font-mono font-bold text-primary">
+                        {formatPhoneNumber(businessPhoneNumber)}
+                      </span>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p className="text-sm">
+                      Forward your existing line to this number to use our AI service
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
               )}
               
               {/* Header actions */}

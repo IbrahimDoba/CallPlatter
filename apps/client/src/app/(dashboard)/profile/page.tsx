@@ -305,7 +305,11 @@ export default function ProfilePage() {
 
                   <div className="flex gap-2">
                     {subscription.status === 'TRIAL' ? (
-                      <PricingModal currentPlan={subscription.planType}>
+                      <PricingModal 
+                        currentPlan={subscription.planType}
+                        subscriptionStatus={subscription.status}
+                        currentPeriodEnd={subscription.currentPeriodEnd}
+                      >
                         <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                           <Crown className="h-4 w-4 mr-2" />
                           Upgrade to Paid Plan
@@ -313,7 +317,11 @@ export default function ProfilePage() {
                       </PricingModal>
                     ) : (
                       <>
-                        <PricingModal currentPlan={subscription.planType}>
+                        <PricingModal 
+                          currentPlan={subscription.planType}
+                          subscriptionStatus={subscription.status}
+                          currentPeriodEnd={subscription.currentPeriodEnd}
+                        >
                           <Button variant="outline" size="sm">
                             <Crown className="h-4 w-4 mr-2" />
                             Upgrade Plan

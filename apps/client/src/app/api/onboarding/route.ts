@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       if (polarCustomerId && selectedPlan) {
         // User has Polar customer ID and selected plan, create subscription based on their choice
         const planType = selectedPlan.toUpperCase() as "STARTER" | "BUSINESS" | "ENTERPRISE";
-        const isTrial = trialActivated || selectedPlan.toLowerCase() === 'starter';
+        const isTrial = trialActivated || selectedPlan.toLowerCase() === 'business';
         
         await db.subscription.create({
           data: {

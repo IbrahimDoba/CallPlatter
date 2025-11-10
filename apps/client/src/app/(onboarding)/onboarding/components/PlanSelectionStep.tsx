@@ -20,11 +20,10 @@ const PLANS = [
     id: 'starter',
     name: 'Starter',
     price: '$20/month',
-    trialDays: 14,
+    trialDays: 0,
     icon: Star,
     color: 'blue',
     features: [
-      '14-day free trial',
       '40 minutes included',
       '₦1,467/min ($0.89/min) after limit',
       '24/7 AI answering',
@@ -33,16 +32,17 @@ const PLANS = [
       'Spam blocking',
       'Zapier integration'
     ],
-    popular: true
+    popular: false
   },
   {
     id: 'business',
     name: 'Business',
     price: '$45/month',
-    trialDays: 0,
+    trialDays: 14,
     icon: Zap,
     color: 'purple',
     features: [
+      '14-day free trial',
       '110 minutes included',
       '₦1,000/min ($0.61/min) after limit',
       '24/7 AI answering',
@@ -51,7 +51,8 @@ const PLANS = [
       'Spam blocking',
       'Zapier integration',
       'Priority support'
-    ]
+    ],
+    popular: true
   },
   {
     id: 'enterprise',
@@ -80,11 +81,11 @@ export function PlanSelectionStep({ data, onUpdate, onNext, onBack }: PlanSelect
 
   // Sync local state with data prop changes
   useEffect(() => {
-    if (data.selectedPlan && data.selectedPlan !== selectedPlan) {
+    if (data.selectedPlan) {
       console.log('💳 PlanSelectionStep: Syncing selectedPlan from data prop:', data.selectedPlan);
       setSelectedPlan(data.selectedPlan);
     }
-  }, [data.selectedPlan, selectedPlan]);
+  }, [data.selectedPlan]);
 
   const handleNext = async () => {
     if (!selectedPlan) {
@@ -98,7 +99,7 @@ export function PlanSelectionStep({ data, onUpdate, onNext, onBack }: PlanSelect
       // Update onboarding data
       onUpdate({ 
         selectedPlan,
-        trialActivated: selectedPlan === 'starter'
+        trialActivated: selectedPlan === 'business'
       });
 
       // Save progress to database before redirect
@@ -110,7 +111,7 @@ export function PlanSelectionStep({ data, onUpdate, onNext, onBack }: PlanSelect
           body: JSON.stringify({
             currentStep: 5, // Next step after subscription completion
             selectedPlan,
-            trialActivated: selectedPlan === 'starter'
+            trialActivated: selectedPlan === 'business'
           })
         });
         
@@ -127,8 +128,8 @@ export function PlanSelectionStep({ data, onUpdate, onNext, onBack }: PlanSelect
       // Build checkout URL with appropriate parameters
       let checkoutUrl = `/checkout?products=${productId}`;
       
-      // Add trial parameters for Starter plan
-      if (selectedPlan === 'starter') {
+      // Add trial parameters for Business plan
+      if (selectedPlan === 'business') {
         checkoutUrl += '&trial_duration=14&trial_duration_unit=day';
       }
       

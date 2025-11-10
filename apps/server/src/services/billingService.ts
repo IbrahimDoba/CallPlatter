@@ -1,4 +1,5 @@
 import { db } from "@repo/db";
+import { ingestMeterEvent } from "../config/polar";
 
 // Temporary string literals until database migration is complete
 type PlanType = "STARTER" | "BUSINESS" | "ENTERPRISE";
@@ -214,14 +215,19 @@ export class BillingService {
         throw new Error("Call or subscription not found");
       }
 
+      // Store polarCustomerId and planType before transaction for meter event
+      const subscription = call.business.subscription;
+      const polarCustomerId = subscription.polarCustomerId;
+      const planType = subscription.planType;
+
       // Check and reset period if needed (before tracking)
       await this.checkAndResetPeriod(call.businessId);
 
-      // Use transaction to prevent race conditions
-      return await db.$transaction(async (tx) => {
-        // Convert seconds to minutes (round up to nearest minute)
-        const durationMinutes = Math.ceil(durationSeconds / 60);
+      // Convert seconds to minutes (round up to nearest minute)
+      const durationMinutes = Math.ceil(durationSeconds / 60);
 
+      // Use transaction to prevent race conditions
+      const result = await db.$transaction(async (tx) => {
         // Update call with duration in minutes
         await tx.call.update({
           where: { id: callId },
@@ -232,7 +238,6 @@ export class BillingService {
         });
 
         // Update subscription usage
-        const subscription = call.business.subscription;
         if (!subscription) {
           throw new Error("Subscription not found");
         }
@@ -254,6 +259,25 @@ export class BillingService {
         console.log(`Tracked ${durationMinutes} minutes for call ${callId}`);
         return { success: true, minutesTracked: durationMinutes };
       });
+
+      // Send meter event to Polar after transaction completes
+      if (polarCustomerId) {
+        await ingestMeterEvent(
+          "dailzero_minutes_used",
+          polarCustomerId,
+          {
+            callId: callId,
+            durationMinutes: durationMinutes,
+            durationSeconds: durationSeconds,
+            businessId: call.businessId,
+            planType: planType,
+          }
+        );
+      } else {
+        console.warn(`No polarCustomerId found for subscription ${subscription.id}, skipping meter event`);
+      }
+
+      return result;
     } catch (error) {
       console.error("Error tracking call usage:", error);
       throw error;

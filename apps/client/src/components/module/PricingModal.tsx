@@ -27,12 +27,16 @@ import {
 interface PricingModalProps {
   children: React.ReactNode;
   currentPlan?: string;
+  subscriptionStatus?: string;
+  currentPeriodEnd?: string;
   onPlanChange?: (newPlan: string) => void;
 }
 
 export function PricingModal({
   children,
   currentPlan,
+  subscriptionStatus,
+  currentPeriodEnd,
 }: PricingModalProps) {
   const [currency, setCurrency] = useState<"USD" | "NGN">("USD");
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">(
@@ -52,16 +56,46 @@ export function PricingModal({
 
   const currentPlanName = currentPlan ? mapPlanTypeToName(currentPlan) : undefined;
   
+  // Check if subscription is active (not expired, cancelled, etc.)
+  const isSubscriptionActive = () => {
+    if (!subscriptionStatus) return false;
+    
+    // Check if status indicates an active subscription
+    if (subscriptionStatus === 'CANCELLED' || 
+        subscriptionStatus === 'PAST_DUE' || 
+        subscriptionStatus === 'SUSPENDED') {
+      return false;
+    }
+    
+    // Check if period has ended
+    if (currentPeriodEnd) {
+      const now = new Date();
+      const periodEnd = new Date(currentPeriodEnd);
+      if (now > periodEnd) {
+        return false;
+      }
+    }
+    
+    // Subscription is active if status is ACTIVE or TRIAL and period hasn't ended
+    return subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIAL';
+  };
+  
+  const isActive = isSubscriptionActive();
+  
   // Debug logging
   console.log('PricingModal - Current Plan Debug:', {
     currentPlan,
     currentPlanName,
+    subscriptionStatus,
+    currentPeriodEnd,
+    isActive,
     planTypeMap
   });
 
   const handlePlanSelection = async (planName: string) => {
-    if (planName === currentPlanName) {
-      return; // Don't do anything if it's the same plan
+    // Only prevent selection if it's the same plan AND subscription is active
+    if (planName === currentPlanName && isActive) {
+      return; // Don't do anything if it's the same active plan
     }
 
     // Handle Custom plan differently
@@ -280,7 +314,7 @@ export function PricingModal({
                 <div className="mt-6">
                   <Button
                     onClick={() => handlePlanSelection(plan.name)}
-                    disabled={isLoading || currentPlanName === plan.name}
+                    disabled={isLoading || (currentPlanName === plan.name && isActive)}
                     className={cn(
                       "w-full",
                       currentPlanName === plan.name
@@ -299,8 +333,10 @@ export function PricingModal({
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Updating...
                       </>
-                    ) : currentPlanName === plan.name ? (
+                    ) : currentPlanName === plan.name && isActive ? (
                       "Current Plan"
+                    ) : currentPlanName === plan.name && !isActive ? (
+                      "Renew Plan"
                     ) : plan.name === "Starter" ? (
                       "Get Started"
                     ) : plan.name === "Custom" ? (
