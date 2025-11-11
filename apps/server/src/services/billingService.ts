@@ -263,7 +263,7 @@ export class BillingService {
       // Send meter event to Polar after transaction completes
       if (polarCustomerId) {
         await ingestMeterEvent(
-          "dailzero_minutes_used",
+          "minutes_used",
           polarCustomerId,
           {
             callId: callId,

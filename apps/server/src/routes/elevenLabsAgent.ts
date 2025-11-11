@@ -7,6 +7,7 @@ import { db } from "@repo/db";
 import { instructions } from "@/utils/instructions";
 import { registerActiveCall, unregisterActiveCall } from "./webhooks";
 import { subscriptionValidationService } from "../services/subscriptionValidationService";
+import { getOrCreateEndCallTool } from "../services/elevenLabsToolsService";
 
 const router: Router = Router();
 
@@ -79,14 +80,24 @@ Use this information to answer customer questions accurately. If asked about som
 
   // Add confirmation and call ending instructions
   sessionInstructions.push(`\n\n## CONFIRMATION & CALL ENDING
-CONFIRMATION RULE: Only confirm ONCE at the very end after collecting ALL information (business details + customer details). Don't confirm each piece individually.
+CONFIRMATION RULE: Only confirm ONCE at the very end after collecting ALL information (business details + customer details).
 
-You have an "end_call" tool to hang up when:
-- Conversation is complete
-- Customer says goodbye or asks to hang up
-- Customer becomes unresponsive
+CRITICAL - YOU MUST END THE CALL:
+When the conversation is complete, you MUST:
+1. Say your goodbye message
+2. Call the end_call tool immediately
+3. Do NOT say "end call" or mention the tool - just invoke it
 
-Use the tool with: reason, summary, callId, twilioCallSid`);
+The end_call tool must be called when:
+- Customer says goodbye/thank you/that's all
+- All questions answered and customer has no more requests
+- 10+ seconds of silence after asking "Is there anything else?"
+- Customer asks to hang up
+
+EXAMPLE:
+Agent: "Thank you for calling! Have a great day!"
+[Agent immediately calls end_call tool]
+[Call disconnects]`);
 
   return sessionInstructions.join("\n");
 }
@@ -170,6 +181,7 @@ async function updateAgentFullConfig(
   firstMessage: string,
   temperature: number,
   voiceId: string,
+  endCallToolId: string | null, // Not used for system tools, kept for compatibility
   lastConfigHash?: string,
   forceUpdate = false
 ): Promise<boolean> {
@@ -187,6 +199,21 @@ async function updateAgentFullConfig(
     }
 
     logger.info("🔄 Updating full agent configuration", { agentId, voiceId });
+
+    // Build prompt config with tool ID if available
+    const promptConfig: any = {
+      prompt: systemMessage,
+      llm: "gpt-4o-mini",
+      temperature: temperature,
+      max_tokens: 150,
+    };
+
+    // System tools like end_call must use built_in_tools (object format, not array)
+    // According to ElevenLabs API: built_in_tools should be an object/dictionary
+    promptConfig.built_in_tools = {
+      end_call: true, // Enable the built-in end_call tool
+    };
+    logger.info("✅ Using built_in_tools for end_call");
 
     const response = await fetch(
       `${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`,
@@ -208,13 +235,13 @@ async function updateAgentFullConfig(
               quality: "high",
               provider: "elevenlabs",
               user_input_audio_format: "ulaw_8000",
-              no_speech_threshold: 0.4, // Increased to 0.4 (40%) - faster detection that user stopped speaking
+              no_speech_threshold: 0.3, // Increased to 0.4 (40%) - faster detection that user stopped speaking
             },
             tts: {
               voice_id: voiceId,
               model_id: "eleven_flash_v2",
               agent_output_audio_format: "ulaw_8000",
-              optimize_streaming_latency: 2, // Reduced to 2 for faster response streaming
+              optimize_streaming_latency: 1, // Reduced to 2 for faster response streaming
               stability: 0.5,
               similarity_boost: 0.5,
               speed: 1.0,
@@ -222,23 +249,7 @@ async function updateAgentFullConfig(
             agent: {
               first_message: firstMessage,
               language: "en",
-              prompt: {
-                prompt: systemMessage,
-                llm: "gpt-4o-mini",
-                temperature: temperature,
-                max_tokens: 150, // Increased from 80 to 150 - allows for more natural responses
-              },
-              tools: [
-                {
-                  type: "system",
-                  name: "end_call",
-                  description:
-                    "End the phone call when conversation is complete, customer says goodbye, or becomes unresponsive. Call this AFTER saying your goodbye message.",
-                  params: {
-                    system_tool_type: "end_call",
-                  },
-                },
-              ],
+              prompt: promptConfig,
             },
           },
         }),
@@ -356,6 +367,10 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
     return null;
   }
 
+  // Note: System tools like end_call are built-in and cannot be created via tools API
+  // They must be enabled via built_in_tools in the agent configuration
+  logger.info("🔧 Using built-in end_call tool (system tools are built-in, not created)");
+
   // Check for existing agent
   const existingAgent = await db.elevenLabsAgent.findFirst({
     where: { businessId: businessConfig.businessId },
@@ -366,7 +381,7 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       agentId: existingAgent.agentId,
       currentVoiceId: existingAgent.voiceId,
       newVoiceId: businessConfig.voiceId,
-      voiceChanged: businessConfig.voiceId !== existingAgent.voiceId,
+      voiceChanged: businessConfig.voiceId !== businessConfig.voiceId,
     });
 
     // Update full configuration including turn, asr, tts, and agent settings
@@ -378,6 +393,7 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       businessConfig.firstMessage,
       businessConfig.temperature,
       businessConfig.voiceId || existingAgent.voiceId,
+      null, // System tools don't need tool IDs
       existingAgent.configHash || undefined,
       true // Force update to apply new timing settings
     );
@@ -446,13 +462,13 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
         quality: "high",
         provider: "elevenlabs",
         user_input_audio_format: "ulaw_8000",
-        no_speech_threshold: 0.4, // Increased to 0.4 (40%) - faster detection that user stopped speaking
+        no_speech_threshold: 0.3, // Increased to 0.4 (40%) - faster detection that user stopped speaking
       },
       tts: {
         voice_id: voice.voice_id,
         model_id: "eleven_flash_v2",
         agent_output_audio_format: "ulaw_8000",
-        optimize_streaming_latency: 2, // Reduced to 2 for faster response streaming
+        optimize_streaming_latency: 1, // Reduced to 2 for faster response streaming
         stability: 0.5,
         similarity_boost: 0.5,
         speed: 1.0,
@@ -460,23 +476,22 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       agent: {
         first_message: businessConfig.firstMessage,
         language: "en",
-        prompt: {
-          prompt: businessConfig.systemMessage,
-          llm: "gpt-4o-mini",
-          temperature: businessConfig.temperature,
-          max_tokens: 150, // Increased from 80 to 150 - allows for more natural responses
-        },
-        tools: [
-          {
-            type: "system",
-            name: "end_call",
-            description:
-              "End the phone call when conversation is complete, customer says goodbye, or becomes unresponsive. Call this AFTER saying your goodbye message.",
-            params: {
-              system_tool_type: "end_call",
-            },
-          },
-        ],
+        prompt: (() => {
+          const promptConfig: any = {
+            prompt: businessConfig.systemMessage,
+            llm: "gpt-4o-mini",
+            temperature: businessConfig.temperature,
+            max_tokens: 150,
+          };
+
+          // System tools like end_call must use built_in_tools (object format, not array)
+          promptConfig.built_in_tools = {
+            end_call: true, // Enable the built-in end_call tool
+          };
+          logger.info("✅ Creating agent with built_in_tools for end_call");
+
+          return promptConfig;
+        })(),
       },
     },
   };
@@ -849,6 +864,11 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         elevenLabsWs.on("message", (data) => {
           const message = JSON.parse(data.toString());
 
+          // Log non-audio events for debugging (but not ping/audio to reduce noise)
+          if (!["audio", "ping"].includes(message.type)) {
+            logger.info("📨 ElevenLabs event", { type: message.type });
+          }
+
           if (message.type === "conversation_initiation_metadata") {
             const meta = message.conversation_initiation_metadata_event;
             logger.info("🎵 Audio formats confirmed", {
@@ -877,6 +897,63 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
                 event_id: message.ping_event.event_id,
               })
             );
+          } else if (message.type === "client_tool_call") {
+            // Handle tool calls per ElevenLabs WebSocket API spec
+            const toolCall = message.client_tool_call;
+            const toolName = toolCall?.tool_name;
+            const toolCallId = toolCall?.tool_call_id;
+            const parameters = toolCall?.parameters || {};
+            
+            logger.info("🔧 Tool call received", {
+              toolName: toolName,
+              toolCallId: toolCallId,
+              parameters: parameters,
+            });
+
+            if (toolName === "end_call") {
+              logger.info("🔚 End call tool invoked - terminating call");
+              
+              // Send tool result back to ElevenLabs per API spec
+              if (elevenLabsWs?.readyState === WebSocket.OPEN && toolCallId) {
+                elevenLabsWs.send(
+                  JSON.stringify({
+                    type: "client_tool_result",
+                    tool_call_id: toolCallId,
+                    result: "Call ended successfully",
+                    is_error: false,
+                  })
+                );
+                logger.info("✅ Sent tool result to ElevenLabs");
+              }
+              
+              // End the Twilio call immediately (equivalent to <Hangup/>)
+              if (twilioCallSid) {
+                endTwilioCall(twilioCallSid).catch((error) => {
+                  logger.error("❌ Error ending Twilio call", error);
+                });
+              }
+
+              // Finalize call record
+              if (callId && callStartTime && businessName) {
+                finalizeCallRecord(
+                  callId,
+                  callStartTime,
+                  businessName,
+                  twilioCallSid || undefined,
+                  businessId || undefined
+                ).catch((error) => {
+                  logger.error("❌ Error finalizing call record", error);
+                });
+              }
+              
+              // Close ElevenLabs WebSocket after a short delay to allow tool result to be sent
+              setTimeout(() => {
+                if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+                  elevenLabsWs.close();
+                  logger.info("🔌 Closed ElevenLabs WebSocket after end_call");
+                }
+              }, 500);
+            }
           }
         });
 
@@ -885,16 +962,16 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         });
 
         elevenLabsWs.on("close", () => {
-          logger.info("🔌 ElevenLabs disconnected - built-in end_call tool may have been used");
+          logger.info("🔌 ElevenLabs disconnected - ending call with Twilio Hangup");
           
-          // When ElevenLabs closes (e.g., from built-in end_call tool), end Twilio call
+          // End Twilio call using REST API (equivalent to <Hangup/> TwiML)
           if (twilioCallSid) {
             endTwilioCall(twilioCallSid).catch((error) => {
-              logger.error("❌ Error ending Twilio call on ElevenLabs disconnect", error);
+              logger.error("❌ Error ending Twilio call", error);
             });
           }
           
-          // Finalize call record if we have the necessary info
+          // Finalize call record
           if (callId && callStartTime && businessName) {
             finalizeCallRecord(
               callId,
@@ -903,7 +980,7 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
               twilioCallSid || undefined,
               businessId || undefined
             ).catch((error) => {
-              logger.error("❌ Error finalizing call on ElevenLabs disconnect", error);
+              logger.error("❌ Error finalizing call record", error);
             });
           }
         });
