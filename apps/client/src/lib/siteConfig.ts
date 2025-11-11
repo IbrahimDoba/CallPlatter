@@ -142,10 +142,9 @@ export const siteConfig = {
     },
   },
   contact: {
-    email: "info@dailzero.com",
-    phone: "+1 (555) 123-4567",
-    address: "Global",
-    supportEmail: "info@dailzero.com",
+    email: "support@dailzero.com",
+    phone: "+234 81 4911 3328",
+    supportEmail: "support@dailzero.com",
   },
   companyInfo: {
     founded: "2025",
