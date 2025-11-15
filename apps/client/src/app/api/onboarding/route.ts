@@ -117,78 +117,44 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Check if user has a subscription from Polar webhook
-    // If not, create a default trial subscription
+    // IMPORTANT: Do NOT create subscriptions here!
+    // Polar is the single source of truth for subscriptions.
+    // The Polar webhook (subscription.created) will create/update the subscription
+    // when the user completes checkout or starts a trial through Polar.
+
+    // Check if subscription exists (created by Polar webhook)
     const existingSubscription = await db.subscription.findUnique({
       where: { businessId: businessId }
     });
 
-    if (!existingSubscription) {
-      console.log('No subscription found, checking for Polar customer ID...');
-      
-      // Check if user has a Polar customer ID (from onboarding progress or user record)
-      const userWithPolarId = await db.user.findUnique({
-        where: { id: session.user.id },
-        select: { polarCustomerId: true }
+    if (existingSubscription) {
+      console.log('Subscription exists for business:', businessId, {
+        status: existingSubscription.status,
+        planType: existingSubscription.planType,
+        currentPeriodEnd: existingSubscription.currentPeriodEnd,
+        trialEndsAt: existingSubscription.trialEndsAt,
+        polarSubscriptionId: existingSubscription.polarSubscriptionId,
       });
-      
-      // Also check onboarding progress for Polar customer ID
+    } else {
+      // No subscription yet - this is expected if user hasn't completed Polar checkout
+      // The subscription will be created when Polar sends the webhook
+      console.log('No subscription found for business:', businessId);
+      console.log('Subscription will be created when Polar webhook is received after checkout.');
+
+      // Store Polar customer ID if available (for webhook matching)
       const onboardingProgress = await db.onboardingProgress.findUnique({
         where: { userId: session.user.id },
-        select: { polarCustomerId: true, selectedPlan: true, trialActivated: true }
+        select: { polarCustomerId: true }
       });
-      
-      const polarCustomerId = userWithPolarId?.polarCustomerId || onboardingProgress?.polarCustomerId;
-      const selectedPlan = onboardingProgress?.selectedPlan;
-      const trialActivated = onboardingProgress?.trialActivated;
-      
-      console.log('Polar customer ID:', polarCustomerId, 'Selected plan:', selectedPlan, 'Trial activated:', trialActivated);
-      
-      if (polarCustomerId && selectedPlan) {
-        // User has Polar customer ID and selected plan, create subscription based on their choice
-        const planType = selectedPlan.toUpperCase() as "STARTER" | "BUSINESS" | "ENTERPRISE";
-        const isTrial = trialActivated || selectedPlan.toLowerCase() === 'business';
-        
-        await db.subscription.create({
-          data: {
-            businessId: businessId,
-            planType,
-            status: isTrial ? "TRIAL" : "ACTIVE",
-            currentPeriodStart: new Date(),
-            currentPeriodEnd: new Date(Date.now() + (isTrial ? 14 : 30) * 24 * 60 * 60 * 1000),
-            minutesIncluded: planType === "STARTER" ? 40 : planType === "BUSINESS" ? 110 : 300,
-            minutesUsed: 0,
-            overageRate: planType === "STARTER" ? 0.89 : planType === "BUSINESS" ? 0.61 : 0.44,
-            trialEndsAt: isTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null,
-            trialActivated: isTrial,
-            polarCustomerId: polarCustomerId,
-          }
+
+      if (onboardingProgress?.polarCustomerId) {
+        // Update user with Polar customer ID for webhook matching
+        await db.user.update({
+          where: { id: session.user.id },
+          data: { polarCustomerId: onboardingProgress.polarCustomerId }
         });
-        
-        console.log(`Created ${isTrial ? 'trial' : 'active'} subscription for business ${businessId} with plan ${planType}`);
-      } else {
-        // No Polar customer ID, create default trial subscription
-        console.log('No Polar customer ID found, creating default trial subscription for business:', businessId);
-        
-        await db.subscription.create({
-          data: {
-            businessId: businessId,
-            planType: "STARTER", // Default to STARTER plan
-            status: "TRIAL",
-            currentPeriodStart: new Date(),
-            currentPeriodEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
-            minutesIncluded: 40, // Starter plan minutes
-            minutesUsed: 0,
-            overageRate: 0.89, // USD overage rate
-            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
-            trialActivated: true,
-          }
-        });
-        
-        console.log('Created default trial subscription for business:', businessId);
+        console.log('Updated user with Polar customer ID:', onboardingProgress.polarCustomerId);
       }
-    } else {
-      console.log('Subscription already exists for business:', businessId, 'status:', existingSubscription.status);
     }
 
     // Update user onboarding status
