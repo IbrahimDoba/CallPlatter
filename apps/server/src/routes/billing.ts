@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { Router } from 'express';
 import { BillingService } from '../services/billingService';
+import { subscriptionSyncService } from '../services/subscriptionSyncService';
 import { db } from '@repo/db';
 
 const router: Router = Router();
@@ -12,49 +13,70 @@ const getBusinessId = (req: Request): string | null => {
 };
 
 // Get current usage for authenticated business
+// This endpoint syncs with Polar first to ensure accurate data
 router.get('/usage', async (req: Request, res: Response) => {
   try {
     const businessId = getBusinessId(req);
-    
+
     if (!businessId) {
       return res.status(401).json({ error: 'Business ID required' });
     }
 
+    // Sync subscription from Polar before returning usage
+    // This ensures trial->active transitions are reflected immediately
+    const syncResult = await subscriptionSyncService.syncSubscriptionOnLoad(businessId);
+
+    if (syncResult.changes.length > 0) {
+      console.log(`Subscription synced for ${businessId}:`, syncResult.changes);
+    }
+
     const usage = await billingService.getCurrentUsage(businessId);
-    
+
     res.json({
       success: true,
-      data: usage
+      data: usage,
+      syncedFromPolar: syncResult.synced,
+      syncChanges: syncResult.changes
     });
   } catch (error) {
     console.error('Error getting usage:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to get usage data' 
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get usage data'
     });
   }
 });
 
 // Get usage limits status
+// This endpoint also syncs with Polar first
 router.get('/limits', async (req: Request, res: Response) => {
   try {
     const businessId = getBusinessId(req);
-    
+
     if (!businessId) {
       return res.status(401).json({ error: 'Business ID required' });
     }
 
+    // Sync subscription from Polar before checking limits
+    const syncResult = await subscriptionSyncService.syncSubscriptionOnLoad(businessId);
+
+    if (syncResult.changes.length > 0) {
+      console.log(`Subscription synced for ${businessId}:`, syncResult.changes);
+    }
+
     const limits = await billingService.checkUsageLimits(businessId);
-    
+
     res.json({
       success: true,
-      data: limits
+      data: limits,
+      syncedFromPolar: syncResult.synced,
+      syncChanges: syncResult.changes
     });
   } catch (error) {
     console.error('Error checking limits:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to check usage limits' 
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check usage limits'
     });
   }
 });
