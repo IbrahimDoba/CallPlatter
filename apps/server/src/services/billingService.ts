@@ -1,8 +1,11 @@
 import { db } from "@repo/db";
 import { ingestMeterEvent } from "../config/polar";
-
-// Temporary string literals until database migration is complete
-type PlanType = "STARTER" | "BUSINESS" | "ENTERPRISE";
+import {
+  PLAN_CONFIGS,
+  mapPolarProductToPlanType,
+  getPlanConfig,
+  type PlanType,
+} from "../config/billingPlans";
 
 interface PolarSubscription {
   id: string;
@@ -11,6 +14,7 @@ interface PolarSubscription {
   current_period_end: string;
   trial_end?: string;
   trial_start?: string;
+  ends_at?: string; // Polar uses ends_at for trial end during trialing status
   customer_id: string;
   product?: {
     name: string;
@@ -19,81 +23,71 @@ interface PolarSubscription {
 
 export interface BillingPlan {
   name: string;
-  monthlyPrice: number;
-  monthlyPriceUSD: number; 
+  monthlyPriceUSD: number;
   minutesIncluded: number;
-  overageRate: number; 
   overageRateUSD: number;
 }
 
-// Exchange rate constant
-
+// Re-export the centralized plan configs for backward compatibility
 export const BILLING_PLANS: Record<PlanType, BillingPlan> = {
   STARTER: {
-    name: "Starter",
-    monthlyPrice: 30000, // ₦30,000
-    monthlyPriceUSD: 18.18, // $18.18 (10% cheaper than $20)
-    minutesIncluded: 38, // ~25 calls at 1.5min each
-    overageRate: 1467, // ₦1,467 per minute (39% profit margin)
-    overageRateUSD: 0.89, // $0.89 per minute
+    name: PLAN_CONFIGS.STARTER.name,
+    monthlyPriceUSD: PLAN_CONFIGS.STARTER.monthlyPriceUSD,
+    minutesIncluded: PLAN_CONFIGS.STARTER.minutesIncluded,
+    overageRateUSD: PLAN_CONFIGS.STARTER.overageRateUSD,
   },
   BUSINESS: {
-    name: "Business",
-    monthlyPrice: 71000, // ₦71,000
-    monthlyPriceUSD: 43.03, // $43.03 (10% cheaper than $48)
-    minutesIncluded: 105, // ~70 calls at 1.5min each
-    overageRate: 1000, // ₦1,000 per minute (27% profit margin)
-    overageRateUSD: 0.61, // $0.61 per minute
+    name: PLAN_CONFIGS.BUSINESS.name,
+    monthlyPriceUSD: PLAN_CONFIGS.BUSINESS.monthlyPriceUSD,
+    minutesIncluded: PLAN_CONFIGS.BUSINESS.minutesIncluded,
+    overageRateUSD: PLAN_CONFIGS.BUSINESS.overageRateUSD,
   },
   ENTERPRISE: {
-    name: "Enterprise",
-    monthlyPrice: 190000, // ₦190,000
-    monthlyPriceUSD: 115.15, // $115.15 (10% cheaper than $128)
-    minutesIncluded: 300, // ~200 calls at 1.5min each
-    overageRate: 733, // ₦733 per minute (22% profit margin)
-    overageRateUSD: 0.44, // $0.44 per minute
+    name: PLAN_CONFIGS.ENTERPRISE.name,
+    monthlyPriceUSD: PLAN_CONFIGS.ENTERPRISE.monthlyPriceUSD,
+    minutesIncluded: PLAN_CONFIGS.ENTERPRISE.minutesIncluded,
+    overageRateUSD: PLAN_CONFIGS.ENTERPRISE.overageRateUSD,
   },
 };
 
 export class BillingService {
-  /**
-   * Map Polar plan name to our internal plan type
-   */
-  private mapPolarPlanToPlanType(polarPlanName: string): PlanType {
-    const planMap: Record<string, PlanType> = {
-      'Starter': 'STARTER',
-      'Business': 'BUSINESS',
-      'Enterprise': 'ENTERPRISE',
-    };
-    
-    return planMap[polarPlanName] || 'STARTER'; // Default to STARTER
-  }
-
-  /**
-   * Get billing plan details for a plan type
-   */
-  private getBillingPlanDetails(planType: PlanType): BillingPlan {
-    return BILLING_PLANS[planType];
-  }
-
   /**
    * Create subscription from Polar webhook (trial or paid)
    * Polar handles all trial logic - we just sync the data
    */
   async syncSubscriptionFromPolar(polarSubscription: PolarSubscription, businessId: string) {
     const isTrial = polarSubscription.status === 'trialing';
-    const planType = this.mapPolarPlanToPlanType(polarSubscription.product?.name || '');
-    
+    const planType = mapPolarProductToPlanType(polarSubscription.product?.name);
+    const planConfig = getPlanConfig(planType);
+
+    // Use actual dates from Polar
+    const currentPeriodStart = polarSubscription.current_period_start
+      ? new Date(polarSubscription.current_period_start)
+      : new Date();
+    const currentPeriodEnd = polarSubscription.current_period_end
+      ? new Date(polarSubscription.current_period_end)
+      : new Date();
+
+    // Get trial end date from Polar - they may use 'ends_at' during trial or 'trial_end'
+    const trialEndsAt = isTrial && polarSubscription.ends_at
+      ? new Date(polarSubscription.ends_at)
+      : polarSubscription.trial_end
+        ? new Date(polarSubscription.trial_end)
+        : null;
+
     const subscriptionData = {
       businessId,
       planType,
       status: isTrial ? 'TRIAL' as const : 'ACTIVE' as const,
-      currentPeriodStart: polarSubscription.current_period_start ? new Date(polarSubscription.current_period_start) : new Date(),
-      currentPeriodEnd: polarSubscription.current_period_end ? new Date(polarSubscription.current_period_end) : new Date(),
-      minutesIncluded: this.getBillingPlanDetails(planType).minutesIncluded,
+      currentPeriodStart,
+      currentPeriodEnd,
+      minutesIncluded: planConfig.minutesIncluded,
       minutesUsed: 0,
-      overageRate: this.getBillingPlanDetails(planType).overageRate,
-      trialEndsAt: isTrial && polarSubscription.trial_end ? new Date(polarSubscription.trial_end) : null,
+      overageRate: planConfig.overageRateUSD, // Store USD rate
+      trialEndsAt,
+      trialActivated: isTrial,
+      trialStartedAt: isTrial ? currentPeriodStart : null,
+      trialPlanType: isTrial ? planType : null,
       polarSubscriptionId: polarSubscription.id,
       polarCustomerId: polarSubscription.customer_id,
     };
@@ -109,31 +103,38 @@ export class BillingService {
    * Handle trial conversion (called by Polar webhook)
    */
   async handleTrialConversion(polarSubscription: PolarSubscription, businessId: string) {
-    const planType = this.mapPolarPlanToPlanType(polarSubscription.product?.name || '');
-    
+    const planType = mapPolarProductToPlanType(polarSubscription.product?.name);
+    const planConfig = getPlanConfig(planType);
+
     return await db.subscription.update({
       where: { businessId },
       data: {
         planType,
         status: 'ACTIVE' as const,
-        currentPeriodStart: polarSubscription.current_period_start ? new Date(polarSubscription.current_period_start) : new Date(),
-        currentPeriodEnd: polarSubscription.current_period_end ? new Date(polarSubscription.current_period_end) : new Date(),
-        minutesIncluded: this.getBillingPlanDetails(planType).minutesIncluded,
-        overageRate: this.getBillingPlanDetails(planType).overageRate,
+        currentPeriodStart: polarSubscription.current_period_start
+          ? new Date(polarSubscription.current_period_start)
+          : new Date(),
+        currentPeriodEnd: polarSubscription.current_period_end
+          ? new Date(polarSubscription.current_period_end)
+          : new Date(),
+        minutesIncluded: planConfig.minutesIncluded,
+        overageRate: planConfig.overageRateUSD,
         trialEndsAt: null, // Trial ended
+        trialActivated: false,
       }
     });
   }
 
   /**
    * Create a new subscription for a business
+   * NOTE: Prefer letting Polar webhook create subscriptions
    */
   async createSubscription(
     businessId: string,
     planType: PlanType,
     startDate: Date = new Date()
   ) {
-    const plan = BILLING_PLANS[planType];
+    const planConfig = getPlanConfig(planType);
     const currentPeriodStart = new Date(startDate);
     const currentPeriodEnd = new Date(startDate);
     currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
@@ -145,9 +146,9 @@ export class BillingService {
         status: "ACTIVE",
         currentPeriodStart,
         currentPeriodEnd,
-        minutesIncluded: plan.minutesIncluded,
+        minutesIncluded: planConfig.minutesIncluded,
         minutesUsed: 0,
-        overageRate: plan.overageRate,
+        overageRate: planConfig.overageRateUSD,
       },
     });
   }
@@ -488,14 +489,13 @@ export class BillingService {
       },
     });
 
-    const plan =
-      BILLING_PLANS[subscription.planType as keyof typeof BILLING_PLANS];
+    const planConfig = getPlanConfig(subscription.planType as PlanType);
 
-    if (!plan) {
+    if (!planConfig) {
       throw new Error(`Invalid plan type: ${subscription.planType}`);
     }
 
-    const baseCost = plan.monthlyPrice;
+    const baseCost = planConfig.monthlyPriceUSD;
     const overageCost = billingUsage ? Number(billingUsage.overageCost) : 0;
     const totalCost = baseCost + overageCost;
 
@@ -526,7 +526,7 @@ export class BillingService {
         businessId,
         type: "SUBSCRIPTION",
         amount: totalCost,
-        description: `Monthly bill for ${plan.name} plan - ${month}/${year}`,
+        description: `Monthly bill for ${planConfig.name} plan - ${month}/${year}`,
         month,
         year,
         status: "PENDING",
@@ -540,7 +540,7 @@ export class BillingService {
           businessId,
           type: "OVERAGE",
           amount: overageCost,
-          description: `Overage charges: ${Number(billingUsage.overageMinutes)} minutes @ ₦${Number(subscription.overageRate)}/min - ${month}/${year}`,
+          description: `Overage charges: ${Number(billingUsage.overageMinutes)} minutes @ $${Number(subscription.overageRate)}/min - ${month}/${year}`,
           month,
           year,
           status: "PENDING",
@@ -602,18 +602,15 @@ export class BillingService {
       orderBy: { createdAt: "desc" },
     });
 
-    const plan =
-      BILLING_PLANS[subscription.planType as keyof typeof BILLING_PLANS];
+    const planConfig = getPlanConfig(subscription.planType as PlanType);
 
     return {
       period: { month, year },
       plan: {
-        name: plan.name,
-        monthlyPrice: plan.monthlyPrice,
-        monthlyPriceUSD: plan.monthlyPriceUSD,
-        minutesIncluded: plan.minutesIncluded,
-        overageRate: Number(subscription.overageRate),
-        overageRateUSD: plan.overageRateUSD,
+        name: planConfig.name,
+        monthlyPriceUSD: planConfig.monthlyPriceUSD,
+        minutesIncluded: planConfig.minutesIncluded,
+        overageRateUSD: Number(subscription.overageRate),
       },
       usage: {
         totalMinutes: billingUsage ? Number(billingUsage.totalMinutes) : 0,
@@ -621,7 +618,7 @@ export class BillingService {
         overageMinutes: billingUsage ? Number(billingUsage.overageMinutes) : 0,
         overageCost: billingUsage ? Number(billingUsage.overageCost) : 0,
         totalCost:
-          plan.monthlyPrice +
+          planConfig.monthlyPriceUSD +
           (billingUsage ? Number(billingUsage.overageCost) : 0),
       },
       calls: {
@@ -642,6 +639,7 @@ export class BillingService {
 
   /**
    * Update subscription plan
+   * NOTE: Prefer letting Polar handle plan changes via webhook
    */
   async updateSubscriptionPlan(businessId: string, newPlanType: PlanType) {
     const subscription = await db.subscription.findUnique({
@@ -652,15 +650,15 @@ export class BillingService {
       throw new Error("No subscription found");
     }
 
-    const newPlan = BILLING_PLANS[newPlanType];
+    const newPlanConfig = getPlanConfig(newPlanType);
 
     // Update subscription with new plan details
     return await db.subscription.update({
       where: { id: subscription.id },
       data: {
         planType: newPlanType,
-        minutesIncluded: newPlan.minutesIncluded,
-        overageRate: newPlan.overageRate,
+        minutesIncluded: newPlanConfig.minutesIncluded,
+        overageRate: newPlanConfig.overageRateUSD,
       },
     });
   }

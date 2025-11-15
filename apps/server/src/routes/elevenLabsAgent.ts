@@ -4,7 +4,7 @@ import WebSocket from "ws";
 import type { Server } from "http";
 import { logger } from "../utils/logger";
 import { db } from "@repo/db";
-import { instructions } from "@/utils/instructions";
+import { buildBasePromptSections, buildSystemPrompt, type PromptSections } from "@/utils/instructions";
 import { registerActiveCall, unregisterActiveCall } from "./webhooks";
 import { subscriptionValidationService } from "../services/subscriptionValidationService";
 import { getOrCreateEndCallTool } from "../services/elevenLabsToolsService";
@@ -33,24 +33,34 @@ async function getSignedUrl(agentId: string): Promise<string> {
 }
 
 // Build system message from business config with business memories
+// Uses structured 6 building blocks approach (Personality, Environment, Tone, Goal, Guardrails, Tools)
 function buildSystemMessage(aiConfig: any, businessMemories: any[]): string {
-  const sessionInstructions = [...instructions];
+  // Get base prompt sections following ElevenLabs prompting guide structure
+  const baseSections = buildBasePromptSections();
+  
+  // Customize sections based on business configuration
+  const customSections: Partial<PromptSections> = {};
 
-  // Add business memory context FIRST (highest priority)
+  // Add business memory context to Environment section
   if (businessMemories && businessMemories.length > 0) {
-    sessionInstructions.push(`\n\n## BUSINESS KNOWLEDGE BASE
+    const businessKnowledge = `\n\n## Business Knowledge Base
 You have access to the following important information about this business:
 
 ${businessMemories.map((memory) => `• ${memory.title}: ${memory.content}`).join("\n")}
 
-Use this information to answer customer questions accurately. If asked about something in your knowledge base, provide the information confidently.`);
+Use this information to answer customer questions accurately. If asked about something in your knowledge base, provide the information confidently.`;
+    
+    customSections.environment = baseSections.environment + businessKnowledge;
   }
+
+  // Add custom system prompt if provided (can override or extend any section)
+  const additionalContent: string[] = [];
 
   if (aiConfig.systemPrompt) {
-    sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
+    additionalContent.push(`\n\n## Additional Instructions\n${aiConfig.systemPrompt}`);
   }
 
-  // Updated customer information collection approach
+  // Add customer information collection to Goal section
   const questionsToAsk = [];
   if (aiConfig.askForName) questionsToAsk.push("name");
   if (aiConfig.askForPhone) questionsToAsk.push("phone number");
@@ -58,48 +68,42 @@ Use this information to answer customer questions accurately. If asked about som
   if (aiConfig.askForAddress) questionsToAsk.push("address");
 
   if (questionsToAsk.length > 0) {
-    sessionInstructions.push(
-      `\n\nIMPORTANT: Collect customer information (${questionsToAsk.join(", ")}) ONLY AFTER you have gathered all the necessary business information (date, time, quantity, service details, etc.). Focus on their request first, then get their contact details at the end.`
-    );
+    const infoCollectionNote = `\n\n**Customer Information Collection:** Collect customer information (${questionsToAsk.join(", ")}) ONLY AFTER you have gathered all the necessary business information (date, time, quantity, service details, etc.). Focus on their request first, then get their contact details at the end.`;
+    
+    // Update Goal section with customer info collection
+    customSections.goal = baseSections.goal + infoCollectionNote;
 
     // Add caller ID instructions for phone number collection
     if (aiConfig.askForPhone) {
-      sessionInstructions.push(
-        `\n\nPHONE NUMBER COLLECTION: Use caller ID when available. Ask "Is this the best number to reach you at?" instead of "What's your phone number?". This is more natural and saves time.`
-      );
+      customSections.goal += `\n\n**Phone Number Collection:** Use caller ID when available. Ask "Is this the best number to reach you at?" instead of "What's your phone number?". This is more natural and saves time.`;
     }
   }
 
+  // Add first message and goodbye message instructions
   if (aiConfig.firstMessage) {
-    sessionInstructions.push(`\n\nStart with: "${aiConfig.firstMessage}"`);
+    additionalContent.push(`\n\n## First Message\nWhen the call starts, greet the caller with: "${aiConfig.firstMessage}"`);
   }
 
   if (aiConfig.goodbyeMessage) {
-    sessionInstructions.push(`\n\nEnd with: "${aiConfig.goodbyeMessage}"`);
+    // Update Tools section to include specific goodbye message
+    customSections.tools = baseSections.tools.replace(
+      'Say your goodbye message (e.g., "Thank you for calling, have a great day!")',
+      `Say your goodbye message: "${aiConfig.goodbyeMessage}"`
+    );
   }
 
-  // Add confirmation and call ending instructions
-  sessionInstructions.push(`\n\n## CONFIRMATION & CALL ENDING
-CONFIRMATION RULE: Only confirm ONCE at the very end after collecting ALL information (business details + customer details).
+  // Merge custom sections with base sections
+  const finalSections: PromptSections = {
+    personality: customSections.personality || baseSections.personality,
+    environment: customSections.environment || baseSections.environment,
+    tone: customSections.tone || baseSections.tone,
+    goal: customSections.goal || baseSections.goal,
+    guardrails: customSections.guardrails || baseSections.guardrails,
+    tools: customSections.tools || baseSections.tools,
+  };
 
-CRITICAL - YOU MUST END THE CALL:
-When the conversation is complete, you MUST:
-1. Say your goodbye message
-2. Call the end_call tool immediately
-3. Do NOT say "end call" or mention the tool - just invoke it
-
-The end_call tool must be called when:
-- Customer says goodbye/thank you/that's all
-- All questions answered and customer has no more requests
-- 10+ seconds of silence after asking "Is there anything else?"
-- Customer asks to hang up
-
-EXAMPLE:
-Agent: "Thank you for calling! Have a great day!"
-[Agent immediately calls end_call tool]
-[Call disconnects]`);
-
-  return sessionInstructions.join("\n");
+  // Build the complete system prompt
+  return buildSystemPrompt(finalSections, additionalContent);
 }
 
 // Get or create business config with business memories
@@ -200,7 +204,7 @@ async function updateAgentFullConfig(
 
     logger.info("🔄 Updating full agent configuration", { agentId, voiceId });
 
-    // Build prompt config with tool ID if available
+    // Build prompt config with tools array
     const promptConfig: any = {
       prompt: systemMessage,
       llm: "gpt-4o-mini",
@@ -208,12 +212,16 @@ async function updateAgentFullConfig(
       max_tokens: 150,
     };
 
-    // System tools like end_call must use built_in_tools (object format, not array)
-    // According to ElevenLabs API: built_in_tools should be an object/dictionary
-    promptConfig.built_in_tools = {
-      end_call: true, // Enable the built-in end_call tool
-    };
-    logger.info("✅ Using built_in_tools for end_call");
+    // Add end_call as a system tool in the tools array
+    // According to ElevenLabs API documentation, system tools should be added to the tools array
+    promptConfig.tools = [
+      {
+        type: "system",
+        name: "end_call",
+        description: "", // Empty description uses default end call prompt
+      },
+    ];
+    logger.info("✅ Added end_call as system tool in tools array");
 
     const response = await fetch(
       `${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`,
@@ -367,9 +375,13 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
     return null;
   }
 
-  // Note: System tools like end_call are built-in and cannot be created via tools API
-  // They must be enabled via built_in_tools in the agent configuration
-  logger.info("🔧 Using built-in end_call tool (system tools are built-in, not created)");
+  // Get or create the end_call tool as a system tool
+  const endCallToolId = await getOrCreateEndCallTool();
+  if (endCallToolId) {
+    logger.info("✅ Got end_call tool", { toolId: endCallToolId });
+  } else {
+    logger.warn("⚠️ Could not get/create end_call tool, will add as system tool in config");
+  }
 
   // Check for existing agent
   const existingAgent = await db.elevenLabsAgent.findFirst({
@@ -381,7 +393,7 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       agentId: existingAgent.agentId,
       currentVoiceId: existingAgent.voiceId,
       newVoiceId: businessConfig.voiceId,
-      voiceChanged: businessConfig.voiceId !== businessConfig.voiceId,
+      voiceChanged: existingAgent.voiceId !== businessConfig.voiceId,
     });
 
     // Update full configuration including turn, asr, tts, and agent settings
@@ -484,11 +496,16 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
             max_tokens: 150,
           };
 
-          // System tools like end_call must use built_in_tools (object format, not array)
-          promptConfig.built_in_tools = {
-            end_call: true, // Enable the built-in end_call tool
-          };
-          logger.info("✅ Creating agent with built_in_tools for end_call");
+          // Add end_call as a system tool in the tools array
+          // According to ElevenLabs API documentation, system tools should be added to the tools array
+          promptConfig.tools = [
+            {
+              type: "system",
+              name: "end_call",
+              description: "", // Empty description uses default end call prompt
+            },
+          ];
+          logger.info("✅ Creating agent with end_call as system tool in tools array");
 
           return promptConfig;
         })(),
@@ -899,6 +916,9 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
             );
           } else if (message.type === "client_tool_call") {
             // Handle tool calls per ElevenLabs WebSocket API spec
+            // When the agent calls a tool (like end_call), ElevenLabs sends a client_tool_call event
+            // We must respond with a client_tool_result event to complete the tool call
+            // Reference: https://elevenlabs.io/docs/api-reference/websocket
             const toolCall = message.client_tool_call;
             const toolName = toolCall?.tool_name;
             const toolCallId = toolCall?.tool_call_id;
@@ -914,6 +934,11 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
               logger.info("🔚 End call tool invoked - terminating call");
               
               // Send tool result back to ElevenLabs per API spec
+              // The client_tool_result must include:
+              // - type: "client_tool_result"
+              // - tool_call_id: The ID from the original tool call
+              // - result: The result of the tool execution (can be string or object)
+              // - is_error: Boolean indicating if the tool call failed
               if (elevenLabsWs?.readyState === WebSocket.OPEN && toolCallId) {
                 elevenLabsWs.send(
                   JSON.stringify({

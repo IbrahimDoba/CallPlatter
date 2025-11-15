@@ -2,34 +2,9 @@ import { Router, type Request, type Response } from "express";
 import { db } from "@repo/db";
 import { logger } from "../utils/logger";
 import crypto from "crypto";
+import { mapPolarProductToPlanType, getPlanConfig, type PlanType } from "../config/billingPlans";
 
 const router: Router = Router();
-
-// Local PlanType definition to match our current schema
-type PlanType = "STARTER" | "BUSINESS" | "ENTERPRISE";
-
-// Helper function to map Polar plan to our PlanType
-function mapPolarPlanToPlanType(polarProductName?: string): PlanType {
-  if (!polarProductName) return "STARTER";
-  
-  const name = polarProductName.toLowerCase();
-  if (name.includes("starter")) return "STARTER";
-  if (name.includes("business")) return "BUSINESS";
-  if (name.includes("enterprise")) return "ENTERPRISE";
-  
-  return "STARTER";
-}
-
-// Helper function to get billing plan details
-function getBillingPlanDetails(planType: PlanType) {
-  const plans: Record<PlanType, { minutesIncluded: number; overageRate: number; monthlyPrice: number }> = {
-    STARTER: { minutesIncluded: 40, overageRate: 0.89, monthlyPrice: 20 },
-    BUSINESS: { minutesIncluded: 110, overageRate: 0.61, monthlyPrice: 45 },
-    ENTERPRISE: { minutesIncluded: 300, overageRate: 0.44, monthlyPrice: 120 },
-  };
-  
-  return plans[planType];
-}
 
 // Verify Polar webhook signature
 function verifyPolarSignature(secret: string, signature: string, body: string): boolean {
@@ -206,78 +181,117 @@ async function handleOrderPaid(payload: any) {
 // Handle subscription created
 async function handleSubscriptionCreated(payload: any) {
   try {
-    logger.info("🔔 Subscription created webhook received", payload);
+    logger.info("🔔 Subscription created webhook received", {
+      subscriptionId: payload.data?.id,
+      status: payload.data?.status,
+      currentPeriodStart: payload.data?.current_period_start,
+      currentPeriodEnd: payload.data?.current_period_end,
+      trialEndsAt: payload.data?.ends_at, // Polar uses ends_at for trial end during trialing status
+      productName: payload.data?.product?.name,
+    });
+
     const customer = payload.data?.customer;
     const subscription = payload.data;
-    
+
     // Try to get email from customer or user object
     const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
-    
+
     if (!customerEmail) {
       logger.error("❌ No customer email found in subscription created payload");
       return;
     }
-    
+
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
       include: { business: true }
     });
-    
+
     if (!user) {
       logger.error(`❌ No user found for email ${customerEmail}`);
       return;
     }
-    
+
     if (!user.business) {
       logger.error(`❌ No business found for user ${customerEmail}. User ID: ${user.id}`);
       return;
     }
-    
-    // Determine plan type from subscription
-    const planType = mapPolarPlanToPlanType(subscription.product?.name);
-    const planDetails = getBillingPlanDetails(planType);
-    
-    // Calculate period dates
-    const currentPeriodStart = new Date(subscription.current_period_start || Date.now());
-    const currentPeriodEnd = new Date(subscription.current_period_end || Date.now());
-    
-    // Check if this is a trial subscription
-    const isTrial = subscription.status === 'trialing' || subscription.trial_end;
-    const subscriptionStatus = isTrial ? "TRIAL" : "ACTIVE";
-    
+
+    // POLAR IS THE SOURCE OF TRUTH - use actual values from Polar
+    const planType = mapPolarProductToPlanType(subscription.product?.name);
+    const planConfig = getPlanConfig(planType);
+
+    // Use ACTUAL dates from Polar - this is critical!
+    const currentPeriodStart = subscription.current_period_start
+      ? new Date(subscription.current_period_start)
+      : new Date();
+    const currentPeriodEnd = subscription.current_period_end
+      ? new Date(subscription.current_period_end)
+      : new Date();
+
+    // Determine subscription status from Polar's actual status
+    // Polar uses: 'trialing', 'active', 'canceled', 'incomplete', 'incomplete_expired', 'past_due', 'unpaid'
+    let subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "PAST_DUE" | "SUSPENDED" = "ACTIVE";
+
+    if (subscription.status === 'trialing') {
+      subscriptionStatus = "TRIAL";
+    } else if (subscription.status === 'active') {
+      subscriptionStatus = "ACTIVE";
+    } else if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired') {
+      subscriptionStatus = "CANCELLED";
+    } else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+      subscriptionStatus = "PAST_DUE";
+    }
+
+    // Get trial end date from Polar - they may use 'ends_at' during trial or 'trial_end'
+    const trialEndsAt = subscription.status === 'trialing' && subscription.ends_at
+      ? new Date(subscription.ends_at)
+      : subscription.trial_end
+        ? new Date(subscription.trial_end)
+        : null;
+
+    logger.info("📊 Subscription details from Polar:", {
+      planType,
+      status: subscriptionStatus,
+      currentPeriodStart: currentPeriodStart.toISOString(),
+      currentPeriodEnd: currentPeriodEnd.toISOString(),
+      trialEndsAt: trialEndsAt?.toISOString() || null,
+      minutesIncluded: planConfig.minutesIncluded,
+      overageRateUSD: planConfig.overageRateUSD,
+    });
+
     // Check if subscription already exists (upsert to handle race conditions)
     const existingSubscription = await db.subscription.findUnique({
       where: { businessId: user.business.id }
     });
-    
+
     // Get the period month/year for billing usage reset
     const periodMonth = currentPeriodStart.getMonth() + 1; // 1-12
     const periodYear = currentPeriodStart.getFullYear();
-    
+
     if (existingSubscription) {
-      // For subscription.created, ALWAYS reset usage regardless of period
-      // This ensures that when subscription is created/recreated, usage starts fresh
-      
-      // Update existing subscription - always reset minutesUsed
+      // Update existing subscription with Polar's actual data
       await db.subscription.update({
         where: { id: existingSubscription.id },
         data: {
           planType,
-          status: subscriptionStatus as "TRIAL" | "ACTIVE" | "CANCELLED",
+          status: subscriptionStatus,
           currentPeriodStart,
           currentPeriodEnd,
-          minutesIncluded: planDetails.minutesIncluded,
-          overageRate: planDetails.overageRate,
-          trialEndsAt: isTrial && subscription.trial_end ? new Date(subscription.trial_end) : null,
+          minutesIncluded: planConfig.minutesIncluded,
+          overageRate: planConfig.overageRateUSD, // Store USD rate
+          trialEndsAt,
+          trialActivated: subscriptionStatus === "TRIAL",
+          trialStartedAt: subscriptionStatus === "TRIAL" ? currentPeriodStart : existingSubscription.trialStartedAt,
+          trialPlanType: subscriptionStatus === "TRIAL" ? planType : existingSubscription.trialPlanType,
           polarSubscriptionId: subscription.id,
           polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
-          // Always reset minutes used when subscription is created
+          // Reset minutes used for new subscription
           minutesUsed: 0,
         }
       });
-      
-      // Always reset BillingUsage for the current period's month
+
+      // Reset BillingUsage for the current period
       await db.billingUsage.upsert({
         where: {
           businessId_month_year: {
@@ -291,41 +305,48 @@ async function handleSubscriptionCreated(payload: any) {
           month: periodMonth,
           year: periodYear,
           totalMinutes: 0,
-          includedMinutes: planDetails.minutesIncluded,
+          includedMinutes: planConfig.minutesIncluded,
           overageMinutes: 0,
           overageCost: 0,
           totalCost: 0,
         },
         update: {
           totalMinutes: 0,
-          includedMinutes: planDetails.minutesIncluded,
+          includedMinutes: planConfig.minutesIncluded,
           overageMinutes: 0,
           overageCost: 0,
           totalCost: 0,
         }
       });
-      logger.info(`✅ Reset BillingUsage for business ${user.business.id} for ${periodMonth}/${periodYear}`);
-      
-      logger.info(`✅ Updated existing subscription for business ${user.business.id} with plan ${planType} (usage reset)`);
+
+      logger.info(`✅ Updated existing subscription for business ${user.business.id}`, {
+        planType,
+        status: subscriptionStatus,
+        periodEnd: currentPeriodEnd.toISOString(),
+        trialEndsAt: trialEndsAt?.toISOString() || null,
+      });
     } else {
-      // Create new subscription record
+      // Create new subscription record with Polar's actual data
       await db.subscription.create({
         data: {
           businessId: user.business.id,
           planType,
-          status: subscriptionStatus as "TRIAL" | "ACTIVE" | "CANCELLED",
+          status: subscriptionStatus,
           currentPeriodStart,
           currentPeriodEnd,
-          minutesIncluded: planDetails.minutesIncluded,
+          minutesIncluded: planConfig.minutesIncluded,
           minutesUsed: 0,
-          overageRate: planDetails.overageRate,
-          trialEndsAt: isTrial && subscription.trial_end ? new Date(subscription.trial_end) : null,
+          overageRate: planConfig.overageRateUSD, // Store USD rate
+          trialEndsAt,
+          trialActivated: subscriptionStatus === "TRIAL",
+          trialStartedAt: subscriptionStatus === "TRIAL" ? currentPeriodStart : null,
+          trialPlanType: subscriptionStatus === "TRIAL" ? planType : null,
           polarSubscriptionId: subscription.id,
           polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
         }
       });
-      
-      // Create BillingUsage record for the new subscription
+
+      // Create BillingUsage record
       await db.billingUsage.upsert({
         where: {
           businessId_month_year: {
@@ -339,20 +360,26 @@ async function handleSubscriptionCreated(payload: any) {
           month: periodMonth,
           year: periodYear,
           totalMinutes: 0,
-          includedMinutes: planDetails.minutesIncluded,
+          includedMinutes: planConfig.minutesIncluded,
           overageMinutes: 0,
           overageCost: 0,
           totalCost: 0,
         },
         update: {
           totalMinutes: 0,
-          includedMinutes: planDetails.minutesIncluded,
+          includedMinutes: planConfig.minutesIncluded,
           overageMinutes: 0,
           overageCost: 0,
           totalCost: 0,
         }
       });
-      logger.info(`✅ Created ${isTrial ? 'trial' : 'active'} subscription for business ${user.business.id} with plan ${planType} and reset usage`);
+
+      logger.info(`✅ Created new subscription for business ${user.business.id}`, {
+        planType,
+        status: subscriptionStatus,
+        periodEnd: currentPeriodEnd.toISOString(),
+        trialEndsAt: trialEndsAt?.toISOString() || null,
+      });
     }
   } catch (error) {
     logger.error("❌ Error handling subscription created:", error);
@@ -365,17 +392,19 @@ async function handleSubscriptionUpdated(payload: any) {
   try {
     const customer = payload.data?.customer;
     const subscription = payload.data;
-    
+
     logger.info("🔔 Subscription updated webhook received:", {
       type: payload.type,
       subscriptionId: subscription?.id,
       status: subscription?.status,
+      currentPeriodStart: subscription?.current_period_start,
+      currentPeriodEnd: subscription?.current_period_end,
       customerEmail: customer?.email || subscription?.user?.email
     });
-    
+
     // Try to get email from customer or user object
     const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
-    
+
     if (!customerEmail) {
       logger.error("❌ No customer email found in subscription updated payload", {
         hasCustomer: !!customer,
@@ -384,32 +413,32 @@ async function handleSubscriptionUpdated(payload: any) {
       });
       return;
     }
-    
+
     if (!subscription?.id) {
       logger.error("❌ No subscription ID found in payload");
       return;
     }
-    
+
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
       include: { business: { include: { phoneNumberRecord: true } } }
     });
-    
+
     if (!user) {
       logger.error(`❌ No user found for email ${customerEmail}`);
       return;
     }
-    
+
     if (!user.business) {
       logger.error(`❌ No business found for user ${customerEmail} (User ID: ${user.id})`);
       return;
     }
-    
+
     // Check if subscription is revoked (immediate loss of access)
     if (subscription.status === "canceled" || subscription.status === "revoked") {
       logger.warn(`⚠️ Subscription ${subscription.status} for business ${user.business.id}`);
-      
+
       // Find subscription first
       const existingSubscription = await db.subscription.findFirst({
         where: {
@@ -419,7 +448,7 @@ async function handleSubscriptionUpdated(payload: any) {
           ]
         }
       });
-      
+
       if (existingSubscription) {
         // Update existing subscription to cancelled
         await db.subscription.update({
@@ -433,9 +462,9 @@ async function handleSubscriptionUpdated(payload: any) {
         logger.info(`✅ Cancelled subscription ${existingSubscription.id} for business ${user.business.id}`);
       } else {
         // Create cancelled subscription record
-        const planType = mapPolarPlanToPlanType(subscription.product?.name);
-        const planDetails = getBillingPlanDetails(planType);
-        
+        const planType = mapPolarProductToPlanType(subscription.product?.name);
+        const planConfig = getPlanConfig(planType);
+
         await db.subscription.create({
           data: {
             businessId: user.business.id,
@@ -443,9 +472,9 @@ async function handleSubscriptionUpdated(payload: any) {
             status: "CANCELLED",
             currentPeriodStart: new Date(subscription.current_period_start || Date.now()),
             currentPeriodEnd: new Date(subscription.current_period_end || Date.now()),
-            minutesIncluded: planDetails.minutesIncluded,
+            minutesIncluded: planConfig.minutesIncluded,
             minutesUsed: 0,
-            overageRate: planDetails.overageRate,
+            overageRate: planConfig.overageRateUSD,
             polarSubscriptionId: subscription.id,
             polarCustomerId: customer.id,
             cancelledAt: new Date(),
@@ -453,7 +482,7 @@ async function handleSubscriptionUpdated(payload: any) {
         });
         logger.info(`✅ Created cancelled subscription record for business ${user.business.id}`);
       }
-      
+
       // Release phone number if business has one
       if (user.business.phoneNumberRecord?.twilioSid) {
         try {
@@ -464,22 +493,42 @@ async function handleSubscriptionUpdated(payload: any) {
           logger.error("❌ Error releasing phone number:", phoneError);
         }
       }
-      
+
       return;
     }
-    
-    // Handle normal subscription updates (active, trial, etc.)
-    const planType = mapPolarPlanToPlanType(subscription.product?.name);
-    const planDetails = getBillingPlanDetails(planType);
-    
-    // Calculate period dates
-    const currentPeriodStart = new Date(subscription.current_period_start || Date.now());
-    const currentPeriodEnd = new Date(subscription.current_period_end || Date.now());
-    
-    // Determine subscription status
-    const isTrial = subscription.status === "trialing" || (subscription.trial_end && new Date(subscription.trial_end) > new Date());
-    const subscriptionStatus = isTrial ? "TRIAL" : subscription.status === "active" ? "ACTIVE" : "CANCELLED";
-    
+
+    // POLAR IS THE SOURCE OF TRUTH - use actual values from Polar
+    const planType = mapPolarProductToPlanType(subscription.product?.name);
+    const planConfig = getPlanConfig(planType);
+
+    // Use ACTUAL dates from Polar
+    const currentPeriodStart = subscription.current_period_start
+      ? new Date(subscription.current_period_start)
+      : new Date();
+    const currentPeriodEnd = subscription.current_period_end
+      ? new Date(subscription.current_period_end)
+      : new Date();
+
+    // Determine subscription status from Polar's actual status
+    let subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "PAST_DUE" | "SUSPENDED" = "ACTIVE";
+
+    if (subscription.status === 'trialing') {
+      subscriptionStatus = "TRIAL";
+    } else if (subscription.status === 'active') {
+      subscriptionStatus = "ACTIVE";
+    } else if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired') {
+      subscriptionStatus = "CANCELLED";
+    } else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+      subscriptionStatus = "PAST_DUE";
+    }
+
+    // Get trial end date from Polar
+    const trialEndsAt = subscription.status === 'trialing' && subscription.ends_at
+      ? new Date(subscription.ends_at)
+      : subscription.trial_end
+        ? new Date(subscription.trial_end)
+        : null;
+
     // Check if subscription already exists (by polarSubscriptionId or businessId)
     const existingSubscription = await db.subscription.findFirst({
       where: {
@@ -489,25 +538,26 @@ async function handleSubscriptionUpdated(payload: any) {
         ]
       }
     });
-    
+
     const subscriptionData = {
       businessId: user.business.id,
       planType,
-      status: subscriptionStatus as "TRIAL" | "ACTIVE" | "CANCELLED",
+      status: subscriptionStatus,
       currentPeriodStart,
       currentPeriodEnd,
-      minutesIncluded: planDetails.minutesIncluded,
-      overageRate: planDetails.overageRate,
-      trialEndsAt: isTrial && subscription.trial_end ? new Date(subscription.trial_end) : null,
+      minutesIncluded: planConfig.minutesIncluded,
+      overageRate: planConfig.overageRateUSD,
+      trialEndsAt,
+      trialActivated: subscriptionStatus === "TRIAL",
       polarSubscriptionId: subscription.id,
       polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
-      cancelledAt: subscription.status === "canceled" || subscription.status === "revoked" ? new Date() : null,
+      cancelledAt: null,
     };
-    
+
     if (existingSubscription) {
       // Check if this is a new billing period (period start date changed)
       const isNewPeriod = existingSubscription.currentPeriodStart.getTime() !== currentPeriodStart.getTime();
-      
+
       // Update existing subscription with minutesUsed reset if new period
       await db.subscription.update({
         where: { id: existingSubscription.id },
@@ -515,14 +565,21 @@ async function handleSubscriptionUpdated(payload: any) {
           ...subscriptionData,
           // Reset minutes used if it's a new billing period
           minutesUsed: isNewPeriod ? 0 : existingSubscription.minutesUsed,
+          // Update trial tracking fields
+          trialStartedAt: subscriptionStatus === "TRIAL" && !existingSubscription.trialStartedAt
+            ? currentPeriodStart
+            : existingSubscription.trialStartedAt,
+          trialPlanType: subscriptionStatus === "TRIAL"
+            ? planType
+            : existingSubscription.trialPlanType,
         }
       });
-      
+
       // If new period, reset BillingUsage for the new period's month
       if (isNewPeriod) {
         const newPeriodMonth = currentPeriodStart.getMonth() + 1; // 1-12
         const newPeriodYear = currentPeriodStart.getFullYear();
-        
+
         // Reset or create BillingUsage record for the new period
         await db.billingUsage.upsert({
           where: {
@@ -537,14 +594,14 @@ async function handleSubscriptionUpdated(payload: any) {
             month: newPeriodMonth,
             year: newPeriodYear,
             totalMinutes: 0,
-            includedMinutes: planDetails.minutesIncluded,
+            includedMinutes: planConfig.minutesIncluded,
             overageMinutes: 0,
             overageCost: 0,
             totalCost: 0,
           },
           update: {
             totalMinutes: 0,
-            includedMinutes: planDetails.minutesIncluded,
+            includedMinutes: planConfig.minutesIncluded,
             overageMinutes: 0,
             overageCost: 0,
             totalCost: 0,
@@ -552,17 +609,27 @@ async function handleSubscriptionUpdated(payload: any) {
         });
         logger.info(`✅ Reset BillingUsage for business ${user.business.id} for ${newPeriodMonth}/${newPeriodYear}`);
       }
-      
-      logger.info(`✅ Updated subscription for business ${user.business.id} with plan ${planType}, status: ${subscriptionStatus}${isNewPeriod ? ' (new period - usage reset)' : ''}`);
+
+      logger.info(`✅ Updated subscription for business ${user.business.id}`, {
+        planType,
+        status: subscriptionStatus,
+        periodEnd: currentPeriodEnd.toISOString(),
+        isNewPeriod,
+      });
     } else {
       // Create new subscription if it doesn't exist
       await db.subscription.create({
         data: {
           ...subscriptionData,
           minutesUsed: 0,
+          trialStartedAt: subscriptionStatus === "TRIAL" ? currentPeriodStart : null,
+          trialPlanType: subscriptionStatus === "TRIAL" ? planType : null,
         }
       });
-      logger.info(`✅ Created new subscription for business ${user.business.id} with plan ${planType}, status: ${subscriptionStatus}`);
+      logger.info(`✅ Created new subscription for business ${user.business.id}`, {
+        planType,
+        status: subscriptionStatus,
+      });
     }
   } catch (error) {
     logger.error("❌ Error handling subscription updated:", error);
@@ -573,29 +640,33 @@ async function handleSubscriptionUpdated(payload: any) {
 // Handle subscription canceled
 async function handleSubscriptionCanceled(payload: any) {
   try {
-    logger.info("🔔 Subscription canceled webhook received", payload);
+    logger.info("🔔 Subscription canceled webhook received", {
+      subscriptionId: payload.data?.id,
+      status: payload.data?.status,
+    });
+
     const customer = payload.data?.customer;
     const subscription = payload.data;
-    
+
     // Try to get email from customer or user object
     const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
-    
+
     if (!customerEmail) {
       logger.error("❌ No customer email found in subscription canceled payload");
       return;
     }
-    
+
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
       include: { business: { include: { phoneNumberRecord: true } } }
     });
-    
+
     if (!user?.business) {
       logger.error(`❌ No business found for user ${customerEmail}`);
       return;
     }
-    
+
     // Find subscription first (upsert pattern)
     const existingSubscription = await db.subscription.findFirst({
       where: {
@@ -605,7 +676,7 @@ async function handleSubscriptionCanceled(payload: any) {
         ]
       }
     });
-    
+
     if (existingSubscription) {
       // Update existing subscription to cancelled
       await db.subscription.update({
@@ -619,9 +690,9 @@ async function handleSubscriptionCanceled(payload: any) {
       logger.info(`✅ Cancelled subscription ${existingSubscription.id} for business ${user.business.id}`);
     } else {
       // Create cancelled subscription record if it doesn't exist
-      const planType = mapPolarPlanToPlanType(subscription.product?.name);
-      const planDetails = getBillingPlanDetails(planType);
-      
+      const planType = mapPolarProductToPlanType(subscription.product?.name);
+      const planConfig = getPlanConfig(planType);
+
       await db.subscription.create({
         data: {
           businessId: user.business.id,
@@ -629,9 +700,9 @@ async function handleSubscriptionCanceled(payload: any) {
           status: "CANCELLED",
           currentPeriodStart: new Date(subscription.current_period_start || Date.now()),
           currentPeriodEnd: new Date(subscription.current_period_end || Date.now()),
-          minutesIncluded: planDetails.minutesIncluded,
+          minutesIncluded: planConfig.minutesIncluded,
           minutesUsed: 0,
-          overageRate: planDetails.overageRate,
+          overageRate: planConfig.overageRateUSD,
           polarSubscriptionId: subscription.id,
           polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
           cancelledAt: new Date(),
@@ -639,7 +710,7 @@ async function handleSubscriptionCanceled(payload: any) {
       });
       logger.info(`✅ Created cancelled subscription record for business ${user.business.id}`);
     }
-    
+
     // Release phone number if business has one
     if (user.business.phoneNumberRecord?.twilioSid) {
       try {
@@ -659,29 +730,35 @@ async function handleSubscriptionCanceled(payload: any) {
 // Handle subscription active
 async function handleSubscriptionActive(payload: any) {
   try {
-    logger.info("🔔 Subscription activated webhook received", payload);
+    logger.info("🔔 Subscription activated webhook received", {
+      subscriptionId: payload.data?.id,
+      status: payload.data?.status,
+      currentPeriodStart: payload.data?.current_period_start,
+      currentPeriodEnd: payload.data?.current_period_end,
+    });
+
     const customer = payload.data?.customer;
     const subscription = payload.data;
-    
+
     // Try to get email from customer or user object
     const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
-    
+
     if (!customerEmail) {
       logger.error("❌ No customer email found in subscription active payload");
       return;
     }
-    
+
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
       include: { business: true }
     });
-    
+
     if (!user?.business) {
       logger.error(`❌ No business found for user ${customerEmail}`);
       return;
     }
-    
+
     // Check if subscription exists
     const existingSubscription = await db.subscription.findFirst({
       where: {
@@ -691,17 +768,22 @@ async function handleSubscriptionActive(payload: any) {
         ]
       }
     });
-    
-    const planType = mapPolarPlanToPlanType(subscription.product?.name);
-    const planDetails = getBillingPlanDetails(planType);
-    const currentPeriodStart = new Date(subscription.current_period_start || Date.now());
-    const currentPeriodEnd = new Date(subscription.current_period_end || Date.now());
-    
+
+    // POLAR IS THE SOURCE OF TRUTH - use actual values from Polar
+    const planType = mapPolarProductToPlanType(subscription.product?.name);
+    const planConfig = getPlanConfig(planType);
+    const currentPeriodStart = subscription.current_period_start
+      ? new Date(subscription.current_period_start)
+      : new Date();
+    const currentPeriodEnd = subscription.current_period_end
+      ? new Date(subscription.current_period_end)
+      : new Date();
+
     if (existingSubscription) {
       // Check if this is a new billing period (period start date changed)
       const isNewPeriod = existingSubscription.currentPeriodStart.getTime() !== currentPeriodStart.getTime();
-      
-      // Update existing subscription
+
+      // Update existing subscription with Polar's actual data
       await db.subscription.update({
         where: { id: existingSubscription.id },
         data: {
@@ -709,22 +791,23 @@ async function handleSubscriptionActive(payload: any) {
           planType,
           currentPeriodStart,
           currentPeriodEnd,
-          minutesIncluded: planDetails.minutesIncluded,
-          overageRate: planDetails.overageRate,
+          minutesIncluded: planConfig.minutesIncluded,
+          overageRate: planConfig.overageRateUSD,
           polarSubscriptionId: subscription.id,
           polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
           cancelledAt: null,
           trialEndsAt: null,
+          trialActivated: false,
           // Reset minutes used if it's a new billing period
           minutesUsed: isNewPeriod ? 0 : existingSubscription.minutesUsed,
         }
       });
-      
+
       // If new period, reset BillingUsage for the new period's month
       if (isNewPeriod) {
         const newPeriodMonth = currentPeriodStart.getMonth() + 1; // 1-12
         const newPeriodYear = currentPeriodStart.getFullYear();
-        
+
         // Reset or create BillingUsage record for the new period
         await db.billingUsage.upsert({
           where: {
@@ -739,14 +822,14 @@ async function handleSubscriptionActive(payload: any) {
             month: newPeriodMonth,
             year: newPeriodYear,
             totalMinutes: 0,
-            includedMinutes: planDetails.minutesIncluded,
+            includedMinutes: planConfig.minutesIncluded,
             overageMinutes: 0,
             overageCost: 0,
             totalCost: 0,
           },
           update: {
             totalMinutes: 0,
-            includedMinutes: planDetails.minutesIncluded,
+            includedMinutes: planConfig.minutesIncluded,
             overageMinutes: 0,
             overageCost: 0,
             totalCost: 0,
@@ -754,8 +837,12 @@ async function handleSubscriptionActive(payload: any) {
         });
         logger.info(`✅ Reset BillingUsage for business ${user.business.id} for ${newPeriodMonth}/${newPeriodYear}`);
       }
-      
-      logger.info(`✅ Activated existing subscription for business ${user.business.id} with plan ${planType}${isNewPeriod ? ' (new period - usage reset)' : ''}`);
+
+      logger.info(`✅ Activated subscription for business ${user.business.id}`, {
+        planType,
+        periodEnd: currentPeriodEnd.toISOString(),
+        isNewPeriod,
+      });
     } else {
       // Create new subscription if it doesn't exist
       await db.subscription.create({
@@ -765,14 +852,17 @@ async function handleSubscriptionActive(payload: any) {
           status: "ACTIVE",
           currentPeriodStart,
           currentPeriodEnd,
-          minutesIncluded: planDetails.minutesIncluded,
+          minutesIncluded: planConfig.minutesIncluded,
           minutesUsed: 0,
-          overageRate: planDetails.overageRate,
+          overageRate: planConfig.overageRateUSD,
           polarSubscriptionId: subscription.id,
           polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
         }
       });
-      logger.info(`✅ Created and activated new subscription for business ${user.business.id} with plan ${planType}`);
+      logger.info(`✅ Created active subscription for business ${user.business.id}`, {
+        planType,
+        periodEnd: currentPeriodEnd.toISOString(),
+      });
     }
   } catch (error) {
     logger.error("❌ Error handling subscription active:", error);
