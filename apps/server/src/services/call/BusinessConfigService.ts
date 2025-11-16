@@ -26,7 +26,7 @@ export class BusinessConfigService {
     try {
       const business = await db.business.findFirst({
         where: { phoneNumber },
-        include: { aiAgentConfig: true },
+        include: { elevenLabsAgent: true },
       });
 
       if (!business) {
@@ -48,7 +48,7 @@ export class BusinessConfigService {
     try {
       const business = await db.business.findUnique({
         where: { id: businessId },
-        include: { aiAgentConfig: true },
+        include: { elevenLabsAgent: true },
       });
 
       if (!business) {
@@ -67,72 +67,56 @@ export class BusinessConfigService {
    * Build business configuration from database record
    */
   private async buildBusinessConfig(business: any): Promise<BusinessConfig> {
-    let aiConfig = business.aiAgentConfig;
-    
-    if (!aiConfig) {
-      aiConfig = await this.createDefaultAIConfig(business.id);
+    const agent = business.elevenLabsAgent;
+
+    if (!agent) {
+      logger.warn("No ElevenLabsAgent found for business", { businessId: business.id });
+      // Return default config without creating one - agent should be created during onboarding
+      return {
+        businessId: business.id,
+        businessName: business.name,
+        voice: DEFAULT_VOICE,
+        temperature: DEFAULT_TEMPERATURE,
+        systemMessage: instructions.join("\n"),
+        firstMessage: undefined,
+        goodbyeMessage: undefined,
+        enableServerVAD: true,
+        turnDetection: "server_vad",
+      };
     }
 
-    const sessionInstructions = this.buildSessionInstructions(aiConfig);
-    
+    const sessionInstructions = this.buildSessionInstructions(agent);
+
     return {
       businessId: business.id,
       businessName: business.name,
-      voice: aiConfig.voice || DEFAULT_VOICE,
-      temperature: aiConfig.temperature || DEFAULT_TEMPERATURE,
+      voice: agent.voiceName || DEFAULT_VOICE,
+      temperature: agent.temperature || DEFAULT_TEMPERATURE,
       systemMessage: sessionInstructions.join("\n"),
-      firstMessage: aiConfig.firstMessage || undefined,
-      goodbyeMessage: aiConfig.goodbyeMessage || undefined,
-      enableServerVAD: aiConfig.enableServerVAD,
-      turnDetection: aiConfig.turnDetection,
+      firstMessage: agent.firstMessage || undefined,
+      goodbyeMessage: agent.goodbyeMessage || undefined,
+      enableServerVAD: true,
+      turnDetection: "server_vad",
     };
   }
 
   /**
-   * Create default AI configuration for business
+   * Build session instructions from ElevenLabsAgent configuration
    */
-  private async createDefaultAIConfig(businessId: string) {
-    const aiConfig = await db.aIAgentConfig.create({
-      data: {
-        businessId,
-        voice: DEFAULT_VOICE,
-        responseModel: "gpt-4o-realtime-preview-2024-12-17",
-        transcriptionModel: "whisper-1",
-        systemPrompt: null,
-        firstMessage: null,
-        goodbyeMessage: null,
-        temperature: DEFAULT_TEMPERATURE,
-        enableServerVAD: true,
-        turnDetection: "server_vad",
-        askForName: true,
-        askForPhone: true,
-        askForCompany: false,
-        askForEmail: true,
-        askForAddress: false,
-      },
-    });
-
-    logger.info("Created default AIAgentConfig for business", { businessId });
-    return aiConfig;
-  }
-
-  /**
-   * Build session instructions from AI configuration
-   */
-  private buildSessionInstructions(aiConfig: any): string[] {
+  private buildSessionInstructions(agent: any): string[] {
     const sessionInstructions = [...instructions];
 
-    if (aiConfig.systemPrompt) {
-      sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
+    if (agent.systemPrompt) {
+      sessionInstructions.push(`\n\n${agent.systemPrompt}`);
     }
-    
+
     // Add question collection instructions based on settings
     const questionsToAsk = [];
-    if (aiConfig.askForName) questionsToAsk.push("name");
-    if (aiConfig.askForPhone) questionsToAsk.push("phone number");
-    if (aiConfig.askForEmail) questionsToAsk.push("email address");
-    if (aiConfig.askForCompany) questionsToAsk.push("company name");
-    if (aiConfig.askForAddress) questionsToAsk.push("address");
+    if (agent.askForName) questionsToAsk.push("name");
+    if (agent.askForPhone) questionsToAsk.push("phone number");
+    if (agent.askForEmail) questionsToAsk.push("email address");
+    if (agent.askForCompany) questionsToAsk.push("company name");
+    if (agent.askForAddress) questionsToAsk.push("address");
 
     if (questionsToAsk.length > 0) {
       sessionInstructions.push(
@@ -141,14 +125,14 @@ export class BusinessConfigService {
     }
 
     // BusinessMemory will be handled separately in the session update
-    if (aiConfig.firstMessage) {
+    if (agent.firstMessage) {
       sessionInstructions.push(
-        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${aiConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${agent.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
       );
     }
-    if (aiConfig.goodbyeMessage) {
+    if (agent.goodbyeMessage) {
       sessionInstructions.push(
-        `\n\nWhen ending the call, use this goodbye message: "${aiConfig.goodbyeMessage}"`
+        `\n\nWhen ending the call, use this goodbye message: "${agent.goodbyeMessage}"`
       );
     }
 

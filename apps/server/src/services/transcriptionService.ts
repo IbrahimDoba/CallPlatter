@@ -220,7 +220,7 @@ export async function getBusinessContext(callId: string): Promise<BusinessContex
       include: {
         business: {
           include: {
-            aiAgentConfig: true
+            elevenLabsAgent: true
           }
         }
       }
@@ -231,19 +231,19 @@ export async function getBusinessContext(callId: string): Promise<BusinessContex
       return null;
     }
 
-    const aiConfig = call.business.aiAgentConfig;
-    if (!aiConfig) {
-      logger.warn("No AI config found for business", { businessId: call.business.id });
+    const agent = call.business.elevenLabsAgent;
+    if (!agent) {
+      logger.warn("No ElevenLabsAgent found for business", { businessId: call.business.id });
       return null;
     }
 
     // Build questions to ask array
     const questionsToAsk = [];
-    if (aiConfig.askForName) questionsToAsk.push("name");
-    if (aiConfig.askForPhone) questionsToAsk.push("phone number");
-    if (aiConfig.askForEmail) questionsToAsk.push("email address");
-    if (aiConfig.askForCompany) questionsToAsk.push("company name");
-    if (aiConfig.askForAddress) questionsToAsk.push("address");
+    if (agent.askForName) questionsToAsk.push("name");
+    if (agent.askForPhone) questionsToAsk.push("phone number");
+    if (agent.askForEmail) questionsToAsk.push("email address");
+    if (agent.askForCompany) questionsToAsk.push("company name");
+    if (agent.askForAddress) questionsToAsk.push("address");
 
     // Fetch business memories
     const businessMemories = await db.businessMemory.findMany({
@@ -260,8 +260,8 @@ export async function getBusinessContext(callId: string): Promise<BusinessContex
       .map((memory: any) => `${memory.title}: ${memory.content}`)
       .join('\n');
 
-    const systemMessage = aiConfig.systemPrompt || "You are a helpful AI assistant.";
-    const fullSystemMessage = memoryContent 
+    const systemMessage = agent.systemPrompt || "You are a helpful AI assistant.";
+    const fullSystemMessage = memoryContent
       ? `${systemMessage}\n\nBusiness Context & Memory:\n${memoryContent}`
       : systemMessage;
 
@@ -269,8 +269,8 @@ export async function getBusinessContext(callId: string): Promise<BusinessContex
       businessId: call.business.id,
       businessName: call.business.name,
       systemMessage: fullSystemMessage,
-      firstMessage: aiConfig.firstMessage || undefined,
-      goodbyeMessage: aiConfig.goodbyeMessage || undefined,
+      firstMessage: agent.firstMessage || undefined,
+      goodbyeMessage: agent.goodbyeMessage || undefined,
       questionsToAsk
     };
 

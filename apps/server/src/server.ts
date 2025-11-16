@@ -1,7 +1,11 @@
+// Load environment variables FIRST before any other imports
+// This ensures env vars are available during module initialization
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import { createServer } from "http";
-import dotenv from "dotenv";
 import { validateEnvironment } from "./utils/helpers";
 import { logger } from "./utils/logger";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -15,6 +19,7 @@ import dashboardRoutes from "./routes/dashboard";
 import signupRoutes from "./routes/signup";
 import webhooksRoutes from "./routes/webhooks";
 import agentRoutes from "./routes/agent";
+import agentToolsRoutes from "./routes/agentTools";
 import openaiRoutes from "./routes/openai";
 import { AIReceptionistService } from "./services/aiReceptionistService";
 
@@ -38,8 +43,7 @@ import resetPasswordRoutes from "./routes/reset-password";
 import twilioRoutes from "./routes/twilio";
 import demoRequestRoutes from "./routes/demo-request";
 import polarWebhookRoutes from "./routes/polarWebhook";
-
-dotenv.config();
+import elevenLabsAgentManagementRoutes from "./routes/elevenLabsAgentManagement";
 
 validateEnvironment();
 
@@ -193,6 +197,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/signup", signupRoutes);
 app.use("/api/webhooks", webhooksRoutes);
 app.use("/api/agent", agentRoutes);
+app.use("/api/agent-tools", agentToolsRoutes);
 app.use("/api/openai", openaiRoutes);
 app.use("/api/uploadthing", uploadthingRoutes);
 app.use("/api/embeddings", embeddingsRoutes);
@@ -213,6 +218,7 @@ app.use("/api/webhooks/polar", polarWebhookRoutes);
 
 app.use("/api/openai-realtime", openaiRealtimeRoutes);
 app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
+app.use("/api/elevenlabs-management", elevenLabsAgentManagementRoutes);
 
 
 setupElevenLabsAgentWebSocket(server);

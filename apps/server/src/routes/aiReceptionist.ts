@@ -47,24 +47,24 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
     let usedConfig = false;
     if (typeof businessId === "string" && businessId.trim()) {
       try {
-        let cfg = await db.aIAgentConfig.findUnique({ where: { businessId } });
-        logger.info("Loading AIAgentConfig for realtime session", {
+        let agent = await db.elevenLabsAgent.findUnique({ where: { businessId } });
+        logger.info("Loading ElevenLabsAgent for realtime session", {
           businessId,
-          found: !!cfg,
+          found: !!agent,
         });
 
         // Fallback: sometimes client may send a userId; resolve to their businessId
-        if (!cfg) {
+        if (!agent) {
           try {
             const user = await db.user.findUnique({
               where: { id: businessId },
             });
             if (user?.businessId) {
               logger.info(
-                "Resolved userId to businessId for AIAgentConfig lookup",
+                "Resolved userId to businessId for ElevenLabsAgent lookup",
                 { userId: businessId, resolvedBusinessId: user.businessId }
               );
-              cfg = await db.aIAgentConfig.findUnique({
+              agent = await db.elevenLabsAgent.findUnique({
                 where: { businessId: user.businessId },
               });
             } else if (user) {
@@ -75,81 +75,53 @@ router.post("/realtime/ephemeral-token", async (req, res) => {
                 });
                 if (biz) {
                   logger.info(
-                    "Resolved user via membership to business for AIAgentConfig lookup",
+                    "Resolved user via membership to business for ElevenLabsAgent lookup",
                     { userId: user.id, resolvedBusinessId: biz.id }
                   );
-                  cfg = await db.aIAgentConfig.findUnique({
+                  agent = await db.elevenLabsAgent.findUnique({
                     where: { businessId: biz.id },
                   });
                 }
               } catch (e2) {
                 logger.warn(
-                  "Failed membership-based business resolution for AIAgentConfig",
+                  "Failed membership-based business resolution for ElevenLabsAgent",
                   { userId: user.id, e2 }
                 );
               }
             }
           } catch (e) {
             logger.warn(
-              "Failed attempting user->business fallback for AIAgentConfig",
+              "Failed attempting user->business fallback for ElevenLabsAgent",
               { candidateId: businessId, e }
             );
           }
         }
 
-        if (!cfg) {
-          // As a final step: if the provided ID is a valid business, create a default config lazily
-          try {
-            const biz = await db.business.findUnique({
-              where: { id: businessId },
-            });
-            if (biz) {
-              cfg = await db.aIAgentConfig.create({
-                data: {
-                  businessId: biz.id,
-                  voice: sessionVoice,
-                  responseModel: "gpt-4o-realtime-preview-2024-12-17",
-                  transcriptionModel: transcriptionModel || "whisper-1",
-                  systemPrompt: null,
-                  firstMessage: null,
-                  temperature: 0.7,
-                },
-              });
-              logger.info("Created default AIAgentConfig for business", {
-                businessId: biz.id,
-              });
-            } else {
-              logger.info(
-                "No business found matching provided id; continuing with in-memory defaults",
-                { providedId: businessId }
-              );
-            }
-          } catch (e3) {
-            logger.warn("Failed to auto-create default AIAgentConfig", {
-              candidateBusinessId: businessId,
-              e3,
-            });
-          }
+        if (!agent) {
+          // ElevenLabsAgent should be created during onboarding
+          // Do not auto-create here - log warning and continue with defaults
+          logger.warn(
+            "No ElevenLabsAgent found for business; continuing with in-memory defaults",
+            { providedId: businessId }
+          );
         }
 
-        if (cfg) {
-          if (cfg.voice) sessionVoice = cfg.voice;
-          if (cfg.systemPrompt)
-            sessionInstructions.push(`\n\n${cfg.systemPrompt}`);
-          if (cfg.firstMessage) {
+        if (agent) {
+          if (agent.voiceName) sessionVoice = agent.voiceName;
+          if (agent.systemPrompt)
+            sessionInstructions.push(`\n\n${agent.systemPrompt}`);
+          if (agent.firstMessage) {
             sessionInstructions.push(
-              `\n\nWhen the call starts, greet the caller with: "${cfg.firstMessage}"`
+              `\n\nWhen the call starts, greet the caller with: "${agent.firstMessage}"`
             );
-            firstMessage = cfg.firstMessage;
+            firstMessage = agent.firstMessage;
           }
-          if (cfg.transcriptionModel)
-            transcriptionModel = cfg.transcriptionModel;
-          if (typeof cfg.temperature === "number")
-            temperature = cfg.temperature;
+          if (typeof agent.temperature === "number")
+            temperature = agent.temperature;
           usedConfig = true;
         }
       } catch (err) {
-        logger.error("Failed to load AIAgentConfig for realtime session", {
+        logger.error("Failed to load ElevenLabsAgent for realtime session", {
           businessId,
           err,
         });

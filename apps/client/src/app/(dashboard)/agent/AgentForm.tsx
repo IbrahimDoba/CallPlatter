@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useId, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   Bot,
   Save,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, apiRequest } from "@/lib/api";
 import { useAgentContext } from "@/contexts/AgentContext";
 import BusinessKnowledge from "./components/BusinessKnowledge";
 import VoiceSelection from "./components/VoiceSelection";
 import CRMData from "./components/CRMData";
+import { AgentTools } from "./components/AgentTools";
 
 interface BusinessMemory {
   id?: string;
@@ -28,17 +29,19 @@ export default function AgentForm() {
   );
   const [systemPrompt, setSystemPrompt] = useState("");
   const [voice, setVoice] = useState("james");
-  const [responseModel, setResponseModel] = useState(
-    "gpt-4o-realtime-preview-2024-12-17"
-  );
-  const [transcriptionModel, setTranscriptionModel] = useState("whisper-1");
-  const [enableServerVAD, setEnableServerVAD] = useState(true);
-  const [turnDetection, setTurnDetection] = useState("server_vad");
   const [temperature, setTemperature] = useState<string>("");
   const [settings, setSettings] = useState<string>("");
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // ElevenLabs specific fields
+  const [agentId, setAgentId] = useState<string>("");
+  const [voiceId, setVoiceId] = useState<string>("");
+  // Business details
+  const [businessName, setBusinessName] = useState("");
+  const [businessDescription, setBusinessDescription] = useState("");
+  const [hasAgent, setHasAgent] = useState(false);
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
 
   const loadAgentConfig = useCallback(async () => {
     if (!businessId) {
@@ -54,29 +57,36 @@ export default function AgentForm() {
       console.log("Agent config response:", response);
 
       if (response.ok) {
-        const { config, memories } = response.data;
-        console.log("Config:", config, "Memories:", memories);
+        const { config, memories, business } = response.data;
+        console.log("Config:", config, "Memories:", memories, "Business:", business);
+
+        // Load business details
+        if (business) {
+          setBusinessName(business.name || "");
+          setBusinessDescription(business.description || "");
+        }
+
+        // Always load memories, even if config is null
+        setBusinessMemories(memories || []);
 
         if (!config) {
-          toast.info("No agent config found for this business yet");
+          setHasAgent(false);
+          toast.info(`No agent config found yet. Loaded ${memories?.length || 0} memories.`);
           return;
         }
+        setHasAgent(true);
         setFirstMessage(config.firstMessage ?? "");
-        setBusinessMemories(memories || []);
         setSystemPrompt(config.systemPrompt ?? "");
         setVoice(config.voice ?? "james");
-        setResponseModel(
-          config.responseModel ?? "gpt-4o-realtime-preview-2024-12-17"
-        );
-        setTranscriptionModel(config.transcriptionModel ?? "whisper-1");
-        setEnableServerVAD(config.enableServerVAD ?? true);
-        setTurnDetection(config.turnDetection ?? "server_vad");
         setTemperature(
           config.temperature != null ? String(config.temperature) : ""
         );
         setSettings(
           config.settings ? JSON.stringify(config.settings, null, 2) : ""
         );
+        // ElevenLabs specific fields
+        setAgentId(config.agentId ?? "");
+        setVoiceId(config.voiceId ?? "");
         toast.success(
           `Loaded agent config and ${memories?.length || 0} memories`
         );
@@ -106,6 +116,55 @@ export default function AgentForm() {
     }
   }, [businessId, hasLoadedOnce, loadAgentConfig]);
 
+  const onCreateAgent = async () => {
+    if (!businessId) {
+      toast.error("Missing business ID");
+      return;
+    }
+
+    if (!businessName || !businessDescription) {
+      toast.error("Please fill in business name and description");
+      return;
+    }
+
+    setIsCreatingAgent(true);
+    try {
+      const response = await apiRequest('/agent/elevenlabs/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          businessName,
+          businessDescription,
+          voiceName: getVoiceName(voice),
+          firstMessage: firstMessage || "Hello! How can I assist you today?",
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("AI Agent created successfully");
+        setHasAgent(true);
+        await loadAgentConfig();
+      } else {
+        toast.error(response.error || "Failed to create agent");
+      }
+    } catch (error) {
+      console.error("Error creating agent:", error);
+      toast.error("Failed to create agent");
+    } finally {
+      setIsCreatingAgent(false);
+    }
+  };
+
+  const getVoiceName = (voiceId: string): string => {
+    const voiceMap: Record<string, string> = {
+      'james': 'James',
+      'peter': 'Peter', 
+      'hope': 'Hope',
+      'emmanuel': 'Emmanuel',
+      'stella': 'Stella'
+    };
+    return voiceMap[voiceId] || voiceId;
+  };
+
   const saveAgentConfig = async () => {
     if (!businessId) {
       toast.error("Missing business ID. Please complete onboarding first.");
@@ -129,10 +188,6 @@ export default function AgentForm() {
         firstMessage: firstMessage || null,
         systemPrompt: systemPrompt || null,
         voice: voice || null,
-        responseModel: responseModel || null,
-        transcriptionModel: transcriptionModel || null,
-        enableServerVAD,
-        turnDetection: turnDetection || null,
         temperature: temperature ? Number.parseFloat(temperature) : null,
         settings: parsedSettings,
       };
@@ -143,18 +198,6 @@ export default function AgentForm() {
         // If voice changed, update the ElevenLabs agent voice
         if (voice) {
           try {
-            // Helper functions for voice mapping
-            const getVoiceName = (voiceId: string): string => {
-              const voiceMap: Record<string, string> = {
-                'james': 'James',
-                'peter': 'Peter', 
-                'hope': 'Hope',
-                'emmanuel': 'Emmanuel',
-                'stella': 'Stella'
-              };
-              return voiceMap[voiceId] || voiceId;
-            };
-
             const getElevenLabsVoiceId = (voiceName: string): string => {
               const voiceIdMap: Record<string, string> = {
                 'james': 'Smxkoz0xiOoHo5WcSskf',
@@ -215,6 +258,7 @@ export default function AgentForm() {
       </div>
 
       <div className="space-y-6">
+      
         {activeAgentComponent === "knowledge" && (
           <BusinessKnowledge
             firstMessage={firstMessage}
@@ -223,6 +267,13 @@ export default function AgentForm() {
             setBusinessMemories={setBusinessMemories}
             businessId={businessId}
             isLoading={isLoading}
+            businessName={businessName}
+            setBusinessName={setBusinessName}
+            businessDescription={businessDescription}
+            setBusinessDescription={setBusinessDescription}
+            hasAgent={hasAgent}
+            onCreateAgent={onCreateAgent}
+            isCreatingAgent={isCreatingAgent}
           />
         )}
 
@@ -237,6 +288,10 @@ export default function AgentForm() {
 
         {activeAgentComponent === "crm" && (
           <CRMData businessId={businessId} />
+        )}
+
+        {activeAgentComponent === "tools" && (
+          <AgentTools hasAgent={hasAgent} />
         )}
       </div>
 

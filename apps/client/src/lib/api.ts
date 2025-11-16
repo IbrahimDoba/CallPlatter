@@ -184,6 +184,17 @@ export const api = {
     }),
   },
 
+  // Agent Tools
+  agentTools: {
+    getTools: () => apiRequest('/agent-tools'),
+    toggleTool: (toolId: string, isEnabled: boolean) =>
+      apiRequest(`/agent-tools/${toolId}/toggle`, {
+        method: 'PUT',
+        body: JSON.stringify({ isEnabled }),
+      }),
+    getAvailableTools: () => apiRequest('/agent-tools/available'),
+  },
+
   // OpenAI services
   openai: {
     generateSummary: (callId: string) => apiRequest('/openai/generate-summary', {

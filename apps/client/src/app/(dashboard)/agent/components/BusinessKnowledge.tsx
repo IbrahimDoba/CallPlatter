@@ -19,6 +19,8 @@ import {
   Plus,
   Trash2,
   Edit,
+  Building2,
+  Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -36,6 +38,13 @@ interface BusinessKnowledgeProps {
   setBusinessMemories: React.Dispatch<React.SetStateAction<BusinessMemory[]>>;
   businessId: string | null;
   isLoading?: boolean;
+  businessName: string;
+  setBusinessName: (value: string) => void;
+  businessDescription: string;
+  setBusinessDescription: (value: string) => void;
+  hasAgent: boolean;
+  onCreateAgent: () => Promise<void>;
+  isCreatingAgent: boolean;
 }
 
 export default function BusinessKnowledge({
@@ -45,6 +54,13 @@ export default function BusinessKnowledge({
   setBusinessMemories,
   businessId,
   isLoading = false,
+  businessName,
+  setBusinessName,
+  businessDescription,
+  setBusinessDescription,
+  hasAgent,
+  onCreateAgent,
+  isCreatingAgent,
 }: BusinessKnowledgeProps) {
   const [editingMemory, setEditingMemory] = useState<BusinessMemory | null>(null);
   const [memoryToDelete, setMemoryToDelete] = useState<BusinessMemory | null>(null);
@@ -134,6 +150,61 @@ export default function BusinessKnowledge({
 
   return (
     <>
+      {/* Business Details Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" /> Business Details
+          </CardTitle>
+          <CardDescription>
+            Your business name and description used for AI agent context
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="businessName">Business Name</Label>
+            <Input
+              id="businessName"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder="Your Business Name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="businessDescription">Business Description</Label>
+            <Textarea
+              id="businessDescription"
+              value={businessDescription}
+              onChange={(e) => setBusinessDescription(e.target.value)}
+              placeholder="Describe your business, services, and what makes you unique..."
+              rows={4}
+            />
+          </div>
+          {!hasAgent && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Sparkles className="h-5 w-5 text-yellow-600 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-yellow-800">No AI Agent Found</h4>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    You need to create an AI agent to enable voice calls. Make sure to fill in your business name and description above.
+                  </p>
+                  <Button
+                    onClick={onCreateAgent}
+                    disabled={isCreatingAgent || !businessName || !businessDescription}
+                    className="mt-3 bg-yellow-600 hover:bg-yellow-700"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {isCreatingAgent ? "Creating Agent..." : "Create AI Agent"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Prompts Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

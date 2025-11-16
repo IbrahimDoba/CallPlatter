@@ -124,8 +124,7 @@ model Business {
   website          String?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
-  aiAgentConfig    AIAgentConfig?
-  elevenLabsAgent ElevenLabsAgent?
+  elevenLabsAgent  ElevenLabsAgent?
   appointments     Appointment[]
   businessMemories BusinessMemory[]
   calls            Call[]
@@ -256,33 +255,6 @@ model Message {
   @@map("messages")
 }
 
-/// Stores per-business AI agent configuration
-model AIAgentConfig {
-  id                 String   @id @default(cuid())
-  businessId         String   @unique
-  firstMessage       String?
-  goodbyeMessage     String?
-  systemPrompt       String?
-  voice              String   @default("alloy")
-  accent             String?  // Optional accent for AI agent
-  responseModel      String   @default("gpt-4o-realtime-preview-2024-12-17")
-  transcriptionModel String   @default("whisper-1")
-  enableServerVAD    Boolean  @default(true)
-  turnDetection      String   @default("server_vad")
-  temperature        Float?
-  askForName         Boolean? @default(true)
-  askForPhone        Boolean? @default(true)
-  askForCompany      Boolean? @default(false)
-  askForEmail        Boolean? @default(true)
-  askForAddress      Boolean? @default(false)
-  settings           Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  business           Business @relation(fields: [businessId], references: [id])
-
-  @@map("ai_agent_configs")
-}
-
 /// Stores business-specific memory/context information
 model BusinessMemory {
   id         String   @id @default(cuid())
@@ -331,19 +303,73 @@ model CRMCallEnhancement {
 }
 
 /// ElevenLabs Agent configuration for businesses
+/// This is the single source of truth for AI agent settings
 model ElevenLabsAgent {
-  id         String   @id @default(cuid())
-  businessId String   @unique
-  agentId    String
-  voiceId    String
-  voiceName  String
-  configHash String? 
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  business   Business @relation(fields: [businessId], references: [id])
+  id                 String   @id @default(cuid())
+  businessId         String   @unique
+  agentId            String   // ElevenLabs agent ID
+  voiceId            String   // ElevenLabs voice ID
+  voiceName          String   // Human-readable voice name
+  configHash         String?  // Hash of config for change detection
+  isActive           Boolean  @default(true)
+
+  // Agent settings (previously in AIAgentConfig)
+  firstMessage       String?  // Initial greeting message
+  goodbyeMessage     String?  // Closing message
+  systemPrompt       String?  // Custom system instructions
+  temperature        Float?   // LLM temperature (0-2)
+
+  // Customer information collection flags
+  askForName         Boolean  @default(true)
+  askForPhone        Boolean  @default(true)
+  askForEmail        Boolean  @default(true)
+  askForCompany      Boolean  @default(false)
+  askForAddress      Boolean  @default(false)
+
+  // Additional settings (JSON for flexibility)
+  settings           Json?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  business           Business @relation(fields: [businessId], references: [id])
+  tools              AgentTool[]
 
   @@map("elevenlabs_agents")
+}
+
+// Agent Tools - tracks which tools are enabled for each agent
+model AgentTool {
+  id                 String   @id @default(cuid())
+  agentId            String   // Reference to ElevenLabsAgent
+
+  // Tool identification
+  toolType           ToolType // system, webhook, client, api_integration
+  toolName           String   // e.g., "end_call", "language_detection", custom name
+
+  // Tool configuration
+  description        String?  // Custom description (empty uses default for system tools)
+  isEnabled          Boolean  @default(true)
+
+  // For webhook/custom tools (JSON for flexibility)
+  config             Json?    // Stores webhook URL, parameters, headers, etc.
+
+  // ElevenLabs tool ID (if created via API)
+  elevenLabsToolId   String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  agent              ElevenLabsAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, toolName]) // Each tool name is unique per agent
+  @@map("agent_tools")
+}
+
+enum ToolType {
+  system           // Built-in ElevenLabs tools (end_call, language_detection, etc.)
+  webhook          // External API integrations
+  client           // Client-side tools
+  api_integration  // Pre-configured third-party integrations
 }
 
 
