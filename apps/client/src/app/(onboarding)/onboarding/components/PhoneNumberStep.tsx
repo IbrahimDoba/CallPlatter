@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -53,7 +53,8 @@ export function PhoneNumberStep({
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
-
+  const [isCheckingExisting, setIsCheckingExisting] = useState(true);
+  const hasCheckedRef = useRef(false);
 
   // Fetch available phone numbers from Twilio
   const fetchAvailableNumbers = useCallback(async (page = 1) => {
@@ -96,9 +97,57 @@ export function PhoneNumberStep({
     }
   }, []);
 
+  // Check if business already has a phone number in the database
+  const checkExistingPhoneNumber = useCallback(async () => {
+    try {
+      setIsCheckingExisting(true);
+      console.log('Checking for existing phone number in database...');
+
+      const response = await fetch('/api/onboarding/check-phone-number');
+      const result = await response.json();
+
+      if (result.success && result.hasPhoneNumber && result.phoneNumber) {
+        console.log('Found existing phone number:', result.phoneNumber);
+        toast.success('Phone number already configured! Completing setup...');
+
+        // Update the data with existing phone number
+        onUpdate({
+          selectedPhoneNumber: result.phoneNumber,
+          selectedPhoneNumberId: result.phoneNumberId || result.phoneNumber,
+        });
+
+        // Auto-complete the step since phone number already exists
+        setTimeout(() => {
+          onFinish(result.phoneNumber, result.phoneNumberId || result.phoneNumber);
+        }, 1000);
+
+        return true;
+      }
+
+      console.log('No existing phone number found, showing selection UI');
+      return false;
+    } catch (error) {
+      console.error('Error checking existing phone number:', error);
+      return false;
+    } finally {
+      setIsCheckingExisting(false);
+    }
+  }, [onUpdate, onFinish]);
+
+  // Check for existing phone number on mount (runs only once)
   useEffect(() => {
-    fetchAvailableNumbers();
-  }, [fetchAvailableNumbers]);
+    if (hasCheckedRef.current) return;
+    hasCheckedRef.current = true;
+
+    const checkAndLoad = async () => {
+      const hasExisting = await checkExistingPhoneNumber();
+      if (!hasExisting) {
+        // Only fetch available numbers if no existing phone number
+        fetchAvailableNumbers();
+      }
+    };
+    checkAndLoad();
+  }, [checkExistingPhoneNumber, fetchAvailableNumbers]);
 
   // Format phone number for display
   const formatPhoneNumber = (phoneNumber: string) => {
@@ -209,7 +258,7 @@ export function PhoneNumberStep({
 
   const isFormValid = selectedPhoneNumber !== "";
 
-  if (isLoading) {
+  if (isCheckingExisting || isLoading) {
     return (
       <motion.div
         className="space-y-6"
@@ -220,7 +269,9 @@ export function PhoneNumberStep({
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">Phone Number</h2>
           <p className="mt-2 text-gray-600">
-            Loading available phone numbers from Twilio...
+            {isCheckingExisting
+              ? "Checking for existing phone number..."
+              : "Loading available phone numbers from Twilio..."}
           </p>
         </div>
         <div className="flex items-center justify-center py-12">

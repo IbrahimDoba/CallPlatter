@@ -32,9 +32,9 @@ async function getSignedUrl(agentId: string): Promise<string> {
   return data.signed_url;
 }
 
-// Build system message from business config with business memories
+// Build system message from ElevenLabs agent config with business memories
 // Uses structured 6 building blocks approach (Personality, Environment, Tone, Goal, Guardrails, Tools)
-function buildSystemMessage(aiConfig: any, businessMemories: any[]): string {
+function buildSystemMessage(elevenLabsAgent: any, businessMemories: any[]): string {
   // Get base prompt sections following ElevenLabs prompting guide structure
   const baseSections = buildBasePromptSections();
   
@@ -56,16 +56,16 @@ Use this information to answer customer questions accurately. If asked about som
   // Add custom system prompt if provided (can override or extend any section)
   const additionalContent: string[] = [];
 
-  if (aiConfig.systemPrompt) {
-    additionalContent.push(`\n\n## Additional Instructions\n${aiConfig.systemPrompt}`);
+  if (elevenLabsAgent?.systemPrompt) {
+    additionalContent.push(`\n\n## Additional Instructions\n${elevenLabsAgent.systemPrompt}`);
   }
 
   // Add customer information collection to Goal section
   const questionsToAsk = [];
-  if (aiConfig.askForName) questionsToAsk.push("name");
-  if (aiConfig.askForPhone) questionsToAsk.push("phone number");
-  if (aiConfig.askForCompany) questionsToAsk.push("company name");
-  if (aiConfig.askForAddress) questionsToAsk.push("address");
+  if (elevenLabsAgent?.askForName) questionsToAsk.push("name");
+  if (elevenLabsAgent?.askForPhone) questionsToAsk.push("phone number");
+  if (elevenLabsAgent?.askForCompany) questionsToAsk.push("company name");
+  if (elevenLabsAgent?.askForAddress) questionsToAsk.push("address");
 
   if (questionsToAsk.length > 0) {
     const infoCollectionNote = `\n\n**Customer Information Collection:** Collect customer information (${questionsToAsk.join(", ")}) ONLY AFTER you have gathered all the necessary business information (date, time, quantity, service details, etc.). Focus on their request first, then get their contact details at the end.`;
@@ -74,21 +74,21 @@ Use this information to answer customer questions accurately. If asked about som
     customSections.goal = baseSections.goal + infoCollectionNote;
 
     // Add caller ID instructions for phone number collection
-    if (aiConfig.askForPhone) {
+    if (elevenLabsAgent?.askForPhone) {
       customSections.goal += `\n\n**Phone Number Collection:** Use caller ID when available. Ask "Is this the best number to reach you at?" instead of "What's your phone number?". This is more natural and saves time.`;
     }
   }
 
   // Add first message and goodbye message instructions
-  if (aiConfig.firstMessage) {
-    additionalContent.push(`\n\n## First Message\nWhen the call starts, greet the caller with: "${aiConfig.firstMessage}"`);
+  if (elevenLabsAgent?.firstMessage) {
+    additionalContent.push(`\n\n## First Message\nWhen the call starts, greet the caller with: "${elevenLabsAgent.firstMessage}"`);
   }
 
-  if (aiConfig.goodbyeMessage) {
+  if (elevenLabsAgent?.goodbyeMessage) {
     // Update Tools section to include specific goodbye message
     customSections.tools = baseSections.tools.replace(
       'Say your goodbye message (e.g., "Thank you for calling, have a great day!")',
-      `Say your goodbye message: "${aiConfig.goodbyeMessage}"`
+      `Say your goodbye message: "${elevenLabsAgent.goodbyeMessage}"`
     );
   }
 
@@ -111,8 +111,7 @@ async function getBusinessConfig(phoneNumber: string) {
   const business = await db.business.findFirst({
     where: { phoneNumber },
     include: {
-      aiAgentConfig: true,
-      elevenLabsAgent: true, // Include ElevenLabs agent to get the correct voiceId
+      elevenLabsAgent: true, // Include ElevenLabs agent to get all configuration
       businessMemories: {
         where: { isActive: true },
         orderBy: { createdAt: "desc" },
@@ -122,47 +121,24 @@ async function getBusinessConfig(phoneNumber: string) {
 
   if (!business) return null;
 
-  let aiConfig = business.aiAgentConfig;
-  if (!aiConfig) {
-    aiConfig = await db.aIAgentConfig.create({
-      data: {
-        businessId: business.id,
-        voice: "alloy",
-        responseModel: "gpt-4o-realtime-preview-2024-12-17",
-        transcriptionModel: "whisper-1",
-        systemPrompt: null,
-        firstMessage: null,
-        goodbyeMessage: null,
-        temperature: 0.7,
-        enableServerVAD: true,
-        turnDetection: "server_vad",
-        askForName: true,
-        askForPhone: true,
-        askForCompany: false,
-        askForEmail: false,
-        askForAddress: false,
-      },
-    });
-  }
+  const elevenLabsAgent = business.elevenLabsAgent;
 
-  // Get the voiceId from ElevenLabsAgent if it exists, otherwise use the AI config voice
-  const voiceId =
-    business.elevenLabsAgent?.voiceId || aiConfig.voice || "alloy";
+  // Get the voiceId from ElevenLabsAgent, fallback to "alloy" if not set
+  const voiceId = elevenLabsAgent?.voiceId || "alloy";
 
   logger.info("🎤 Voice configuration", {
     businessId: business.id,
-    elevenLabsVoiceId: business.elevenLabsAgent?.voiceId,
-    aiConfigVoice: aiConfig.voice,
+    elevenLabsVoiceId: elevenLabsAgent?.voiceId,
     finalVoiceId: voiceId,
-    hasElevenLabsAgent: !!business.elevenLabsAgent,
+    hasElevenLabsAgent: !!elevenLabsAgent,
   });
 
   return {
     businessId: business.id,
     businessName: business.name,
-    temperature: aiConfig.temperature || 0.7,
-    systemMessage: buildSystemMessage(aiConfig, business.businessMemories),
-    firstMessage: aiConfig.firstMessage || "Hello! How can I assist you today?",
+    temperature: elevenLabsAgent?.temperature || 0.7,
+    systemMessage: buildSystemMessage(elevenLabsAgent, business.businessMemories),
+    firstMessage: elevenLabsAgent?.firstMessage || "Hello! How can I assist you today?",
     voiceId: voiceId, // Use the correct voiceId from ElevenLabsAgent
   };
 }
@@ -185,7 +161,6 @@ async function updateAgentFullConfig(
   firstMessage: string,
   temperature: number,
   voiceId: string,
-  endCallToolId: string | null, // Not used for system tools, kept for compatibility
   lastConfigHash?: string,
   forceUpdate = false
 ): Promise<boolean> {
@@ -405,9 +380,7 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       businessConfig.firstMessage,
       businessConfig.temperature,
       businessConfig.voiceId || existingAgent.voiceId,
-      null, // System tools don't need tool IDs
       existingAgent.configHash || undefined,
-      true // Force update to apply new timing settings
     );
 
     logger.info("Full configuration update result", {

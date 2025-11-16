@@ -37,6 +37,7 @@ import {
   Mic,
   Users,
   FileText,
+  Wrench,
 } from "lucide-react";
 import { useAgentContext } from "@/contexts/AgentContext";
 
@@ -61,6 +62,7 @@ const navigation = [
     subItems: [
       { name: "Knowledge", component: "knowledge", icon: BookOpen },
       { name: "Voice", component: "voice", icon: Mic },
+      { name: "Tools", component: "tools", icon: Wrench },
       { name: "CRM", component: "crm", icon: Users },
     ]
   },

@@ -91,31 +91,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update or create AI agent config
-    await db.aIAgentConfig.upsert({
-      where: { businessId: businessId },
-      update: {
-        firstMessage: greeting,
-        voice: selectedVoice,
-        accent: selectedAccent, 
-        askForName: true,
-        askForPhone: true,
-        askForEmail: true,
-        askForCompany: false,
-        askForAddress: false,
-      },
-      create: {
-        businessId: businessId,
-        firstMessage: greeting,
-        voice: selectedVoice,
-        accent: selectedAccent, 
-        askForName: true,
-        askForPhone: true,
-        askForEmail: true,
-        askForCompany: false,
-        askForAddress: false,
-      }
-    });
+    // NOTE: AI agent settings are now stored directly in ElevenLabsAgent
+    // The settings (firstMessage, voice, askFor* flags) will be passed to
+    // the ElevenLabs agent creation below and stored in the elevenlabs_agents table
 
     // IMPORTANT: Do NOT create subscriptions here!
     // Polar is the single source of truth for subscriptions.
@@ -166,6 +144,73 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Create ElevenLabs agent for the business
+    // This is MANDATORY - the agent must be created for calls to work
+    let elevenLabsAgentId: string | null = null;
+    const serverUrl = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001').replace(/\/$/, '');
+
+    console.log('Creating ElevenLabs agent via server API:', `${serverUrl}/api/elevenlabs-management/create`);
+
+    try {
+      const agentResponse = await fetch(`${serverUrl}/api/elevenlabs-management/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-business-id': businessId,
+        },
+        body: JSON.stringify({
+          businessName,
+          businessDescription,
+          voiceName: selectedVoice,
+          firstMessage: greeting,
+          // Agent settings - stored directly in ElevenLabsAgent
+          askForName: true,
+          askForPhone: true,
+          askForEmail: true,
+          askForCompany: false,
+          askForAddress: false,
+        }),
+      });
+
+      const agentResponseText = await agentResponse.text();
+      console.log('ElevenLabs agent creation response:', agentResponse.status, agentResponseText);
+
+      if (agentResponse.ok) {
+        try {
+          const agentData = JSON.parse(agentResponseText);
+          elevenLabsAgentId = agentData.data?.agentId || null;
+
+          if (!elevenLabsAgentId) {
+            console.error('ElevenLabs agent created but no agentId returned:', agentData);
+            return NextResponse.json(
+              { error: 'Failed to create AI agent: No agent ID returned' },
+              { status: 500 }
+            );
+          }
+
+          console.log('ElevenLabs agent created successfully:', elevenLabsAgentId);
+        } catch (parseError) {
+          console.error('Failed to parse ElevenLabs agent response:', parseError);
+          return NextResponse.json(
+            { error: 'Failed to create AI agent: Invalid response' },
+            { status: 500 }
+          );
+        }
+      } else {
+        console.error('Failed to create ElevenLabs agent:', agentResponse.status, agentResponseText);
+        return NextResponse.json(
+          { error: `Failed to create AI agent: ${agentResponseText}` },
+          { status: 500 }
+        );
+      }
+    } catch (agentError) {
+      console.error('Error creating ElevenLabs agent:', agentError);
+      return NextResponse.json(
+        { error: `Failed to create AI agent: ${agentError instanceof Error ? agentError.message : 'Unknown error'}` },
+        { status: 500 }
+      );
+    }
+
     // Clean up onboarding progress
     await db.onboardingProgress.delete({
       where: { userId: session.user.id }
@@ -176,10 +221,11 @@ export async function POST(request: NextRequest) {
 
     console.log('Onboarding completed successfully for user:', session.user.id, 'business:', businessId);
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Onboarding completed successfully',
-      businessId: businessId
+      businessId: businessId,
+      elevenLabsAgentId: elevenLabsAgentId,
     });
 
   } catch (error) {

@@ -48,7 +48,7 @@ async function getBusinessConfig(
   try {
     const business = await db.business.findFirst({
       where: { phoneNumber },
-      include: { aiAgentConfig: true },
+      include: { elevenLabsAgent: true },
     });
 
     if (!business) {
@@ -56,57 +56,27 @@ async function getBusinessConfig(
       return null;
     }
 
-    let aiConfig = business.aiAgentConfig;
-    console.log("aiConfig", aiConfig);
-    if (!aiConfig) {
-      aiConfig = await db.aIAgentConfig.create({
-        data: {
-          businessId: business.id,
-          voice: DEFAULT_VOICE,
-          responseModel: "gpt-4o-realtime-preview-2024-12-17",
-          transcriptionModel: "whisper-1",
-          systemPrompt: null,
-          firstMessage: null,
-          goodbyeMessage: null,
-          temperature: DEFAULT_TEMPERATURE,
-          enableServerVAD: true,
-          turnDetection: "server_vad",
-          askForName: true,
-          askForPhone: true,
-          askForCompany: false,
-          askForEmail: false,
-          askForAddress: false,
-        },
-      });
-      logger.info("Created default AIAgentConfig for business", {
+    const agent = business.elevenLabsAgent;
+    if (!agent) {
+      logger.error("No ElevenLabsAgent found for business", {
         businessId: business.id,
+        phoneNumber,
       });
+      return null;
     }
 
     const sessionInstructions = [...instructions];
 
-    // Add accent instructions if accent is specified - PUT THIS FIRST FOR MAXIMUM IMPACT
-    if (aiConfig.accent) {
-      const accentInstructions = getAccentInstructions(aiConfig.accent);
-      // Insert accent instructions at the beginning for maximum impact
-      sessionInstructions.unshift(accentInstructions);
-      logger.info("Added accent instructions to session", {
-        businessId: business.id,
-        accent: aiConfig.accent,
-        instructionsLength: accentInstructions.length
-      });
+    if (agent.systemPrompt) {
+      sessionInstructions.push(`\n\n${agent.systemPrompt}`);
     }
 
-    if (aiConfig.systemPrompt) {
-      sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
-    }
-    
     // Add question collection instructions based on settings
     const questionsToAsk = [];
-    if (aiConfig.askForName) questionsToAsk.push("name");
-    if (aiConfig.askForPhone) questionsToAsk.push("phone number");
-    if (aiConfig.askForCompany) questionsToAsk.push("company name");
-    if (aiConfig.askForAddress) questionsToAsk.push("address");
+    if (agent.askForName) questionsToAsk.push("name");
+    if (agent.askForPhone) questionsToAsk.push("phone number");
+    if (agent.askForCompany) questionsToAsk.push("company name");
+    if (agent.askForAddress) questionsToAsk.push("address");
 
     if (questionsToAsk.length > 0) {
       sessionInstructions.push(
@@ -115,21 +85,20 @@ async function getBusinessConfig(
     }
 
     // BusinessMemory will be handled separately in the session update
-    if (aiConfig.firstMessage) {
+    if (agent.firstMessage) {
       sessionInstructions.push(
-        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${aiConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${agent.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
       );
     }
-    if (aiConfig.goodbyeMessage) {
+    if (agent.goodbyeMessage) {
       sessionInstructions.push(
-        `\n\nWhen ending the call, use this goodbye message: "${aiConfig.goodbyeMessage}"`
+        `\n\nWhen ending the call, use this goodbye message: "${agent.goodbyeMessage}"`
       );
     }
 
     const finalSystemMessage = sessionInstructions.join("\n");
     logger.info("Final system message constructed (getBusinessConfig)", {
       businessId: business.id,
-      accent: aiConfig.accent,
       systemMessageLength: finalSystemMessage.length,
       hasAccentInstructions: finalSystemMessage.includes("Accent/Affect:")
     });
@@ -137,14 +106,14 @@ async function getBusinessConfig(
     return {
       businessId: business.id,
       businessName: business.name,
-      voice: aiConfig.voice || DEFAULT_VOICE,
-      accent: aiConfig.accent || undefined,
-      temperature: aiConfig.temperature || DEFAULT_TEMPERATURE,
+      voice: agent.voiceName || DEFAULT_VOICE,
+      accent: undefined, // Accent is now handled in ElevenLabs agent prompt
+      temperature: agent.temperature || DEFAULT_TEMPERATURE,
       systemMessage: finalSystemMessage,
-      firstMessage: aiConfig.firstMessage || undefined,
-      goodbyeMessage: aiConfig.goodbyeMessage || undefined,
-      enableServerVAD: aiConfig.enableServerVAD,
-      turnDetection: aiConfig.turnDetection,
+      firstMessage: agent.firstMessage || undefined,
+      goodbyeMessage: agent.goodbyeMessage || undefined,
+      enableServerVAD: true, // Default for OpenAI Realtime
+      turnDetection: "server_vad", // Default for OpenAI Realtime
     };
   } catch (error) {
     logger.error("Error fetching business config", { phoneNumber, error });
@@ -210,7 +179,7 @@ async function getBusinessConfigById(
   try {
     const business = await db.business.findUnique({
       where: { id: businessId },
-      include: { aiAgentConfig: true },
+      include: { elevenLabsAgent: true },
     });
 
     if (!business) {
@@ -218,56 +187,26 @@ async function getBusinessConfigById(
       return null;
     }
 
-    let aiConfig = business.aiAgentConfig;
-    if (!aiConfig) {
-      aiConfig = await db.aIAgentConfig.create({
-        data: {
-          businessId: business.id,
-          voice: DEFAULT_VOICE,
-          responseModel: "gpt-4o-realtime-preview-2024-12-17",
-          transcriptionModel: "whisper-1",
-          systemPrompt: null,
-          firstMessage: null,
-          goodbyeMessage: null,
-          temperature: DEFAULT_TEMPERATURE,
-          enableServerVAD: true,
-          turnDetection: "server_vad",
-          askForName: true,
-          askForPhone: true,
-          askForCompany: false,
-          askForEmail: false,
-          askForAddress: false,
-        },
-      });
-      logger.info("Created default AIAgentConfig for business", {
+    const agent = business.elevenLabsAgent;
+    if (!agent) {
+      logger.error("No ElevenLabsAgent found for business", {
         businessId: business.id,
       });
+      return null;
     }
 
     const sessionInstructions = [...instructions];
 
-    // Add accent instructions if accent is specified - PUT THIS FIRST FOR MAXIMUM IMPACT
-    if (aiConfig.accent) {
-      const accentInstructions = getAccentInstructions(aiConfig.accent);
-      // Insert accent instructions at the beginning for maximum impact
-      sessionInstructions.unshift(accentInstructions);
-      logger.info("Added accent instructions to session (getBusinessConfigById)", {
-        businessId: business.id,
-        accent: aiConfig.accent,
-        instructionsLength: accentInstructions.length
-      });
+    if (agent.systemPrompt) {
+      sessionInstructions.push(`\n\n${agent.systemPrompt}`);
     }
 
-    if (aiConfig.systemPrompt) {
-      sessionInstructions.push(`\n\n${aiConfig.systemPrompt}`);
-    }
-    
     // Add question collection instructions based on settings
     const questionsToAsk = [];
-    if (aiConfig.askForName) questionsToAsk.push("name");
-    if (aiConfig.askForPhone) questionsToAsk.push("phone number");
-    if (aiConfig.askForCompany) questionsToAsk.push("company name");
-    if (aiConfig.askForAddress) questionsToAsk.push("address");
+    if (agent.askForName) questionsToAsk.push("name");
+    if (agent.askForPhone) questionsToAsk.push("phone number");
+    if (agent.askForCompany) questionsToAsk.push("company name");
+    if (agent.askForAddress) questionsToAsk.push("address");
 
     if (questionsToAsk.length > 0) {
       sessionInstructions.push(
@@ -276,21 +215,20 @@ async function getBusinessConfigById(
     }
 
     // BusinessMemory will be handled separately in the session update
-    if (aiConfig.firstMessage) {
+    if (agent.firstMessage) {
       sessionInstructions.push(
-        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${aiConfig.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
+        `\n\nIMPORTANT: When the call starts, you MUST greet the caller with exactly this message: "${agent.firstMessage}". Do not use any other greeting or start collecting information until after you've delivered this exact first message.`
       );
     }
-    if (aiConfig.goodbyeMessage) {
+    if (agent.goodbyeMessage) {
       sessionInstructions.push(
-        `\n\nWhen ending the call, use this goodbye message: "${aiConfig.goodbyeMessage}"`
+        `\n\nWhen ending the call, use this goodbye message: "${agent.goodbyeMessage}"`
       );
     }
 
     const finalSystemMessage = sessionInstructions.join("\n");
     logger.info("Final system message constructed", {
       businessId: business.id,
-      accent: aiConfig.accent,
       systemMessageLength: finalSystemMessage.length,
       hasAccentInstructions: finalSystemMessage.includes("Accent/Affect:")
     });
@@ -298,14 +236,14 @@ async function getBusinessConfigById(
     return {
       businessId: business.id,
       businessName: business.name,
-      voice: aiConfig.voice || DEFAULT_VOICE,
-      accent: aiConfig.accent || undefined,
-      temperature: aiConfig.temperature || DEFAULT_TEMPERATURE,
+      voice: agent.voiceName || DEFAULT_VOICE,
+      accent: undefined, // Accent is now handled in ElevenLabs agent prompt
+      temperature: agent.temperature || DEFAULT_TEMPERATURE,
       systemMessage: finalSystemMessage,
-      firstMessage: aiConfig.firstMessage || undefined,
-      goodbyeMessage: aiConfig.goodbyeMessage || undefined,
-      enableServerVAD: aiConfig.enableServerVAD,
-      turnDetection: aiConfig.turnDetection,
+      firstMessage: agent.firstMessage || undefined,
+      goodbyeMessage: agent.goodbyeMessage || undefined,
+      enableServerVAD: true, // Default for OpenAI Realtime
+      turnDetection: "server_vad", // Default for OpenAI Realtime
     };
   } catch (error) {
     logger.error("Error fetching business config by ID", { businessId, error });

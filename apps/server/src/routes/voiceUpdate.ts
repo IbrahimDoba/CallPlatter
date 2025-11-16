@@ -77,35 +77,26 @@ router.patch('/voice', async (req: Request, res: Response) => {
       });
     }
 
-    // Update AI Agent Config
+    // Update ElevenLabsAgent voice name
     if (voice) {
-      logger.info("Updating AI Agent Config", { businessId, voice });
-      
-      const aiConfig = await db.aIAgentConfig.upsert({
-        where: { businessId },
-        update: { 
-          voice,
-          updatedAt: new Date()
-        },
-        create: {
-          businessId,
-          voice: voice || 'james',
-          firstMessage: "Hello! How can I assist you today?",
-          systemPrompt: "",
-          responseModel: "gpt-4o-realtime-preview-2024-12-17",
-          transcriptionModel: "whisper-1",
-          enableServerVAD: true,
-          turnDetection: "server_vad",
-          temperature: 0.7,
-          askForName: true,
-          askForPhone: true,
-          askForCompany: false,
-          askForEmail: true,
-          askForAddress: false
-        }
+      logger.info("Updating ElevenLabsAgent voice name", { businessId, voice });
+
+      const elevenLabsAgentExists = await db.elevenLabsAgent.findUnique({
+        where: { businessId }
       });
-      
-      logger.info("AI Agent Config updated", { aiConfig });
+
+      if (elevenLabsAgentExists) {
+        await db.elevenLabsAgent.update({
+          where: { businessId },
+          data: {
+            voiceName: voice,
+            updatedAt: new Date()
+          }
+        });
+        logger.info("ElevenLabsAgent voice name updated", { businessId, voice });
+      } else {
+        logger.warn("No ElevenLabsAgent found for business, skipping voice name update", { businessId });
+      }
     }
 
     // Update ElevenLabs Agent if voiceId is provided
@@ -188,23 +179,17 @@ router.patch('/voice', async (req: Request, res: Response) => {
     }
 
     logger.info("Voice updated successfully", { businessId, voice, voiceId });
-    
+
     // Verify the update was successful by fetching the current config
-    const updatedConfig = await db.aIAgentConfig.findUnique({
-      where: { businessId },
-      select: { voice: true, updatedAt: true }
-    });
-    
-    const updatedElevenLabsAgent = await db.elevenLabsAgent.findFirst({
+    const updatedElevenLabsAgent = await db.elevenLabsAgent.findUnique({
       where: { businessId },
       select: { voiceId: true, voiceName: true, updatedAt: true }
     });
-    
-    logger.info("Verification - Updated configs", { 
-      aiConfig: updatedConfig, 
-      elevenLabsAgent: updatedElevenLabsAgent 
+
+    logger.info("Verification - Updated ElevenLabsAgent", {
+      elevenLabsAgent: updatedElevenLabsAgent
     });
-    
+
     res.json({
       success: true,
       message: 'Voice updated successfully',
@@ -214,7 +199,7 @@ router.patch('/voice', async (req: Request, res: Response) => {
         voiceName,
         updatedAt: new Date().toISOString(),
         verification: {
-          aiConfigVoice: updatedConfig?.voice,
+          voiceName: updatedElevenLabsAgent?.voiceName,
           elevenLabsVoiceId: updatedElevenLabsAgent?.voiceId
         }
       }
@@ -264,13 +249,8 @@ router.get('/voices', async (req: Request, res: Response) => {
       });
     }
 
-    // Get current voice configuration
-    const aiConfig = await db.aIAgentConfig.findUnique({
-      where: { businessId },
-      select: { voice: true }
-    });
-
-    const elevenLabsAgent = await db.elevenLabsAgent.findFirst({
+    // Get current voice configuration from ElevenLabsAgent
+    const elevenLabsAgent = await db.elevenLabsAgent.findUnique({
       where: { businessId },
       select: { voiceId: true, voiceName: true }
     });
@@ -281,7 +261,7 @@ router.get('/voices', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        currentVoice: aiConfig?.voice || 'james',
+        currentVoice: elevenLabsAgent?.voiceName || 'james',
         currentVoiceId: elevenLabsAgent?.voiceId,
         currentVoiceName: elevenLabsAgent?.voiceName,
         availableVoices
