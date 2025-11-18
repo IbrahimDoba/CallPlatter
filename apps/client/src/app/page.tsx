@@ -2,8 +2,11 @@
 
 import Header from "@/components/Homepage/header";
 import HeroSection from "@/components/Homepage/hero-section";
+import StatsSection from "@/components/Homepage/stats-section";
 import FeaturesSection from "@/components/Homepage/features-section";
+import UseCasesSection from "@/components/Homepage/use-cases-section";
 import HowItWorks from "@/components/Homepage/how-it-works";
+import IntegrationsSection from "@/components/Homepage/integrations-section";
 import TestimonialsSection from "@/components/Homepage/testimonials-section";
 import CTASection from "@/components/Homepage/cta-section";
 import Footer from "@/components/Homepage/footer";
@@ -19,12 +22,16 @@ export default function CallPlatterLanding() {
 
       <HeroSection />
 
-      {/* <HeroImageWithFeatures /> */}
-
-      {/* <LogoCarousel /> */}
+      <ScrollAnimationWrapper delay={0.1}>
+        <StatsSection />
+      </ScrollAnimationWrapper>
 
       <ScrollAnimationWrapper delay={0.1}>
         <FeaturesSection />
+      </ScrollAnimationWrapper>
+
+      <ScrollAnimationWrapper delay={0.2}>
+        <UseCasesSection />
       </ScrollAnimationWrapper>
 
       <ScrollAnimationWrapper delay={0.2}>
@@ -32,12 +39,12 @@ export default function CallPlatterLanding() {
       </ScrollAnimationWrapper>
 
       <ScrollAnimationWrapper delay={0.3}>
-        <TestimonialsSection />
+        <IntegrationsSection />
       </ScrollAnimationWrapper>
 
-      {/* <FAQSection /> */}
-
-      {/* <AboutSection />*/}
+      <ScrollAnimationWrapper delay={0.3}>
+        <TestimonialsSection />
+      </ScrollAnimationWrapper>
 
       <ScrollAnimationWrapper delay={0.4}>
         <CTASection />

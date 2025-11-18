@@ -52,20 +52,25 @@ export default function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.8 }}
           >
-            AI that secures your calls while you
+            The AI Receptionist for
             <br />
-            <span className="text-primary">focus on your business</span>
+            <span className="text-primary">
+              Online Banks & Currency Exchanges
+            </span>
           </motion.h1>
 
           <motion.p
-            className="text-base md:text-lg text-gray-600 mb-10 max-w-2xl leading-relaxed mx-auto"
+            className="text-base md:text-lg text-gray-600 mb-10 max-w-3xl leading-relaxed mx-auto"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8 }}
           >
-            DailZero is the AI receptionist that answers, filters, and manages
-            every call just like a real assistant, so you{" "}
-            <strong>never miss a customer. Time is money.</strong>
+            Subtext: Handle balance inquiries, transaction tracking, KYC
+            verification, and real-time exchange rates automatically—24/7. Built
+            for digital banks, neobanks, and forex platforms.
+            <strong>
+              80% call deflection. 60% cost reduction. Zero hiring.
+            </strong>
           </motion.p>
 
           <motion.div

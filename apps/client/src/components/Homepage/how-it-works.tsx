@@ -21,28 +21,28 @@ const steps = [
   {
     icon: Phone,
     title: "Customer Calls",
-    description: "Customer dials your business number during off-hours or when you're busy",
+    description: "User calls about password reset, KYC status, or transaction question during high-volume period",
     bgColor: "bg-white",
     textColor: "text-primary",
   },
   {
     icon: Bot,
-    title: "AI Answers",
-    description: "Our AI receptionist picks up with a personalized greeting using your business name",
+    title: "AI Handles Tier-1",
+    description: "AI instantly answers common questions, checks account status, and provides step-by-step guidance",
     bgColor: "bg-primary",
     textColor: "text-white",
   },
   {
     icon: MessageCircle,
-    title: "Natural Conversation",
-    description: "AI understands customer intent and handles the conversation naturally",
+    title: "Smart Routing",
+    description: "Complex issues route to your team with full context - no repetition needed from customer",
     bgColor: "bg-white",
     textColor: "text-primary",
   },
   {
     icon: Calendar,
-    title: "Appointment Booked",
-    description: "Appointment is automatically scheduled and appears in your dashboard",
+    title: "Issue Resolved",
+    description: "Customer gets instant answer or warm handoff to specialist. Average handle time reduced by 40%",
     bgColor: "bg-primary",
     textColor: "text-white",
   },
@@ -63,7 +63,7 @@ export default function HowItWorks() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.6 }}
           >
-            Simple setup, powerful results. Get started in minutes.
+            From setup to scale in 48 hours. No engineering resources required.
           </motion.p>
         </div>
 

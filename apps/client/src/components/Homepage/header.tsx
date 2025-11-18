@@ -27,6 +27,7 @@ import {
   Users,
   BookOpen,
   HelpCircle,
+  Landmark,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -145,6 +146,7 @@ export default function Header() {
     { title: "Car Wash Service", href: "/industries/car-wash", icon: Droplets },
     { title: "Event Planning", href: "/industries/event-planning", icon: Calendar },
     { title: "Online Vendors", href: "/industries/online-vendors", icon: ShoppingCart },
+    { title: "Fintech", href: "/industries/fintech", icon: Landmark },
   ];
 
   const industriesColumns = chunkArray(industries, 4);

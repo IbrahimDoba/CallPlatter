@@ -13,34 +13,34 @@ import {
 
 const features = [
   {
-    title: "24/7 AI Receptionist",
-    description: "Never miss a call again with our intelligent AI that answers every call professionally.",
+    title: "Tier-1 Support Automation",
+    description: "AI handles 80% of calls: password resets, account questions, KYC status, and basic navigation.",
+    icon: <Bot className="w-6 h-6" />,
+  },
+  {
+    title: "Intelligent Call Routing",
+    description: "Complex issues route to your team with full context. No more \"let me transfer you\" frustration.",
     icon: <Phone className="w-6 h-6" />,
   },
   {
-    title: "Smart Scheduling",
-    description: "Automatic appointment booking with calendar integration saves you hours daily.",
-    icon: <Calendar className="w-6 h-6" />,
-  },
-  {
-    title: "Call Analytics",
-    description: "Complete insights into every call with detailed reports and customer analytics.",
-    icon: <BarChart3 className="w-6 h-6" />,
-  },
-  {
-    title: "Professional Service",
-    description: "Consistent, high-quality customer service that represents your brand perfectly.",
-    icon: <Shield className="w-6 h-6" />,
-  },
-  {
-    title: "Instant Response",
-    description: "Lightning-fast call handling with zero wait times for your customers.",
+    title: "Instant Volatility Scaling",
+    description: "Handle 300-500% volume spikes during market events without hiring. Scale support on-demand.",
     icon: <Zap className="w-6 h-6" />,
   },
   {
-    title: "AI-Powered",
-    description: "Advanced artificial intelligence that learns and improves with every interaction.",
-    icon: <Bot className="w-6 h-6" />,
+    title: "Compliance-Ready",
+    description: "PCI-DSS, SOC 2, GDPR compliant. All calls encrypted and audit-ready for regulatory requirements.",
+    icon: <Shield className="w-6 h-6" />,
+  },
+  {
+    title: "Real-Time Analytics",
+    description: "Track call deflection rates, resolution times, and customer satisfaction. Optimize support ROI.",
+    icon: <BarChart3 className="w-6 h-6" />,
+  },
+  {
+    title: "24/7 Global Coverage",
+    description: "Support customers across all time zones in 40+ languages. Never miss urgent account issues.",
+    icon: <Clock className="w-6 h-6" />,
   },
 ];
 
@@ -56,10 +56,10 @@ export default function FeaturesSection() {
           className="text-center mb-16"
         >
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Why Choose <span className="text-primary">DailZero</span>
+            Why Fintech Companies Choose <span className="text-primary">DailZero</span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Everything you need to transform your business communication with AI
+            Reduce support costs by 60%, scale instantly during volatility, and maintain compliance
           </p>
         </motion.div>
 
