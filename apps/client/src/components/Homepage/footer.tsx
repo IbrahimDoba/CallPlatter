@@ -7,7 +7,7 @@ export default function Footer() {
   return (
     <footer className="w-full bg-muted/30 border-t border-border mt-auto">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
@@ -133,6 +133,42 @@ export default function Footer() {
               <li>
                 <Link href="/industries/salons" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Salons
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="font-medium text-foreground">Fintech</h4>
+            <ul className="space-y-2">
+              <li>
+                <Link href="/industries/fintech/digital-banking" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Digital Banking
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/fintech/cryptocurrency-platforms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Cryptocurrency
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/fintech/lending-platforms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Digital Lending
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/fintech/payment-processors" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Payment Processors
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/fintech/investment-platforms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Investment Platforms
+                </Link>
+              </li>
+              <li>
+                <Link href="/industries/fintech/insurtech" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Insurtech
                 </Link>
               </li>
             </ul>

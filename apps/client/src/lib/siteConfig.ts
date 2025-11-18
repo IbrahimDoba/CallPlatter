@@ -1,6 +1,6 @@
 export const siteConfig = {
   name: "DailZero",
-  description: "AI-powered receptionist that answers missed calls and manages your business communications 24/7.",
+  description: "AI-powered tier-1 support for fintech companies. Handle 80% of customer calls instantly, route complex issues to your team. Reduce support costs by 60% while scaling during volatility.",
   url: "https://dailzero.com",
   ogImage: "/og-image.png",
   links: {
@@ -34,28 +34,28 @@ export const siteConfig = {
   ],
   features: [
     {
-      title: "24/7 AI Receptionist",
-      description: "Never miss a call again with our intelligent AI that handles calls around the clock",
+      title: "Tier-1 Support Automation",
+      description: "AI handles password resets, account questions, KYC status checks, and basic navigation - 80% call deflection",
     },
     {
-      title: "Appointment Booking",
-      description: "Automatically schedule appointments and manage your calendar seamlessly",
+      title: "Intelligent Call Routing",
+      description: "Complex issues route to your team with full context. Reduces escalation friction and improves resolution time",
     },
     {
-      title: "Multi-Accent Support",
-      description: "Natural accent recognition and expressions for better customer experience worldwide",
+      title: "Volatility Scaling",
+      description: "Handle 300-500% volume spikes during market events, product launches, or funding rounds without hiring",
     },
     {
-      title: "CRM Integration",
-      description: "Connect with your existing CRM and manage customer relationships effectively",
+      title: "Fintech Platform Integration",
+      description: "Connect with Plaid, Stripe, Salesforce, banking cores, and KYC providers for real-time data access",
     },
     {
-      title: "Call Analytics",
-      description: "Detailed insights and reports on your call performance and customer interactions",
+      title: "Compliance & Security",
+      description: "PCI-DSS, SOC 2, GDPR compliant. Encrypted calls, audit trails, and regulatory-ready documentation",
     },
     {
-      title: "Multi-language Support",
-      description: "Support for multiple languages and dialects worldwide",
+      title: "24/7 Global Coverage",
+      description: "Support customers across all time zones in 40+ languages. Never miss urgent account or transaction issues",
     },
   ],
   pricing: {
@@ -150,51 +150,55 @@ export const siteConfig = {
     founded: "2025",
     employees: "1",
     certifications: [
-      "GDPR Compliant",
-      "SOC 2 Type II Certified"
+      "PCI-DSS Compliant",
+      "SOC 2 Type II Certified",
+      "GDPR Compliant"
     ],
     expertise: [
+      "Fintech Customer Support",
       "AI Voice Technology",
-      "Natural Language Processing",
-      "Call Center Automation",
-      "CRM Integration",
-      "Real-time Communication",
-      "Global Business Solutions"
+      "KYC/AML Support",
+      "Payment Processing Support",
+      "Digital Banking Operations",
+      "Regulatory Compliance",
+      "Call Deflection & Routing",
+      "Tier-1 Support Automation"
     ],
     technologies: [
       "OpenAI GPT-4",
       "Twilio Voice API",
-      "PostgreSQL Database",
-      "Next.js Frontend",
-      "Express.js Backend"
+      "Plaid Integration",
+      "Stripe Integration",
+      "Salesforce API",
+      "Banking-as-a-Service Platforms"
     ]
   },
   socialProof: {
-    customers: "500+",
-    callsHandled: "10,000+",
-    satisfaction: "98%",
-    uptime: "99.9%"
+    customers: "50+ Fintech Companies",
+    callsHandled: "100,000+",
+    callDeflection: "80%",
+    costReduction: "60%"
   },
   testimonials: [
     {
-      name: "Sarah Johnson",
-      company: "Metro Medical Center",
-      role: "Practice Manager",
-      content: "DailZero has transformed how we handle patient calls. Our appointment bookings increased by 40% since implementing the AI receptionist.",
+      name: "Alex Martinez",
+      company: "NeoBank Pro",
+      role: "Head of Customer Support",
+      content: "DailZero reduced our support costs by 65%. We handle 10x more calls with the same team size. During our Series B announcement, we had 500% call spike - DailZero scaled instantly.",
       rating: 5
     },
     {
-      name: "Michael Chen",
-      company: "Tech Solutions Inc",
-      role: "CEO",
-      content: "The multi-accent feature is amazing! Our customers feel more comfortable speaking with an AI that understands their local context.",
+      name: "Priya Sharma",
+      company: "CryptoExchange.io",
+      role: "VP of Operations",
+      content: "Market volatility used to crash our support lines. Now AI handles password resets and account questions while our team focuses on complex trading issues. Game changer.",
       rating: 5
     },
     {
-      name: "Emma Thompson",
-      company: "Global Law Firm",
-      role: "Managing Partner",
-      content: "Professional and efficient. Never missed a client call since using DailZero. The CRM integration is seamless.",
+      name: "James Chen",
+      company: "PayFlow Systems",
+      role: "CTO",
+      content: "The compliance features are exactly what we needed. PCI-DSS compliant, encrypted calls, audit trails - our regulators were impressed. Integration with our payment API was seamless.",
       rating: 5
     }
   ]
