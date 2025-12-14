@@ -1049,6 +1049,7 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
     let businessName: string | null = null;
     let businessId: string | null = null;
     let twilioCallSid: string | null = null;
+    let callerNumber: string | null = null;
 
     // Flag to prevent race condition when handling end_call tool
     let handlingEndCall = false;
@@ -1657,6 +1658,7 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         callId = customParameters.callId;
         callStartTime = new Date();
         twilioCallSid = customParameters.twilioCallSid || null;
+        callerNumber = customParameters.callerNumber || null;
         const shouldStartRecording = customParameters.startRecording === "true";
 
         logger.info("🎬 Stream started", {
