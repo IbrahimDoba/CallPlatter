@@ -8,66 +8,67 @@ datasource db {
 }
 
 model User {
-  id                    String    @id @default(cuid())
-  email                 String    @unique
-  name                  String?
-  password              String?
-  image                 String?
-  emailVerified         DateTime?
-  emailVerificationOtp String?   // OTP for email verification
-  otpExpiresAt          DateTime? // OTP expiration time
-  role                  String    @default("USER")
-  onboardingCompleted   Boolean?   @default(false)
-  polarCustomerId       String?   @unique // Polar customer ID for billing
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  businessId            String?
-  sessions              Session[]
-  accounts              Account[]
-  business              Business? @relation(fields: [businessId], references: [id])
-  onboardingProgress    OnboardingProgress?
+  id                   String              @id @default(cuid())
+  email                String              @unique
+  name                 String?
+  password             String?
+  image                String?
+  emailVerified        DateTime?
+  emailVerificationOtp String?
+  otpExpiresAt         DateTime?
+  role                 String              @default("USER")
+  onboardingCompleted  Boolean?            @default(false)
+  polarCustomerId      String?             @unique
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  businessId           String?
+  accounts             Account[]
+  onboardingProgress   OnboardingProgress?
+  sessions             Session[]
+  business             Business?           @relation(fields: [businessId], references: [id])
 
   @@map("users")
 }
 
 model OnboardingProgress {
-  id                    String    @id @default(cuid())
-  userId                String    @unique
-  currentStep           Int       @default(1)
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  currentStep           Int      @default(1)
   businessName          String?
   businessDescription   String?
   selectedVoice         String?
   selectedAccent        String?
   greeting              String?
-  recordingConsent      Boolean   @default(false)
+  recordingConsent      Boolean  @default(false)
   selectedPlan          String?
-  trialActivated        Boolean   @default(false)
+  trialActivated        Boolean  @default(false)
   polarCustomerId       String?
   selectedPhoneNumber   String?
   selectedPhoneNumberId String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transferEnabled       Boolean  @default(false)
+  transferPhoneNumber   String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("onboarding_progress")
 }
 
 /// NextAuth account links (for OAuth providers)
 model Account {
-  id                 String   @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  @map("refresh_token")
-  access_token       String?  @map("access_token")
-  expires_at         Int?     @map("expires_at")
-  token_type         String?  @map("token_type")
-  scope              String?
-  id_token           String?  @map("id_token")
-  session_state      String?
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @map("refresh_token")
+  access_token      String? @map("access_token")
+  expires_at        Int?    @map("expires_at")
+  token_type        String? @map("token_type")
+  scope             String?
+  id_token          String? @map("id_token")
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
@@ -91,7 +92,7 @@ model EmailVerificationToken {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-  
+
   @@index([email])
   @@index([otp])
   @@index([expiresAt])
@@ -107,7 +108,7 @@ model PasswordResetToken {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-  
+
   @@index([email])
   @@index([otp])
   @@index([token])
@@ -116,49 +117,48 @@ model PasswordResetToken {
 }
 
 model Business {
-  id               String             @id @default(cuid())
-  name             String
-  description      String?
-  phoneNumber      String?
-  address          String?
-  website          String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  elevenLabsAgent  ElevenLabsAgent?
-  appointments     Appointment[]
-  businessMemories BusinessMemory[]
-  calls            Call[]
-  conversations    Conversation[]
-  crmImports       CRMImport[]
-  users            User[]
-  subscription     Subscription?
-  billingUsage     BillingUsage[]
+  id                  String               @id @default(cuid())
+  name                String
+  description         String?
+  phoneNumber         String?
+  address             String?
+  website             String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  phoneNumberId       String?              @unique
+  appointments        Appointment[]
   billingTransactions BillingTransaction[]
-  phoneNumberRecord PhoneNumber?
-  phoneNumberId    String?            @unique
+  billingUsage        BillingUsage[]
+  businessMemories    BusinessMemory[]
+  calls               Call[]
+  conversations       Conversation[]
+  crmImports          CRMImport[]
+  elevenLabsAgent     ElevenLabsAgent?
+  phoneNumberRecord   PhoneNumber?
+  subscription        Subscription?
+  tools               Tool[]
+  users               User[]
 
   @@map("businesses")
 }
 
 model PhoneNumber {
   id                String    @id @default(cuid())
-  number            String    @unique // The actual phone number (e.g., "+2348012345678")
-  countryCode       String    // e.g., "+234" for Nigeria
+  number            String    @unique
+  countryCode       String
   isActive          Boolean   @default(true)
-  isAssigned        Boolean   @default(false) // Whether this number is assigned to a business
-  assignedTo        String?   @unique // Business ID if assigned, null if available
-  twilioSid         String?   @unique // NEW: Twilio SID
-  twilioPhoneNumber String?   // NEW: Twilio phone number
-  webhookUrl         String?   // NEW: Webhook URL
-  capabilities       Json?     // NEW: Voice, SMS, MMS capabilities
-  purchaseDate       DateTime? // NEW: When purchased from Twilio
-  monthlyCost        Decimal?  @db.Decimal(10, 2) // NEW: Monthly cost
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  
-  // Relations
+  isAssigned        Boolean   @default(false)
+  assignedTo        String?   @unique
+  twilioSid         String?   @unique
+  twilioPhoneNumber String?
+  webhookUrl        String?
+  capabilities      Json?
+  purchaseDate      DateTime?
+  monthlyCost       Decimal?  @db.Decimal(10, 2)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   business          Business? @relation(fields: [assignedTo], references: [id])
-  
+
   @@index([isAssigned])
   @@index([isActive])
   @@index([assignedTo])
@@ -187,8 +187,8 @@ model Call {
   intent          String?
   callType        String?             @default("WEB")
   status          CallStatus          @default(INCOMING)
-  duration        Int?                // Duration in seconds
-  durationMinutes Decimal?            @db.Decimal(10, 2) // Duration in minutes (for billing)
+  duration        Int?
+  durationMinutes Decimal?            @db.Decimal(10, 2)
   audioFileUrl    String?
   businessId      String
   createdAt       DateTime            @default(now())
@@ -216,7 +216,7 @@ model CallLog {
 }
 
 model Appointment {
-  id              String           @id @default(cuid())
+  id              String            @id @default(cuid())
   customerName    String
   customerPhone   String
   customerEmail   String?
@@ -225,9 +225,9 @@ model Appointment {
   notes           String?
   status          AppointmentStatus @default(PENDING)
   businessId      String
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  business        Business         @relation(fields: [businessId], references: [id])
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  business        Business          @relation(fields: [businessId], references: [id])
 
   @@map("appointments")
 }
@@ -271,17 +271,17 @@ model BusinessMemory {
 
 /// Simple CRM import tracking - Pinecone handles the actual data
 model CRMImport {
-  id                    String          @id @default(cuid())
-  businessId            String
-  fileName              String
-  status                CRMImportStatus @default(PENDING)
-  recordsProcessed      Int?
-  phoneNumbersFound     Int?
-  errorMessage          String?
-  pineconeNamespace     String?         // Optional: group vectors by import
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  business              Business        @relation(fields: [businessId], references: [id])
+  id                String          @id @default(cuid())
+  businessId        String
+  fileName          String
+  status            CRMImportStatus @default(PENDING)
+  recordsProcessed  Int?
+  phoneNumbersFound Int?
+  errorMessage      String?
+  pineconeNamespace String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  business          Business        @relation(fields: [businessId], references: [id])
 
   @@index([businessId])
   @@index([status])
@@ -305,95 +305,94 @@ model CRMCallEnhancement {
 /// ElevenLabs Agent configuration for businesses
 /// This is the single source of truth for AI agent settings
 model ElevenLabsAgent {
-  id                 String   @id @default(cuid())
-  businessId         String   @unique
-  agentId            String   // ElevenLabs agent ID
-  voiceId            String   // ElevenLabs voice ID
-  voiceName          String   // Human-readable voice name
-  configHash         String?  // Hash of config for change detection
-  isActive           Boolean  @default(true)
-
-  // Agent settings (previously in AIAgentConfig)
-  firstMessage       String?  // Initial greeting message
-  goodbyeMessage     String?  // Closing message
-  systemPrompt       String?  // Custom system instructions
-  temperature        Float?   // LLM temperature (0-2)
-
-  // Customer information collection flags
-  askForName         Boolean  @default(true)
-  askForPhone        Boolean  @default(true)
-  askForEmail        Boolean  @default(true)
-  askForCompany      Boolean  @default(false)
-  askForAddress      Boolean  @default(false)
-
-  // Additional settings (JSON for flexibility)
-  settings           Json?
-
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  business           Business @relation(fields: [businessId], references: [id])
-  tools              AgentTool[]
+  id                  String      @id @default(cuid())
+  businessId          String      @unique
+  agentId             String
+  voiceId             String
+  voiceName           String
+  configHash          String?
+  isActive            Boolean     @default(true)
+  firstMessage        String?
+  goodbyeMessage      String?
+  systemPrompt        String?
+  temperature         Float?
+  askForName          Boolean     @default(true)
+  askForPhone         Boolean     @default(true)
+  askForEmail         Boolean     @default(true)
+  askForCompany       Boolean     @default(false)
+  askForAddress       Boolean     @default(false)
+  settings            Json?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  transferEnabled     Boolean     @default(false)
+  transferPhoneNumber String?
+  tools               AgentTool[]
+  business            Business    @relation(fields: [businessId], references: [id])
 
   @@map("elevenlabs_agents")
 }
 
-// Agent Tools - tracks which tools are enabled for each agent
+/// Workspace-level tools that can be created and reused across agents
+/// These are created via ElevenLabs API and stored for reference
+model Tool {
+  id               String      @id @default(cuid())
+  businessId       String
+  elevenLabsToolId String      @unique
+  type             ToolType
+  name             String
+  description      String
+  config           Json
+  isActive         Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  agentTools       AgentTool[]
+  business         Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([elevenLabsToolId])
+  @@map("tools")
+}
+
+/// Junction table linking agents to tools (many-to-many)
+/// Determines which tools are available to which agents
 model AgentTool {
-  id                 String   @id @default(cuid())
-  agentId            String   // Reference to ElevenLabsAgent
+  id        String          @id @default(cuid())
+  agentId   String
+  toolId    String?
+  isEnabled Boolean         @default(true)
+  order     Int?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  agent     ElevenLabsAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tool      Tool?           @relation(fields: [toolId], references: [id], onDelete: Cascade)
 
-  // Tool identification
-  toolType           ToolType // system, webhook, client, api_integration
-  toolName           String   // e.g., "end_call", "language_detection", custom name
-
-  // Tool configuration
-  description        String?  // Custom description (empty uses default for system tools)
-  isEnabled          Boolean  @default(true)
-
-  // For webhook/custom tools (JSON for flexibility)
-  config             Json?    // Stores webhook URL, parameters, headers, etc.
-
-  // ElevenLabs tool ID (if created via API)
-  elevenLabsToolId   String?
-
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  agent              ElevenLabsAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  @@unique([agentId, toolName]) // Each tool name is unique per agent
+  @@unique([agentId, toolId])
+  @@index([agentId])
+  @@index([toolId])
   @@map("agent_tools")
 }
 
-enum ToolType {
-  system           // Built-in ElevenLabs tools (end_call, language_detection, etc.)
-  webhook          // External API integrations
-  client           // Client-side tools
-  api_integration  // Pre-configured third-party integrations
-}
-
-
-// Billing Models
 model Subscription {
-  id                 String             @id @default(cuid())
-  businessId         String             @unique
-  planType           PlanType
-  status             SubscriptionStatus @default(TRIAL)
-  currentPeriodStart DateTime
-  currentPeriodEnd   DateTime
-  minutesIncluded    Int                // Monthly minutes included in plan
-  minutesUsed        Int                @default(0) // Minutes used in current period
-  overageRate        Decimal            @db.Decimal(10, 2) // Rate per minute for overage (in NGN)
-  trialEndsAt        DateTime?          // When trial period ends
-  trialStartedAt     DateTime?          // NEW: When trial started
-  trialActivated     Boolean            @default(false) // NEW: Trial activation flag
-  trialPlanType      String?            // NEW: Plan type during trial
-  cancelledAt        DateTime?          // When subscription was cancelled
-  polarSubscriptionId String?           @unique // Polar subscription ID
-  polarCustomerId    String?            // Polar customer ID
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id                  String             @id @default(cuid())
+  businessId          String             @unique
+  planType            PlanType
+  status              SubscriptionStatus @default(TRIAL)
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  minutesIncluded     Int
+  minutesUsed         Int                @default(0)
+  overageRate         Decimal            @db.Decimal(10, 2)
+  trialEndsAt         DateTime?
+  trialStartedAt      DateTime?
+  trialActivated      Boolean            @default(false)
+  trialPlanType       String?
+  cancelledAt         DateTime?
+  polarSubscriptionId String?            @unique
+  polarCustomerId     String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  business            Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
   @@index([status])
@@ -406,13 +405,13 @@ model Subscription {
 model BillingUsage {
   id              String   @id @default(cuid())
   businessId      String
-  month           Int      // 1-12
-  year            Int      // 2024, 2025, etc.
-  totalMinutes    Decimal  @default(0) @db.Decimal(10, 2) // Total minutes used this month
-  includedMinutes Int      // Minutes included in plan
-  overageMinutes  Decimal  @default(0) @db.Decimal(10, 2) // Minutes over the included limit
-  overageCost     Decimal  @default(0) @db.Decimal(10, 2) // Cost for overage minutes (in NGN)
-  totalCost       Decimal  @default(0) @db.Decimal(10, 2) // Total cost for the month (overage only, base cost separate)
+  month           Int
+  year            Int
+  totalMinutes    Decimal  @default(0) @db.Decimal(10, 2)
+  includedMinutes Int
+  overageMinutes  Decimal  @default(0) @db.Decimal(10, 2)
+  overageCost     Decimal  @default(0) @db.Decimal(10, 2)
+  totalCost       Decimal  @default(0) @db.Decimal(10, 2)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -428,12 +427,12 @@ model BillingTransaction {
   id          String          @id @default(cuid())
   businessId  String
   type        TransactionType
-  amount      Decimal         @db.Decimal(10, 2) // Amount in NGN
+  amount      Decimal         @db.Decimal(10, 2)
   description String
-  month       Int?            // For monthly billing (1-12)
-  year        Int?            // For monthly billing
+  month       Int?
+  year        Int?
   status      PaymentStatus   @default(PENDING)
-  paidAt      DateTime?       // When payment was completed
+  paidAt      DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   business    Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -447,7 +446,7 @@ model BillingTransaction {
 }
 
 model DemoRequest {
-  id             String   @id @default(cuid())
+  id             String            @id @default(cuid())
   firstName      String
   email          String
   companyName    String
@@ -455,8 +454,8 @@ model DemoRequest {
   companySocials String?
   demoEmail      String
   status         DemoRequestStatus @default(PENDING)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([email])
   @@index([status])
@@ -464,7 +463,12 @@ model DemoRequest {
   @@map("demo_requests")
 }
 
-// Enums
+enum ToolType {
+  webhook
+  client
+  system
+}
+
 enum DemoRequestStatus {
   PENDING
   CONTACTED
