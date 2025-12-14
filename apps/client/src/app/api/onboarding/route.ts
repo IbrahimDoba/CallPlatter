@@ -24,10 +24,12 @@ export async function POST(request: NextRequest) {
       selectedVoice,
       selectedAccent,
       greeting,
+      transferEnabled,
+      transferPhoneNumber,
       selectedPhoneNumber,
       selectedPhoneNumberId,
       // selectedPlan, // Will be used when implementing Polar integration
-      // trialActivated, // Will be used when implementing Polar integration  
+      // trialActivated, // Will be used when implementing Polar integration
       // polarCustomerId // Will be used when implementing Polar integration
     } = body;
 
@@ -169,6 +171,9 @@ export async function POST(request: NextRequest) {
           askForEmail: true,
           askForCompany: false,
           askForAddress: false,
+          // Transfer settings
+          transferEnabled: transferEnabled || false,
+          transferPhoneNumber: transferPhoneNumber || '',
         }),
       });
 

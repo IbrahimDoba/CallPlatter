@@ -35,9 +35,9 @@ export async function handleWebhookEvent(payload: PostEventData) {
   // Handle any post.* events (published, updated, deleted, etc.)
   if (event.startsWith("post")) {
     // Revalidate the homepage and the single post page (if slug exists)
-    revalidatePath("/");
+    revalidatePath("/blog");
     if (data.slug) {
-      revalidatePath(`/post/${data.slug}`);
+      revalidatePath(`/blog/${data.slug}`);
     }
 
     // If your data fetches use tags, revalidate that tag as well:

@@ -105,9 +105,8 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {VOICE_OPTIONS.map((voice, index) => (
-            <motion.button
+            <motion.div
               key={voice.id}
-              type="button"
               className={`w-full text-left border rounded-lg p-4 cursor-pointer transition-all ${
                 selectedVoice === voice.id
                   ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
@@ -178,7 +177,7 @@ export function VoiceSelectionStep({ data, onUpdate, onNext, onBack }: VoiceSele
                   </motion.div>
                 </div>
               </div>
-            </motion.button>
+            </motion.div>
           ))}
         </div>
       </motion.div>

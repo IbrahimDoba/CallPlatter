@@ -4,10 +4,13 @@ import WebSocket from "ws";
 import type { Server } from "http";
 import { logger } from "../utils/logger";
 import { db } from "@repo/db";
-import { buildBasePromptSections, buildSystemPrompt, type PromptSections } from "@/utils/instructions";
+import {
+  buildBasePromptSections,
+  buildSystemPrompt,
+  type PromptSections,
+} from "@/utils/instructions";
 import { registerActiveCall, unregisterActiveCall } from "./webhooks";
 import { subscriptionValidationService } from "../services/subscriptionValidationService";
-import { getOrCreateEndCallTool } from "../services/elevenLabsToolsService";
 
 const router: Router = Router();
 
@@ -34,10 +37,13 @@ async function getSignedUrl(agentId: string): Promise<string> {
 
 // Build system message from ElevenLabs agent config with business memories
 // Uses structured 6 building blocks approach (Personality, Environment, Tone, Goal, Guardrails, Tools)
-function buildSystemMessage(elevenLabsAgent: any, businessMemories: any[]): string {
+function buildSystemMessage(
+  elevenLabsAgent: any,
+  businessMemories: any[]
+): string {
   // Get base prompt sections following ElevenLabs prompting guide structure
   const baseSections = buildBasePromptSections();
-  
+
   // Customize sections based on business configuration
   const customSections: Partial<PromptSections> = {};
 
@@ -49,7 +55,7 @@ You have access to the following important information about this business:
 ${businessMemories.map((memory) => `• ${memory.title}: ${memory.content}`).join("\n")}
 
 Use this information to answer customer questions accurately. If asked about something in your knowledge base, provide the information confidently.`;
-    
+
     customSections.environment = baseSections.environment + businessKnowledge;
   }
 
@@ -57,7 +63,9 @@ Use this information to answer customer questions accurately. If asked about som
   const additionalContent: string[] = [];
 
   if (elevenLabsAgent?.systemPrompt) {
-    additionalContent.push(`\n\n## Additional Instructions\n${elevenLabsAgent.systemPrompt}`);
+    additionalContent.push(
+      `\n\n## Additional Instructions\n${elevenLabsAgent.systemPrompt}`
+    );
   }
 
   // Add customer information collection to Goal section
@@ -69,7 +77,7 @@ Use this information to answer customer questions accurately. If asked about som
 
   if (questionsToAsk.length > 0) {
     const infoCollectionNote = `\n\n**Customer Information Collection:** Collect customer information (${questionsToAsk.join(", ")}) ONLY AFTER you have gathered all the necessary business information (date, time, quantity, service details, etc.). Focus on their request first, then get their contact details at the end.`;
-    
+
     // Update Goal section with customer info collection
     customSections.goal = baseSections.goal + infoCollectionNote;
 
@@ -81,15 +89,21 @@ Use this information to answer customer questions accurately. If asked about som
 
   // Add first message and goodbye message instructions
   if (elevenLabsAgent?.firstMessage) {
-    additionalContent.push(`\n\n## First Message\nWhen the call starts, greet the caller with: "${elevenLabsAgent.firstMessage}"`);
+    additionalContent.push(
+      `\n\n## First Message\nWhen the call starts, greet the caller with: "${elevenLabsAgent.firstMessage}"`
+    );
   }
 
   if (elevenLabsAgent?.goodbyeMessage) {
     // Update Tools section to include specific goodbye message
+    // CRITICAL: Must use exact string matching for ElevenLabs tests
     customSections.tools = baseSections.tools.replace(
       'Say your goodbye message (e.g., "Thank you for calling, have a great day!")',
-      `Say your goodbye message: "${elevenLabsAgent.goodbyeMessage}"`
+      `Say this exact phrase with no changes: ${elevenLabsAgent.goodbyeMessage}`
     );
+
+    // Also add a CRITICAL reminder about exact matching
+    customSections.tools += `\n\n**CRITICAL: Your goodbye message must be exactly "${elevenLabsAgent.goodbyeMessage}" - include all punctuation exactly as shown.**`;
   }
 
   // Merge custom sections with base sections
@@ -137,9 +151,15 @@ async function getBusinessConfig(phoneNumber: string) {
     businessId: business.id,
     businessName: business.name,
     temperature: elevenLabsAgent?.temperature || 0.7,
-    systemMessage: buildSystemMessage(elevenLabsAgent, business.businessMemories),
-    firstMessage: elevenLabsAgent?.firstMessage || "Hello! How can I assist you today?",
+    systemMessage: buildSystemMessage(
+      elevenLabsAgent,
+      business.businessMemories
+    ),
+    firstMessage:
+      elevenLabsAgent?.firstMessage || "Hello! How can I assist you today?",
     voiceId: voiceId, // Use the correct voiceId from ElevenLabsAgent
+    transferEnabled: elevenLabsAgent?.transferEnabled || false,
+    transferPhoneNumber: elevenLabsAgent?.transferPhoneNumber || null,
   };
 }
 
@@ -147,11 +167,87 @@ async function getBusinessConfig(phoneNumber: string) {
 function generateConfigHash(
   systemMessage: string,
   firstMessage: string,
-  temperature: number
+  temperature: number,
+  transferEnabled?: boolean,
+  transferPhoneNumber?: string | null
 ): string {
   const crypto = require("crypto");
-  const configString = `${systemMessage}|${firstMessage}|${temperature}`;
+  const configString = `${systemMessage}|${firstMessage}|${temperature}|${transferEnabled}|${transferPhoneNumber || ""}`;
   return crypto.createHash("md5").update(configString).digest("hex");
+}
+
+// Build ONLY user-created webhook tools from database
+// Built-in tools (end_call, transfer) are added separately to avoid conflicts
+async function buildUserTools(businessId: string): Promise<any[]> {
+  const tools: any[] = [];
+
+  try {
+    const userTools = await db.tool.findMany({
+      where: {
+        businessId,
+        isActive: true,
+      },
+    });
+
+    // Add each user tool to the tools array
+    for (const tool of userTools) {
+      // The config field contains the full ElevenLabs tool configuration
+      const toolConfig = tool.config as any;
+      tools.push(toolConfig);
+    }
+
+    logger.info(`Built user tools array`, {
+      businessId,
+      userTools: userTools.length,
+    });
+  } catch (error) {
+    logger.error("Error fetching user tools", { businessId, error });
+  }
+
+  return tools;
+}
+
+// Build built-in tools separately for better control
+// These work independently of user tools
+function buildBuiltInTools(transferEnabled: boolean): any[] {
+  const tools: any[] = [];
+
+  // CRITICAL: end_call tool with explicit instructions
+  tools.push({
+    type: "client",
+    name: "end_call",
+    description:
+      "IMMEDIATELY end the phone call after saying your goodbye message. You MUST call this tool in these situations: 1) After you say goodbye to the customer, 2) Customer says goodbye/bye/thank you and hangs up, 3) Conversation is complete and all questions answered, 4) Customer explicitly asks to end the call. DO NOT wait for customer response after calling this tool - the call will end automatically.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+    expects_response: true,
+  });
+
+  // Transfer tool (if enabled)
+  if (transferEnabled) {
+    tools.push({
+      type: "client",
+      name: "transfer_to_human",
+      description:
+        "Transfer call to a human agent when the caller requests to speak with a human, has a complex issue, or is frustrated",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+      expects_response: true,
+    });
+  }
+
+  logger.info(`Built-in tools created`, {
+    count: tools.length,
+    tools: tools.map((t) => t.name),
+  });
+
+  return tools;
 }
 
 // Update existing agent's full conversation configuration
@@ -161,6 +257,9 @@ async function updateAgentFullConfig(
   firstMessage: string,
   temperature: number,
   voiceId: string,
+  transferEnabled: boolean,
+  transferPhoneNumber: string | null,
+  businessId: string,
   lastConfigHash?: string,
   forceUpdate = false
 ): Promise<boolean> {
@@ -168,7 +267,9 @@ async function updateAgentFullConfig(
     const currentHash = generateConfigHash(
       systemMessage,
       firstMessage,
-      temperature
+      temperature,
+      transferEnabled,
+      transferPhoneNumber
     );
 
     // Skip update if config hasn't changed (unless forced)
@@ -177,26 +278,50 @@ async function updateAgentFullConfig(
       return true;
     }
 
-    logger.info("🔄 Updating full agent configuration", { agentId, voiceId });
+    logger.info("🔄 Updating full agent configuration", {
+      agentId,
+      voiceId,
+      businessId,
+      transferEnabled,
+      forceUpdate,
+    });
 
-    // Build prompt config with tools array
+    // Build tools: built-in tools FIRST, then user tools
+    // This ensures built-in tools always work, even if user tools fail to load
+    const builtInTools = buildBuiltInTools(transferEnabled);
+    const userTools = await buildUserTools(businessId);
+    const tools = [...builtInTools, ...userTools];
+
+    logger.info("🛠️ Tools built for agent update", {
+      agentId,
+      builtInToolCount: builtInTools.length,
+      userToolCount: userTools.length,
+      totalToolCount: tools.length,
+      toolNames: tools.map((t: any) => t.name),
+      hasEndCallTool: tools.some((t: any) => t.name === "end_call"),
+    });
+
+    // CRITICAL DEBUG: Log the actual end_call tool configuration
+    const endCallTool = tools.find((t: any) => t.name === "end_call");
+    if (endCallTool) {
+      logger.info("🔍 DEBUG: end_call tool configuration", {
+        name: endCallTool.name,
+        type: endCallTool.type,
+        descriptionLength: endCallTool.description?.length || 0,
+        descriptionPreview: endCallTool.description?.substring(0, 100) || "NO DESCRIPTION",
+        expects_response: endCallTool.expects_response,
+      });
+    } else {
+      logger.error("❌ CRITICAL: end_call tool NOT FOUND in tools array!");
+    }
+
     const promptConfig: any = {
       prompt: systemMessage,
       llm: "gpt-4o-mini",
       temperature: temperature,
       max_tokens: 150,
+      tools,
     };
-
-    // Add end_call as a system tool in the tools array
-    // According to ElevenLabs API documentation, system tools should be added to the tools array
-    promptConfig.tools = [
-      {
-        type: "system",
-        name: "end_call",
-        description: "", // Empty description uses default end call prompt
-      },
-    ];
-    logger.info("✅ Added end_call as system tool in tools array");
 
     const response = await fetch(
       `${ELEVENLABS_BASE_URL}/convai/agents/${agentId}`,
@@ -345,49 +470,63 @@ async function updateAgentVoice(
 
 // Create or get ElevenLabs agent
 async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
+  logger.info("🚀 getOrCreateAgent called", {
+    businessId: businessConfig.businessId,
+    businessName: businessConfig.businessName,
+    hasApiKey: !!ELEVENLABS_API_KEY,
+  });
+
   if (!ELEVENLABS_API_KEY) {
     logger.error("Missing ElevenLabs API key");
     return null;
   }
 
-  // Get or create the end_call tool as a system tool
-  const endCallToolId = await getOrCreateEndCallTool();
-  if (endCallToolId) {
-    logger.info("✅ Got end_call tool", { toolId: endCallToolId });
-  } else {
-    logger.warn("⚠️ Could not get/create end_call tool, will add as system tool in config");
-  }
-
   // Check for existing agent
+  logger.info("🔍 Checking for existing agent", {
+    businessId: businessConfig.businessId,
+  });
+
   const existingAgent = await db.elevenLabsAgent.findFirst({
     where: { businessId: businessConfig.businessId },
   });
 
   if (existingAgent) {
-    logger.info("Using existing agent", {
+    logger.info("🔍 Using existing agent - FORCING UPDATE", {
       agentId: existingAgent.agentId,
       currentVoiceId: existingAgent.voiceId,
       newVoiceId: businessConfig.voiceId,
       voiceChanged: existingAgent.voiceId !== businessConfig.voiceId,
+      businessId: businessConfig.businessId,
     });
 
     // Update full configuration including turn, asr, tts, and agent settings
     // This ensures all the new timing and sensitivity settings are applied
-    // Force update to ensure new configuration is applied to existing agents
-    const fullConfigUpdateResult = await updateAgentFullConfig(
-      existingAgent.agentId,
-      businessConfig.systemMessage,
-      businessConfig.firstMessage,
-      businessConfig.temperature,
-      businessConfig.voiceId || existingAgent.voiceId,
-      existingAgent.configHash || undefined,
-    );
+    // Force update to ensure built_in_tools configuration is applied to existing agents
+    try {
+      const fullConfigUpdateResult = await updateAgentFullConfig(
+        existingAgent.agentId,
+        businessConfig.systemMessage,
+        businessConfig.firstMessage,
+        businessConfig.temperature,
+        businessConfig.voiceId || existingAgent.voiceId,
+        businessConfig.transferEnabled,
+        businessConfig.transferPhoneNumber,
+        businessConfig.businessId, // FIXED: Pass businessId correctly
+        existingAgent.configHash || undefined,
+        true // CRITICAL: Force update to apply built_in_tools changes
+      );
 
-    logger.info("Full configuration update result", {
-      success: fullConfigUpdateResult,
-      agentId: existingAgent.agentId,
-      voiceId: businessConfig.voiceId || existingAgent.voiceId,
-    });
+      logger.info("✅ Full configuration update result", {
+        success: fullConfigUpdateResult,
+        agentId: existingAgent.agentId,
+        voiceId: businessConfig.voiceId || existingAgent.voiceId,
+      });
+    } catch (error) {
+      logger.error("❌ Error updating agent configuration", {
+        agentId: existingAgent.agentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     return existingAgent.agentId;
   }
@@ -433,6 +572,45 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
     return null;
   }
 
+  // Build tools: built-in tools FIRST, then user tools
+  // This ensures built-in tools always work independently
+  const builtInTools = buildBuiltInTools(businessConfig.transferEnabled);
+  const userTools = await buildUserTools(businessConfig.businessId);
+  const tools = [...builtInTools, ...userTools];
+
+  const promptConfig: any = {
+    prompt: businessConfig.systemMessage,
+    llm: "gpt-4o-mini",
+    temperature: businessConfig.temperature,
+    max_tokens: 150,
+    tools,
+  };
+
+  logger.info("✅ Creating agent with separated tools", {
+    builtInToolCount: builtInTools.length,
+    userToolCount: userTools.length,
+    totalToolCount: tools.length,
+    toolNames: tools.map((t: any) => t.name),
+    hasEndCallTool: tools.some((t: any) => t.name === "end_call"),
+    transferEnabled: businessConfig.transferEnabled,
+    businessId: businessConfig.businessId,
+  });
+
+  // CRITICAL DEBUG: Log the actual end_call tool configuration
+  const endCallTool = tools.find((t: any) => t.name === "end_call");
+  if (endCallTool) {
+    logger.info("🔍 DEBUG: end_call tool configuration being sent to ElevenLabs", {
+      name: endCallTool.name,
+      type: endCallTool.type,
+      descriptionLength: endCallTool.description?.length || 0,
+      descriptionPreview: endCallTool.description?.substring(0, 150) || "NO DESCRIPTION",
+      expects_response: endCallTool.expects_response,
+      fullDescription: endCallTool.description,
+    });
+  } else {
+    logger.error("❌ CRITICAL: end_call tool NOT FOUND in tools array during agent creation!");
+  }
+
   // Create agent with ulaw_8000 audio format and optimized settings
   const agentPayload = {
     name: `${businessConfig.businessName} AI Receptionist`,
@@ -461,27 +639,7 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
       agent: {
         first_message: businessConfig.firstMessage,
         language: "en",
-        prompt: (() => {
-          const promptConfig: any = {
-            prompt: businessConfig.systemMessage,
-            llm: "gpt-4o-mini",
-            temperature: businessConfig.temperature,
-            max_tokens: 150,
-          };
-
-          // Add end_call as a system tool in the tools array
-          // According to ElevenLabs API documentation, system tools should be added to the tools array
-          promptConfig.tools = [
-            {
-              type: "system",
-              name: "end_call",
-              description: "", // Empty description uses default end call prompt
-            },
-          ];
-          logger.info("✅ Creating agent with end_call as system tool in tools array");
-
-          return promptConfig;
-        })(),
+        prompt: promptConfig,
       },
     },
   };
@@ -514,7 +672,9 @@ async function getOrCreateAgent(businessConfig: any): Promise<string | null> {
   const initialHash = generateConfigHash(
     businessConfig.systemMessage,
     businessConfig.firstMessage,
-    businessConfig.temperature
+    businessConfig.temperature,
+    businessConfig.transferEnabled,
+    businessConfig.transferPhoneNumber
   );
 
   // Save to database
@@ -595,42 +755,75 @@ const createCallRecord = async (
   }
 };
 
+// Track calls that have been terminated to prevent duplicate attempts
+const terminatedCalls = new Set<string>();
+
 // Function to end Twilio call
 const endTwilioCall = async (twilioCallSid: string) => {
-  if (!twilioCallSid) return;
+  if (!twilioCallSid) {
+    logger.warn("⚠️ No twilioCallSid provided to endTwilioCall");
+    return;
+  }
+
+  // Check if we've already attempted to terminate this call
+  if (terminatedCalls.has(twilioCallSid)) {
+    logger.info("ℹ️ Call termination already attempted, skipping", {
+      twilioCallSid,
+    });
+    return;
+  }
+
+  // Mark this call as being terminated
+  terminatedCalls.add(twilioCallSid);
 
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
 
     if (!accountSid || !authToken) {
-      logger.error("❌ Missing Twilio credentials");
+      logger.error("❌ Missing Twilio credentials for ending call");
       return;
     }
 
     const twilio = require("twilio");
     const client = twilio(accountSid, authToken);
 
-    // Get current call status
-    const call = await client.calls(twilioCallSid).fetch();
-    
-    // Only end if call is still in progress
-    if (call.status === "in-progress" || call.status === "ringing") {
-      await client.calls(twilioCallSid).update({
-        status: "completed",
+    logger.info("🔚 Attempting to end Twilio call", {
+      twilioCallSid,
+    });
+
+    // Try to update the call directly without fetching first
+    // This is more efficient and handles the case where the call might have just ended
+    const updatedCall = await client.calls(twilioCallSid).update({
+      status: "completed",
+    });
+
+    logger.info("✅ Twilio call ended successfully", {
+      twilioCallSid,
+      newStatus: updatedCall.status,
+    });
+  } catch (error: any) {
+    // If the call doesn't exist (404), it means it already ended - this is OK
+    if (error.code === 20404) {
+      logger.info("ℹ️ Call already ended (404 - not found)", {
+        twilioCallSid,
       });
-      logger.info("✅ Twilio call ended successfully", { twilioCallSid });
     } else {
-      logger.info("ℹ️ Twilio call already ended", { 
-        twilioCallSid, 
-        status: call.status 
+      // For other errors, log them as actual errors
+      logger.error("❌ Error ending Twilio call", {
+        twilioCallSid,
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorStatus: error.status,
+        errorDetails: error.moreInfo || error.details,
       });
     }
-  } catch (error) {
-    logger.error("❌ Error ending Twilio call", {
-      twilioCallSid,
-      error: error instanceof Error ? error.message : String(error),
-    });
+  } finally {
+    // Clean up the terminated call from the set after a delay
+    // This prevents memory leaks while still preventing immediate duplicates
+    setTimeout(() => {
+      terminatedCalls.delete(twilioCallSid);
+    }, 30000); // Clean up after 30 seconds
   }
 };
 
@@ -723,12 +916,19 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
     const businessConfig = await getBusinessConfig(calledNumber);
 
     if (!businessConfig) {
+      logger.error("❌ No business config found", { calledNumber });
       return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
         <Response>
           <Say>Sorry, this number is not configured.</Say>
           <Hangup/>
         </Response>`);
     }
+
+    logger.info("✅ Business config loaded", {
+      businessId: businessConfig.businessId,
+      businessName: businessConfig.businessName,
+      calledNumber,
+    });
 
     // Check subscription status before proceeding with call
     const subscriptionValidation =
@@ -754,7 +954,13 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
         );
     }
 
+    logger.info("📞 Getting or creating ElevenLabs agent...", {
+      businessId: businessConfig.businessId,
+    });
+
     const agentId = await getOrCreateAgent(businessConfig);
+
+    logger.info("🤖 Agent ID retrieved", { agentId, businessId: businessConfig.businessId });
 
     if (!agentId) {
       return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -794,7 +1000,8 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
       recordingWebhookUrl,
     });
 
-    // Simple TwiML with just Connect - recording will be started via API
+    // TwiML with Connect and Hangup
+    // When the WebSocket stream closes, Twilio will execute the Hangup verb to end the call
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
       <Response>
         <Connect>
@@ -808,6 +1015,7 @@ router.all("/incoming-call", async (req: Request, res: Response) => {
             <Parameter name="startRecording" value="true" />
           </Stream>
         </Connect>
+        <Hangup/>
       </Response>`;
 
     res.type("text/xml").send(twimlResponse);
@@ -842,6 +1050,9 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
     let businessId: string | null = null;
     let twilioCallSid: string | null = null;
 
+    // Flag to prevent race condition when handling end_call tool
+    let handlingEndCall = false;
+
     const connectToElevenLabs = async (agentId: string) => {
       try {
         const signedUrl = await getSignedUrl(agentId);
@@ -854,9 +1065,101 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
         elevenLabsWs.on("message", (data) => {
           const message = JSON.parse(data.toString());
 
-          // Log non-audio events for debugging (but not ping/audio to reduce noise)
-          if (!["audio", "ping"].includes(message.type)) {
-            logger.info("📨 ElevenLabs event", { type: message.type });
+          // TEMPORARY DEBUG: Log ALL message types to see what's coming through
+          logger.info("📨 RAW ElevenLabs message", {
+            type: message.type,
+            allKeys: Object.keys(message).join(", "),
+            messagePreview: JSON.stringify(message).substring(0, 200),
+          });
+
+          // Only log important events: tool calls, errors, and conversation initiation
+          // Skip verbose events like transcripts, responses, and interruptions
+          const hasToolCall = !!(
+            message.client_tool_call ||
+            message.tool_call ||
+            message.agent_tool_response
+          );
+
+          // Only log tool calls and critical events (not routine transcript/response events)
+          const isImportantEvent = hasToolCall ||
+            message.type === "conversation_initiation_metadata" ||
+            message.type === "error";
+
+          // ALWAYS log agent responses to see what AI is saying
+          if (message.type === "agent_response" && message.agent_response_event?.agent_response) {
+            const agentText = message.agent_response_event.agent_response;
+            logger.info("🤖 AI Response", {
+              text: agentText,
+            });
+
+            // AUTO-DETECT GOODBYE: If AI says goodbye, automatically end the call
+            // This bypasses unreliable tool calling by ElevenLabs
+            const goodbyePhrases = [
+              "goodbye", "bye", "have a great day", "have a wonderful day",
+              "have a good day", "have a nice day", "talk to you later",
+              "take care", "see you", "thanks for calling"
+            ];
+
+            const textLower = agentText.toLowerCase();
+            const isGoodbye = goodbyePhrases.some(phrase => textLower.includes(phrase));
+
+            if (isGoodbye && !handlingEndCall) {
+              logger.info("🔚 AUTO-DETECTED GOODBYE - Ending call in 3 seconds", {
+                agentResponse: agentText,
+                twilioCallSid,
+                callId,
+              });
+
+              // Set flag to prevent duplicate calls
+              handlingEndCall = true;
+
+              // Wait 3 seconds for the goodbye audio to finish, then end call
+              setTimeout(() => {
+                logger.info("⏰ Goodbye message complete, closing Twilio WebSocket", {
+                  twilioCallSid,
+                  callId,
+                });
+
+                // Close Twilio connection (ws is the Twilio WebSocket)
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.close();
+                }
+
+                // Close ElevenLabs connection
+                if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
+                  elevenLabsWs.close();
+                }
+              }, 3000); // 3 second delay for audio to finish
+            }
+          }
+
+          // Also check for response event
+          if (message.type === "response" || message.response) {
+            logger.info("🗣️ AI Speaking", {
+              type: message.type,
+              content: message.response?.content || message.content || "unknown",
+            });
+          }
+
+          if (isImportantEvent) {
+            logger.info("📨 ElevenLabs event", {
+              type: message.type,
+              hasToolCall,
+              keys: Object.keys(message).join(", "),
+            });
+
+            // Log full agent_tool_response structure for debugging
+            if (
+              message.type === "agent_tool_response" &&
+              message.agent_tool_response
+            ) {
+              logger.info("🔍 agent_tool_response structure", {
+                agentToolResponse: JSON.stringify(message.agent_tool_response),
+                responseKeys: Object.keys(message.agent_tool_response).join(
+                  ", "
+                ),
+              });
+            }
           }
 
           if (message.type === "conversation_initiation_metadata") {
@@ -887,31 +1190,54 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
                 event_id: message.ping_event.event_id,
               })
             );
-          } else if (message.type === "client_tool_call") {
+          } else if (
+            message.type === "client_tool_call" ||
+            message.type === "tool_call" ||
+            message.type === "agent_tool_response"
+          ) {
             // Handle tool calls per ElevenLabs WebSocket API spec
-            // When the agent calls a tool (like end_call), ElevenLabs sends a client_tool_call event
-            // We must respond with a client_tool_result event to complete the tool call
-            // Reference: https://elevenlabs.io/docs/api-reference/websocket
-            const toolCall = message.client_tool_call;
-            const toolName = toolCall?.tool_name;
-            const toolCallId = toolCall?.tool_call_id;
+            // Support multiple event types:
+            // - client_tool_call: Client tools (v2 API)
+            // - tool_call: Legacy/system tools
+            // - agent_tool_response: System tools response (tool info in agent_tool_response field)
+            const toolCall =
+              message.client_tool_call ||
+              message.tool_call ||
+              message.agent_tool_response;
+            const toolName = toolCall?.tool_name || toolCall?.name; // 'name' is used in some versions
+            const toolCallId = toolCall?.tool_call_id || toolCall?.id;
             const parameters = toolCall?.parameters || {};
-            
+
+            // Enhanced logging to help debug tool call structure
             logger.info("🔧 Tool call received", {
+              type: message.type,
               toolName: toolName,
               toolCallId: toolCallId,
               parameters: parameters,
+              hasClientToolCall: !!message.client_tool_call,
+              hasToolCall: !!message.tool_call,
+              hasAgentToolResponse: !!message.agent_tool_response,
+              toolCallKeys: toolCall
+                ? Object.keys(toolCall).join(", ")
+                : "none",
+              rawMessage: JSON.stringify(message).substring(0, 500), // Log first 500 chars of raw message
             });
 
             if (toolName === "end_call") {
-              logger.info("🔚 End call tool invoked - terminating call");
-              
+              // Set flag to prevent race condition with close handler
+              handlingEndCall = true;
+
+              logger.info(
+                "🔚 ✅ END CALL TOOL INVOKED - Call will end after goodbye message",
+                {
+                  twilioCallSid,
+                  callId,
+                  hasTwilioCallSid: !!twilioCallSid,
+                  timestamp: new Date().toISOString(),
+                }
+              );
+
               // Send tool result back to ElevenLabs per API spec
-              // The client_tool_result must include:
-              // - type: "client_tool_result"
-              // - tool_call_id: The ID from the original tool call
-              // - result: The result of the tool execution (can be string or object)
-              // - is_error: Boolean indicating if the tool call failed
               if (elevenLabsWs?.readyState === WebSocket.OPEN && toolCallId) {
                 elevenLabsWs.send(
                   JSON.stringify({
@@ -923,63 +1249,394 @@ export const setupElevenLabsAgentWebSocket = (server: Server) => {
                 );
                 logger.info("✅ Sent tool result to ElevenLabs");
               }
-              
-              // End the Twilio call immediately (equivalent to <Hangup/>)
-              if (twilioCallSid) {
-                endTwilioCall(twilioCallSid).catch((error) => {
-                  logger.error("❌ Error ending Twilio call", error);
-                });
-              }
 
-              // Finalize call record
-              if (callId && callStartTime && businessName) {
-                finalizeCallRecord(
-                  callId,
-                  callStartTime,
-                  businessName,
-                  twilioCallSid || undefined,
-                  businessId || undefined
-                ).catch((error) => {
-                  logger.error("❌ Error finalizing call record", error);
-                });
-              }
-              
-              // Close ElevenLabs WebSocket after a short delay to allow tool result to be sent
+              // Wait for goodbye message to finish playing (3 seconds)
+              // Then close Twilio WebSocket to properly end the call
               setTimeout(() => {
-                if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-                  elevenLabsWs.close();
-                  logger.info("🔌 Closed ElevenLabs WebSocket after end_call");
+                logger.info(
+                  "⏰ Goodbye message complete, closing Twilio WebSocket",
+                  {
+                    twilioCallSid,
+                    wsReadyState: ws.readyState,
+                  }
+                );
+
+                // CRITICAL: Close the Twilio WebSocket to end the call
+                // This is the proper way to end a call using Media Streams
+                // The WebSocket close will trigger cleanup via the ws.on("close") handler
+                if (ws.readyState === WebSocket.OPEN) {
+                  logger.info("🔌 Closing Twilio WebSocket to end call");
+                  ws.close();
+                } else {
+                  logger.warn("⚠️ Twilio WebSocket not open, cannot close", {
+                    readyState: ws.readyState,
+                  });
+                  // If WebSocket is already closed, manually finalize
+                  if (callId && callStartTime && businessName) {
+                    finalizeCallRecord(
+                      callId,
+                      callStartTime,
+                      businessName,
+                      twilioCallSid || undefined,
+                      businessId || undefined
+                    ).catch((error) => {
+                      logger.error("❌ Error finalizing call record", error);
+                    });
+                  }
                 }
-              }, 500);
+              }, 3000); // Wait 3 seconds for goodbye audio to finish
+            } else if (toolName === "transfer_to_human") {
+              logger.info("📞 Transfer to human tool invoked", {
+                twilioCallSid,
+                callId,
+              });
+
+              // Transfer the call to a human agent
+              // This will redirect the Twilio call to the transfer phone number
+              const transferCall = async () => {
+                try {
+                  // Get transfer phone number from ElevenLabsAgent
+                  const agent = await db.elevenLabsAgent.findFirst({
+                    where: { businessId: businessId || "" },
+                  });
+
+                  const transferNumber = agent?.transferPhoneNumber;
+
+                  if (!transferNumber) {
+                    logger.error("❌ No transfer phone number configured");
+
+                    // Send error result to ElevenLabs
+                    if (
+                      elevenLabsWs?.readyState === WebSocket.OPEN &&
+                      toolCallId
+                    ) {
+                      elevenLabsWs.send(
+                        JSON.stringify({
+                          type: "client_tool_result",
+                          tool_call_id: toolCallId,
+                          result: "Transfer failed: No phone number configured",
+                          is_error: true,
+                        })
+                      );
+                    }
+                    return;
+                  }
+
+                  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+                  const authToken = process.env.TWILIO_AUTH_TOKEN;
+
+                  if (!accountSid || !authToken || !twilioCallSid) {
+                    logger.error("❌ Missing Twilio credentials or call SID");
+
+                    if (
+                      elevenLabsWs?.readyState === WebSocket.OPEN &&
+                      toolCallId
+                    ) {
+                      elevenLabsWs.send(
+                        JSON.stringify({
+                          type: "client_tool_result",
+                          tool_call_id: toolCallId,
+                          result: "Transfer failed: Missing credentials",
+                          is_error: true,
+                        })
+                      );
+                    }
+                    return;
+                  }
+
+                  const twilio = require("twilio");
+                  const client = twilio(accountSid, authToken);
+
+                  logger.info("🔄 Transferring call to human", {
+                    twilioCallSid,
+                    transferNumber,
+                  });
+
+                  // For calls connected via Media Streams, we cannot update with TwiML
+                  // Instead, we must redirect the call to a URL that returns TwiML
+                  const ngrokUrl =
+                    process.env.NGROK_URL || process.env.PUBLIC_URL;
+
+                  if (!ngrokUrl) {
+                    logger.error(
+                      "❌ Missing NGROK_URL or PUBLIC_URL for transfer"
+                    );
+
+                    if (
+                      elevenLabsWs?.readyState === WebSocket.OPEN &&
+                      toolCallId
+                    ) {
+                      elevenLabsWs.send(
+                        JSON.stringify({
+                          type: "client_tool_result",
+                          tool_call_id: toolCallId,
+                          result: "Transfer failed: Server URL not configured",
+                          is_error: true,
+                        })
+                      );
+                    }
+                    return;
+                  }
+
+                  // CRITICAL: Do NOT close ElevenLabs WebSocket before redirect!
+                  // Closing it triggers disconnect handlers that end the call (404 error)
+
+                  // Redirect the call to our transfer endpoint which returns TwiML
+                  const transferUrl = `${ngrokUrl}/api/twilio/transfer?number=${encodeURIComponent(transferNumber)}`;
+
+                  await client.calls(twilioCallSid).update({
+                    url: transferUrl,
+                    method: "POST",
+                  });
+
+                  logger.info("✅ Call redirected for transfer successfully");
+
+                  // Send success result to ElevenLabs
+                  if (
+                    elevenLabsWs?.readyState === WebSocket.OPEN &&
+                    toolCallId
+                  ) {
+                    elevenLabsWs.send(
+                      JSON.stringify({
+                        type: "client_tool_result",
+                        tool_call_id: toolCallId,
+                        result: "Call transferred successfully",
+                        is_error: false,
+                      })
+                    );
+                  }
+
+                  // Close both WebSockets after redirect completes
+                  // This gives Twilio time to fetch the transfer TwiML before disconnect
+                  setTimeout(() => {
+                    logger.info("Closing WebSockets after transfer redirect");
+                    if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+                      elevenLabsWs.close();
+                    }
+                    if (ws.readyState === WebSocket.OPEN) {
+                      ws.close();
+                    }
+                  }, 2000); // 2 second delay
+                } catch (error: any) {
+                  logger.error("❌ Error transferring call", { error });
+
+                  // Handle specific Twilio error codes
+                  if (error.code === 20404) {
+                    logger.warn(
+                      "⚠️ Call not found (404) - call may have already ended or been disconnected"
+                    );
+                  }
+
+                  // Send error result to ElevenLabs
+                  if (
+                    elevenLabsWs?.readyState === WebSocket.OPEN &&
+                    toolCallId
+                  ) {
+                    elevenLabsWs.send(
+                      JSON.stringify({
+                        type: "client_tool_result",
+                        tool_call_id: toolCallId,
+                        result: `Transfer failed: ${error instanceof Error ? error.message : String(error)}`,
+                        is_error: true,
+                      })
+                    );
+                  }
+                }
+              };
+
+              transferCall();
+            } else {
+              // Handle other tools (webhook tools, custom client tools)
+              logger.info("🔧 Generic tool invoked", {
+                toolName,
+                toolCallId,
+                parameters,
+              });
+
+              // Execute webhook or custom tool
+              const executeWebhookTool = async () => {
+                try {
+                  // Fetch tool configuration from database
+                  const toolConfig = await db.tool.findFirst({
+                    where: {
+                      businessId: businessId || "",
+                      isActive: true,
+                      config: {
+                        path: ["name"],
+                        equals: toolName,
+                      },
+                    },
+                  });
+
+                  if (!toolConfig) {
+                    logger.error("❌ Tool not found in database", { toolName });
+
+                    if (
+                      elevenLabsWs?.readyState === WebSocket.OPEN &&
+                      toolCallId
+                    ) {
+                      elevenLabsWs.send(
+                        JSON.stringify({
+                          type: "client_tool_result",
+                          tool_call_id: toolCallId,
+                          result: `Tool '${toolName}' not found`,
+                          is_error: true,
+                        })
+                      );
+                    }
+                    return;
+                  }
+
+                  const config = toolConfig.config as any;
+
+                  // Handle webhook tools
+                  if (config.type === "webhook") {
+                    logger.info("🌐 Executing webhook tool", {
+                      toolName,
+                      url: config.api_schema?.url,
+                    });
+
+                    const webhookUrl = config.api_schema?.url;
+                    const method = config.api_schema?.method || "POST";
+                    const headers = config.api_schema?.request_headers || {};
+
+                    if (!webhookUrl) {
+                      throw new Error("Webhook URL not configured");
+                    }
+
+                    // Inject system parameters into webhook payload
+                    const webhookPayload = {
+                      ...parameters, // AI-extracted parameters
+                      // System-provided parameters for context
+                      business_id: businessId || "",
+                      call_id: callId || "",
+                      twilio_call_sid: twilioCallSid || "",
+                      caller_phone: callerNumber || "",
+                      stream_sid: streamSid || "",
+                    };
+
+                    logger.info("🌐 Webhook payload", {
+                      toolName,
+                      aiParams: Object.keys(parameters),
+                      systemParams: ["business_id", "call_id", "twilio_call_sid", "caller_phone", "stream_sid"],
+                    });
+
+                    // Make webhook request
+                    const response = await fetch(webhookUrl, {
+                      method: method,
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...headers,
+                      },
+                      body:
+                        method !== "GET"
+                          ? JSON.stringify(webhookPayload)
+                          : undefined,
+                    });
+
+                    const result = await response.text();
+
+                    logger.info("✅ Webhook executed successfully", {
+                      toolName,
+                      status: response.status,
+                    });
+
+                    // Send result to ElevenLabs
+                    if (
+                      elevenLabsWs?.readyState === WebSocket.OPEN &&
+                      toolCallId
+                    ) {
+                      elevenLabsWs.send(
+                        JSON.stringify({
+                          type: "client_tool_result",
+                          tool_call_id: toolCallId,
+                          result: result || "Success",
+                          is_error: !response.ok,
+                        })
+                      );
+                    }
+                  } else {
+                    // Handle client tools (non-webhook)
+                    logger.info("📦 Client tool executed", { toolName });
+
+                    // Send generic success response
+                    if (
+                      elevenLabsWs?.readyState === WebSocket.OPEN &&
+                      toolCallId
+                    ) {
+                      elevenLabsWs.send(
+                        JSON.stringify({
+                          type: "client_tool_result",
+                          tool_call_id: toolCallId,
+                          result: "Tool executed successfully",
+                          is_error: false,
+                        })
+                      );
+                    }
+                  }
+                } catch (error) {
+                  logger.error("❌ Error executing tool", {
+                    toolName,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  });
+
+                  // Send error result to ElevenLabs
+                  if (
+                    elevenLabsWs?.readyState === WebSocket.OPEN &&
+                    toolCallId
+                  ) {
+                    elevenLabsWs.send(
+                      JSON.stringify({
+                        type: "client_tool_result",
+                        tool_call_id: toolCallId,
+                        result: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                        is_error: true,
+                      })
+                    );
+                  }
+                }
+              };
+
+              executeWebhookTool();
             }
           }
         });
 
-        elevenLabsWs.on("error", (error) => {
-          logger.error("❌ ElevenLabs error:", error);
-        });
-
         elevenLabsWs.on("close", () => {
-          logger.info("🔌 ElevenLabs disconnected - ending call with Twilio Hangup");
-          
-          // End Twilio call using REST API (equivalent to <Hangup/> TwiML)
-          if (twilioCallSid) {
-            endTwilioCall(twilioCallSid).catch((error) => {
-              logger.error("❌ Error ending Twilio call", error);
-            });
+          logger.info("🔌 ElevenLabs disconnected", {
+            handlingEndCall,
+            willSkipCleanup: handlingEndCall,
+          });
+
+          // If we're handling end_call tool, skip cleanup here
+          // The end_call handler will close the Twilio WebSocket after the goodbye message
+          // which will trigger proper cleanup via the Twilio close handler
+          if (handlingEndCall) {
+            logger.info(
+              "⏭️ Skipping cleanup - end_call handler will manage call termination"
+            );
+            return;
           }
-          
-          // Finalize call record
-          if (callId && callStartTime && businessName) {
-            finalizeCallRecord(
-              callId,
-              callStartTime,
-              businessName,
-              twilioCallSid || undefined,
-              businessId || undefined
-            ).catch((error) => {
-              logger.error("❌ Error finalizing call record", error);
-            });
+
+          // Normal flow: ElevenLabs disconnected unexpectedly (not due to end_call)
+          // Close the Twilio WebSocket to hang up the call
+          logger.info("📞 ElevenLabs disconnected unexpectedly, ending call");
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          } else {
+            // WebSocket already closed, finalize manually
+            if (callId && callStartTime && businessName) {
+              finalizeCallRecord(
+                callId,
+                callStartTime,
+                businessName,
+                twilioCallSid || undefined,
+                businessId || undefined
+              ).catch((error) => {
+                logger.error("❌ Error finalizing call record", error);
+              });
+            }
           }
         });
       } catch (error) {

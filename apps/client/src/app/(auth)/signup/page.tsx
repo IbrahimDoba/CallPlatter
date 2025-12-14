@@ -159,13 +159,13 @@ export default function SignUpPage() {
                 htmlFor="name"
                 className="text-sm font-medium text-gray-700"
               >
-                Business Name
+                Full Name
               </Label>
               <Input
                 id="name"
                 name="name"
                 type="text"
-                placeholder="Enter your business name"
+                placeholder="Enter your full name"
                 value={formData.name}
                 onChange={handleChange}
                 className="h-11"

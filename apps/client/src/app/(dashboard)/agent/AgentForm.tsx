@@ -13,6 +13,7 @@ import BusinessKnowledge from "./components/BusinessKnowledge";
 import VoiceSelection from "./components/VoiceSelection";
 import CRMData from "./components/CRMData";
 import { AgentTools } from "./components/AgentTools";
+import { TransferSettings } from "./components/TransferSettings";
 
 interface BusinessMemory {
   id?: string;
@@ -292,6 +293,10 @@ export default function AgentForm() {
 
         {activeAgentComponent === "tools" && (
           <AgentTools hasAgent={hasAgent} />
+        )}
+
+        {activeAgentComponent === "settings" && (
+          <TransferSettings businessId={businessId} />
         )}
       </div>
 

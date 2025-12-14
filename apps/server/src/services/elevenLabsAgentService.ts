@@ -48,6 +48,9 @@ interface CreateAgentConfig {
   systemPrompt?: string;
   goodbyeMessage?: string;
   temperature?: number;
+  // Transfer settings
+  transferEnabled?: boolean;
+  transferPhoneNumber?: string;
 }
 
 interface UpdateAgentConfig {
@@ -62,6 +65,8 @@ interface UpdateAgentConfig {
   askForEmail?: boolean;
   askForAddress?: boolean;
   goodbyeMessage?: string;
+  transferEnabled?: boolean;
+  transferPhoneNumber?: string;
 }
 
 export class ElevenLabsAgentService {
@@ -87,15 +92,116 @@ export class ElevenLabsAgentService {
   }
 
   /**
+   * Build ONLY user-created webhook tools from database
+   * Built-in tools are added separately to ensure they work independently
+   */
+  private async buildUserTools(businessId: string): Promise<any[]> {
+    const tools: any[] = [];
+
+    try {
+      const userTools = await db.tool.findMany({
+        where: {
+          businessId,
+          isActive: true,
+        },
+      });
+
+      // Add each user tool to the tools array
+      for (const tool of userTools) {
+        // The config field contains the full ElevenLabs tool configuration
+        const toolConfig = tool.config as any;
+        tools.push(toolConfig);
+      }
+
+      logger.info(`Built user tools array`, {
+        businessId,
+        userToolCount: userTools.length,
+      });
+    } catch (error) {
+      logger.error("Error fetching user tools", { businessId, error });
+    }
+
+    return tools;
+  }
+
+  /**
+   * Build built-in tools separately for better control
+   * These work independently of user tools
+   */
+  private buildBuiltInTools(transferEnabled: boolean): any[] {
+    const tools: any[] = [];
+
+    // CRITICAL: end_call tool with explicit instructions
+    tools.push({
+      type: "client",
+      name: "end_call",
+      description:
+        "IMMEDIATELY end the phone call after saying your goodbye message. You MUST call this tool in these situations: 1) After you say goodbye to the customer, 2) Customer says goodbye/bye/thank you and hangs up, 3) Conversation is complete and all questions answered, 4) Customer explicitly asks to end the call. DO NOT wait for customer response after calling this tool - the call will end automatically.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+      expects_response: true,
+    });
+
+    // Built-in tool: transfer_to_human (if enabled)
+    if (transferEnabled) {
+      tools.push({
+        type: "client",
+        name: "transfer_to_human",
+        description:
+          "Transfer call to a human agent when the caller requests to speak with a human, has a complex issue, or is frustrated",
+        parameters: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+        expects_response: true,
+      });
+    }
+
+    logger.info(`Built-in tools created`, {
+      count: tools.length,
+      tools: tools.map((t) => t.name),
+    });
+
+    return tools;
+  }
+
+  /**
+   * Fetch and build complete tools array for agent
+   * Separates built-in tools from user tools for independent operation
+   */
+  async buildAgentTools(businessId: string, transferEnabled: boolean): Promise<any[]> {
+    // Build tools: built-in tools FIRST, then user tools
+    // This ensures built-in tools always work, even if user tools fail to load
+    const builtInTools = this.buildBuiltInTools(transferEnabled);
+    const userTools = await this.buildUserTools(businessId);
+    const tools = [...builtInTools, ...userTools];
+
+    logger.info(`Complete tools array built`, {
+      businessId,
+      builtInToolCount: builtInTools.length,
+      userToolCount: userTools.length,
+      totalToolCount: tools.length,
+    });
+
+    return tools;
+  }
+
+  /**
    * Generate a hash of the configuration to detect changes
    */
   generateConfigHash(
     systemMessage: string,
     firstMessage: string,
     temperature: number,
-    voiceId: string
+    voiceId: string,
+    transferEnabled?: boolean,
+    transferPhoneNumber?: string | null
   ): string {
-    const configString = `${systemMessage}|${firstMessage}|${temperature}|${voiceId}`;
+    const configString = `${systemMessage}|${firstMessage}|${temperature}|${voiceId}|${transferEnabled}|${transferPhoneNumber || ''}`;
     return crypto.createHash("md5").update(configString).digest("hex");
   }
 
@@ -205,6 +311,8 @@ Use this information to answer customer questions accurately. If asked about som
       systemPrompt,
       goodbyeMessage,
       temperature = 0.7,
+      transferEnabled = false,
+      transferPhoneNumber = '',
     } = config;
 
     // Check if agent already exists
@@ -240,19 +348,16 @@ Use this information to answer customer questions accurately. If asked about som
     };
     const systemMessage = this.buildSystemMessage(businessDescription, [], agentConfig);
 
-    // Build prompt config with end_call system tool
+    // Fetch tools dynamically (built-in + user-created)
+    const tools = await this.buildAgentTools(businessId, transferEnabled);
+
+    // Build prompt config with dynamic tools
     const promptConfig = {
       prompt: systemMessage,
       llm: "gpt-4o-mini",
       temperature,
       max_tokens: 150,
-      tools: [
-        {
-          type: "system",
-          name: "end_call",
-          description: "", // Empty description uses default end call prompt
-        },
-      ],
+      tools,
     };
 
     // Create agent payload
@@ -321,7 +426,9 @@ Use this information to answer customer questions accurately. If asked about som
         systemMessage,
         firstMessage,
         temperature,
-        voiceMapping.voiceId
+        voiceMapping.voiceId,
+        transferEnabled,
+        null // transferPhoneNumber is null on initial creation
       );
 
       // Save to database with all settings
@@ -343,6 +450,9 @@ Use this information to answer customer questions accurately. If asked about som
           askForEmail,
           askForCompany,
           askForAddress,
+          // Transfer settings
+          transferEnabled,
+          transferPhoneNumber,
         },
       });
 
@@ -403,6 +513,8 @@ Use this information to answer customer questions accurately. If asked about som
       askForEmail: updates.askForEmail ?? existingAgent.askForEmail ?? true,
       askForAddress: updates.askForAddress ?? existingAgent.askForAddress ?? false,
       goodbyeMessage: updates.goodbyeMessage ?? existingAgent.goodbyeMessage ?? null,
+      transferEnabled: updates.transferEnabled ?? existingAgent.transferEnabled ?? false,
+      transferPhoneNumber: updates.transferPhoneNumber ?? existingAgent.transferPhoneNumber ?? null,
     };
 
     // Build new system message
@@ -430,7 +542,9 @@ Use this information to answer customer questions accurately. If asked about som
       systemMessage,
       mergedConfig.firstMessage,
       mergedConfig.temperature,
-      voiceId
+      voiceId,
+      mergedConfig.transferEnabled,
+      mergedConfig.transferPhoneNumber
     );
 
     // Check if anything changed
@@ -442,19 +556,16 @@ Use this information to answer customer questions accurately. If asked about som
       return true;
     }
 
+    // Fetch tools dynamically (built-in + user-created)
+    const tools = await this.buildAgentTools(businessId, mergedConfig.transferEnabled);
+
     // Build update payload
     const promptConfig = {
       prompt: systemMessage,
       llm: "gpt-4o-mini",
       temperature: mergedConfig.temperature,
       max_tokens: 150,
-      tools: [
-        {
-          type: "system",
-          name: "end_call",
-          description: "",
-        },
-      ],
+      tools,
     };
 
     const updatePayload = {
@@ -528,6 +639,8 @@ Use this information to answer customer questions accurately. If asked about som
           askForEmail: mergedConfig.askForEmail,
           askForCompany: mergedConfig.askForCompany,
           askForAddress: mergedConfig.askForAddress,
+          transferEnabled: mergedConfig.transferEnabled,
+          transferPhoneNumber: mergedConfig.transferPhoneNumber,
           updatedAt: new Date(),
         },
       });
