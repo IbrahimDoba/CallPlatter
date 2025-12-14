@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { OnboardingData } from "../page";
 
 interface AgentSettingsStepProps {
@@ -17,6 +18,8 @@ interface AgentSettingsStepProps {
 export function AgentSettingsStep({ data, onUpdate, onNext, onBack }: AgentSettingsStepProps) {
   const [greeting, setGreeting] = useState(data.greeting);
   const [recordingConsent, setRecordingConsent] = useState(data.recordingConsent);
+  const [transferEnabled, setTransferEnabled] = useState(data.transferEnabled);
+  const [transferPhoneNumber, setTransferPhoneNumber] = useState(data.transferPhoneNumber);
 
   // Sync local state with data prop changes
   useEffect(() => {
@@ -28,17 +31,27 @@ export function AgentSettingsStep({ data, onUpdate, onNext, onBack }: AgentSetti
       console.log('🤖 AgentSettingsStep: Syncing recordingConsent from data prop:', data.recordingConsent);
       setRecordingConsent(data.recordingConsent);
     }
-  }, [data.greeting, data.recordingConsent, greeting, recordingConsent]);
+    if (data.transferEnabled !== transferEnabled) {
+      console.log('🤖 AgentSettingsStep: Syncing transferEnabled from data prop:', data.transferEnabled);
+      setTransferEnabled(data.transferEnabled);
+    }
+    if (data.transferPhoneNumber !== transferPhoneNumber) {
+      console.log('🤖 AgentSettingsStep: Syncing transferPhoneNumber from data prop:', data.transferPhoneNumber);
+      setTransferPhoneNumber(data.transferPhoneNumber);
+    }
+  }, [data.greeting, data.recordingConsent, data.transferEnabled, data.transferPhoneNumber, greeting, recordingConsent, transferEnabled, transferPhoneNumber]);
 
   const handleNext = () => {
     onUpdate({
       greeting,
       recordingConsent,
+      transferEnabled,
+      transferPhoneNumber,
     });
     onNext();
   };
 
-  const isFormValid = greeting.trim() !== "";
+  const isFormValid = greeting.trim() !== "" && (!transferEnabled || transferPhoneNumber.trim() !== "");
 
   return (
     <div className="space-y-6">
@@ -72,17 +85,56 @@ export function AgentSettingsStep({ data, onUpdate, onNext, onBack }: AgentSetti
             <Checkbox
               id="recordingConsent"
               checked={recordingConsent}
-              onCheckedChange={(checked) => setRecordingConsent(checked as boolean)}
+              onCheckedChange={(checked) => setRecordingConsent(checked === true)}
               className="mt-1"
             />
-            <div className="space-y-1">
-              <Label htmlFor="recordingConsent" className="text-sm font-medium text-gray-700">
+            <div className="space-y-1 flex-1">
+              <Label htmlFor="recordingConsent" className="text-sm font-medium text-gray-700 cursor-pointer">
                 Recording Consent (Optional)
               </Label>
               <p className="text-sm text-gray-600">
                 I acknowledge and agree that calls are recorded. I am responsible for notifying callers, as may be required by law.
               </p>
             </div>
+          </div>
+        </div>
+
+        <div className="border-t pt-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="transferEnabled" className="text-sm font-medium text-gray-700">
+                  Transfer to Human (Optional)
+                </Label>
+                <p className="text-sm text-gray-600">
+                  Allow AI to transfer calls to a human agent when needed
+                </p>
+              </div>
+              <Switch
+                id="transferEnabled"
+                checked={transferEnabled}
+                onCheckedChange={setTransferEnabled}
+              />
+            </div>
+
+            {transferEnabled && (
+              <div className="pl-0 space-y-2">
+                <Label htmlFor="transferPhoneNumber" className="text-sm font-medium text-gray-700">
+                  Transfer Phone Number *
+                </Label>
+                <Input
+                  id="transferPhoneNumber"
+                  type="tel"
+                  placeholder="+1234567890"
+                  value={transferPhoneNumber}
+                  onChange={(e) => setTransferPhoneNumber(e.target.value)}
+                  className="mt-1"
+                />
+                <p className="text-xs text-gray-500">
+                  Use E.164 format with country code (e.g., +1234567890)
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

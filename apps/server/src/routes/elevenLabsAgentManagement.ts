@@ -43,6 +43,9 @@ router.post("/create", async (req: Request, res: Response) => {
       systemPrompt,
       goodbyeMessage,
       temperature,
+      // Transfer settings
+      transferEnabled = false,
+      transferPhoneNumber = '',
     } = req.body;
 
     if (!businessName || !businessDescription || !voiceName || !firstMessage) {
@@ -67,6 +70,9 @@ router.post("/create", async (req: Request, res: Response) => {
       systemPrompt,
       goodbyeMessage,
       temperature,
+      // Transfer settings
+      transferEnabled,
+      transferPhoneNumber,
     });
 
     if (!agentId) {
@@ -114,6 +120,8 @@ router.put("/update", async (req: Request, res: Response) => {
       askForCompany,
       askForEmail,
       askForAddress,
+      transferEnabled,
+      transferPhoneNumber,
     } = req.body;
 
     const success = await elevenLabsAgentService.updateAgent(businessId, {
@@ -127,6 +135,8 @@ router.put("/update", async (req: Request, res: Response) => {
       askForCompany,
       askForEmail,
       askForAddress,
+      transferEnabled,
+      transferPhoneNumber,
     });
 
     if (!success) {

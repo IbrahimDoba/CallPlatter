@@ -65,8 +65,8 @@ export default function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8 }}
           >
-            Subtext: Handle balance inquiries, transaction tracking, KYC
-            verification, and real-time exchange rates automatically—24/7. Built
+            Handle balance inquiries, transaction tracking, KYC
+            verification, and real-time exchange rates automatically - 24/7. Built
             for digital banks, neobanks, and forex platforms.
             <strong>
               80% call deflection. 60% cost reduction. Zero hiring.

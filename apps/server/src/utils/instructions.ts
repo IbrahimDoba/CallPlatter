@@ -94,22 +94,34 @@ After 10+ seconds of no response, say your goodbye message and use the end_call 
 
     tools: `# Tools
 
-You have access to the following tool:
+You have access to the end_call tool that MUST be used to properly end every call.
 
-\`end_call\`: This tool allows you to terminate the call when the conversation is complete.
+**CRITICAL - end_call tool usage:**
 
-**When to use end_call:**
-- The customer says "goodbye", "bye", "thank you", or "that's all"
-- The customer asks to hang up or end the call
-- All their questions have been answered and they have no more requests
-- There is 10+ seconds of silence after you've asked if they need anything else
+YOU MUST CALL THE end_call TOOL when:
+- Customer says goodbye, bye, thanks, or that's all
+- Customer asks to hang up or end the call
+- All questions answered and they have no more requests
+- 10+ seconds of silence after asking if they need anything else
 
-**How to use end_call:**
-1. Say your goodbye message (e.g., "Thank you for calling, have a great day!")
-2. IMMEDIATELY call the end_call tool silently (do NOT say "end call" or mention the tool - just invoke it)
-3. The call will automatically disconnect
+**HOW TO END A CALL (MANDATORY PROCESS):**
 
-**IMPORTANT:** After every conversation that reaches completion, you MUST use the end_call tool. Do not wait for the customer to hang up first.`,
+When it's time to end the call, you MUST do BOTH of these things:
+1. Say your goodbye message out loud to the customer
+2. Call the end_call tool (silently - do NOT mention the tool to the customer)
+
+Example:
+Customer: "That's all I needed, thanks!"
+You: "You're welcome! Have a great day!" [IMMEDIATELY CALL end_call TOOL]
+
+**CRITICAL RULES:**
+- ALWAYS call end_call after saying goodbye - this is NOT optional
+- NEVER say "end call" or mention the tool - just invoke it silently
+- NEVER wait for the customer to hang up - you must end the call
+- If you say goodbye without calling end_call, the call will stay open forever
+- Calling end_call is the ONLY way to properly terminate the call
+
+Remember: Goodbye message → end_call tool → Call ends automatically`,
   };
 }
 

@@ -18,6 +18,9 @@ interface SyncStatus {
 }
 
 export class SubscriptionSyncService {
+  private lastSyncTimes: Map<string, number> = new Map();
+  private readonly SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
   /**
    * Fetch subscription from Polar API
    */
@@ -246,6 +249,11 @@ export class SubscriptionSyncService {
   /**
    * Sync subscription from Polar API on demand (called when user loads usage page)
    * This ensures the DB always reflects Polar's current state
+   *
+   * SAFEGUARDS:
+   * - Rate limited to once every 5 minutes per business
+   * - Validates changes make logical sense before applying
+   * - Prevents backwards period changes
    */
   async syncSubscriptionOnLoad(businessId: string): Promise<{
     synced: boolean;
@@ -253,6 +261,25 @@ export class SubscriptionSyncService {
     changes: string[];
   }> {
     const changes: string[] = [];
+
+    // SAFEGUARD 1: Rate limiting - only sync once every 5 minutes
+    const lastSyncTime = this.lastSyncTimes.get(businessId) || 0;
+    const timeSinceLastSync = Date.now() - lastSyncTime;
+
+    if (timeSinceLastSync < this.SYNC_COOLDOWN_MS) {
+      const minutesRemaining = Math.ceil((this.SYNC_COOLDOWN_MS - timeSinceLastSync) / 60000);
+      logger.debug(`Skipping sync for ${businessId} - last synced ${Math.floor(timeSinceLastSync / 1000)}s ago (cooldown: ${minutesRemaining}m remaining)`);
+
+      const dbSubscription = await db.subscription.findUnique({
+        where: { businessId },
+      });
+
+      return {
+        synced: false,
+        subscription: dbSubscription,
+        changes: [`Sync skipped - cooldown active (${minutesRemaining}m remaining)`],
+      };
+    }
 
     const dbSubscription = await db.subscription.findUnique({
       where: { businessId },
@@ -306,6 +333,37 @@ export class SubscriptionSyncService {
       ? new Date(polarSubscription.trialEnd)
       : null;
 
+    // SAFEGUARD 2: Validate changes make logical sense
+    const warnings: string[] = [];
+
+    // Check for backwards period start (should never happen)
+    if (currentPeriodStart.getTime() < dbSubscription.currentPeriodStart.getTime()) {
+      const daysDiff = Math.floor((dbSubscription.currentPeriodStart.getTime() - currentPeriodStart.getTime()) / (1000 * 60 * 60 * 24));
+      warnings.push(
+        `🚨 REJECTED: Period start would move backwards by ${daysDiff} days (${dbSubscription.currentPeriodStart.toISOString()} → ${currentPeriodStart.toISOString()})`
+      );
+    }
+
+    // Check for cancelled->active transition without new period (suspicious)
+    if (dbSubscription.status === "CANCELLED" && polarStatus === "ACTIVE") {
+      const isNewPeriod = dbSubscription.currentPeriodStart.getTime() !== currentPeriodStart.getTime();
+      if (!isNewPeriod) {
+        warnings.push(
+          `⚠️ WARNING: Status changing from CANCELLED to ACTIVE without period change`
+        );
+      }
+    }
+
+    // If there are critical warnings, reject the sync
+    if (warnings.length > 0 && warnings.some(w => w.includes("REJECTED"))) {
+      logger.error(`❌ Sync rejected for business ${businessId}:`, warnings);
+      return {
+        synced: false,
+        subscription: dbSubscription,
+        changes: warnings,
+      };
+    }
+
     // Check what needs updating
     let needsUpdate = false;
 
@@ -319,8 +377,10 @@ export class SubscriptionSyncService {
       needsUpdate = true;
     }
 
+    // Only update period start if it's moving forward or staying same
     if (
-      dbSubscription.currentPeriodStart.getTime() !== currentPeriodStart.getTime()
+      dbSubscription.currentPeriodStart.getTime() !== currentPeriodStart.getTime() &&
+      currentPeriodStart.getTime() >= dbSubscription.currentPeriodStart.getTime()
     ) {
       changes.push(
         `Period start: ${dbSubscription.currentPeriodStart.toISOString()} → ${currentPeriodStart.toISOString()}`
@@ -349,6 +409,8 @@ export class SubscriptionSyncService {
 
     if (!needsUpdate) {
       logger.debug(`✅ Subscription for business ${businessId} is in sync with Polar`);
+      // Update last sync time even if no changes
+      this.lastSyncTimes.set(businessId, Date.now());
       return {
         synced: true,
         subscription: dbSubscription,
@@ -415,11 +477,22 @@ export class SubscriptionSyncService {
 
     logger.info(`✅ Synced subscription for business ${businessId}:`, changes);
 
+    // Update last sync time
+    this.lastSyncTimes.set(businessId, Date.now());
+
     return {
       synced: true,
       subscription: updatedSubscription,
       changes,
     };
+  }
+
+  /**
+   * Clear sync cooldown for a business (useful after webhook events)
+   */
+  clearSyncCooldown(businessId: string): void {
+    this.lastSyncTimes.delete(businessId);
+    logger.debug(`Cleared sync cooldown for business ${businessId}`);
   }
 
   /**

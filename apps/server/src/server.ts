@@ -30,6 +30,7 @@ import billingRoutes from "./routes/billing";
 import voiceUpdateRoutes from "./routes/voiceUpdate";
 import adminRoutes from "./routes/admin";
 import adminPhoneNumbersRoutes from "./routes/admin-phone-numbers";
+import adminSubscriptionRoutes from "./routes/admin-subscription";
 import resendOTPRoutes from "./routes/resend-otp";
 import verifyEmailRoutes from "./routes/verify-email";
 import forgotPasswordRoutes from "./routes/forgot-password";
@@ -39,6 +40,7 @@ import twilioRoutes from "./routes/twilio";
 import demoRequestRoutes from "./routes/demo-request";
 import polarWebhookRoutes from "./routes/polarWebhook";
 import elevenLabsAgentManagementRoutes from "./routes/elevenLabsAgentManagement";
+import toolsRoutes from "./routes/tools";
 
 dotenv.config();
 
@@ -203,6 +205,7 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/voice", voiceUpdateRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/phone-numbers", adminPhoneNumbersRoutes);
+app.use("/api/admin/subscription", adminSubscriptionRoutes);
 app.use("/api/resend-otp", resendOTPRoutes);
 app.use("/api/verify-email", verifyEmailRoutes);
 app.use("/api/forgot-password", forgotPasswordRoutes);
@@ -215,6 +218,7 @@ app.use("/api/webhooks/polar", polarWebhookRoutes);
 app.use("/api/openai-realtime", openaiRealtimeRoutes);
 app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
 app.use("/api/elevenlabs-management", elevenLabsAgentManagementRoutes);
+app.use("/api/tools", toolsRoutes);
 
 
 setupElevenLabsAgentWebSocket(server);

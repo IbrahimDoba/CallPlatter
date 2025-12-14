@@ -23,6 +23,8 @@ export interface OnboardingData {
   selectedAccent: string;
   greeting: string;
   recordingConsent: boolean;
+  transferEnabled: boolean;
+  transferPhoneNumber: string;
   selectedPhoneNumber: string;
   selectedPhoneNumberId: string;
   selectedPlan: string;
@@ -56,6 +58,8 @@ export default function OnboardingPage() {
     selectedAccent: "",
     greeting: "",
     recordingConsent: false,
+    transferEnabled: false,
+    transferPhoneNumber: "",
     selectedPhoneNumber: "",
     selectedPhoneNumberId: "",
     selectedPlan: "",
@@ -106,6 +110,8 @@ export default function OnboardingPage() {
           selectedPlan: data.progress.selectedPlan || "",
           trialActivated: data.progress.trialActivated === true,
           polarCustomerId: data.progress.polarCustomerId || undefined,
+          transferEnabled: data.progress.transferEnabled === true,
+          transferPhoneNumber: data.progress.transferPhoneNumber || "",
         };
 
         console.log('📊 Restored data object:', restoredData);
@@ -195,6 +201,8 @@ export default function OnboardingPage() {
             selectedPlan: data.progress.selectedPlan || "",
             trialActivated: data.progress.trialActivated === true,
             polarCustomerId: data.progress.polarCustomerId || undefined,
+            transferEnabled: data.progress.transferEnabled === true,
+            transferPhoneNumber: data.progress.transferPhoneNumber || "",
           };
 
           console.log('📊 Progress restored data:', restoredData);
