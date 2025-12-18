@@ -2,131 +2,207 @@ import { Router, type Request, type Response } from "express";
 import { db } from "@repo/db";
 import { logger } from "../utils/logger";
 import crypto from "crypto";
-import { mapPolarProductToPlanType, getPlanConfig, type PlanType } from "../config/billingPlans";
+import {
+  mapPolarProductToPlanType,
+  getPlanConfig,
+  type PlanType,
+} from "../config/billingPlans";
 
 const router: Router = Router();
 
-// Verify Polar webhook signature
-function verifyPolarSignature(secret: string, signature: string, body: string): boolean {
-  if (!secret || !signature) {
+// Verify Standard Webhook signature
+function verifyStandardWebhookSignature(
+  secret: string,
+  signatureHeader: string,
+  msgId: string,
+  timestamp: string,
+  body: string
+): boolean {
+  if (!secret || !signatureHeader || !msgId || !timestamp) {
     return false;
   }
-  
+
+  try {
+    // Standard Webhooks signature format: v1,signature
+    const parts = signatureHeader.split(" ");
+    // Handle both "v1,signature" or just "v1,signature" (sometimes spaces clean up)
+    const signatures = signatureHeader.split(" ").map((s) => {
+      const [scheme, val] = s.split(",");
+      return { scheme, val };
+    });
+
+    // Construct the signed content
+    const signedContent = `${msgId}.${timestamp}.${body}`;
+
+    // Calculate expected signature
+    const expectedSignature = crypto
+      .createHmac("sha256", secret)
+      .update(signedContent)
+      .digest("base64");
+
+    // Find a matching signature with scheme v1
+    // Note: Standard Webhooks often use v1,signature... but Polar might follow Svix which uses v1,signature
+    // Let's match against the calculated signature directly or try to parse the header
+
+    // Simple verification: Construct HMAC and check if it's present in the header
+    // The header typically looks like "v1,Base64Signature v1,AnotherSignature"
+
+    // Let's implement robust checking:
+    return signatures.some((s) => {
+      if (s.scheme !== "v1") return false;
+
+      const expectedBuffer = Buffer.from(expectedSignature, "base64");
+      const signatureBuffer = Buffer.from(s.val, "base64");
+
+      if (expectedBuffer.length !== signatureBuffer.length) return false;
+      return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+    });
+  } catch (error) {
+    logger.warn("Error verifying Standard Webhook signature:", error);
+    return false;
+  }
+}
+
+// Legacy verification (for x-polar-signature)
+function verifyLegacyPolarSignature(
+  secret: string,
+  signature: string,
+  body: string
+): boolean {
+  if (!secret || !signature) return false;
+
   try {
     const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(body, 'utf8')
-      .digest('hex');
-    
-    // Strip possible "sha256=" prefix from signature
-    const signatureHex = signature.replace(/^sha256=/, '');
-    
-    // Convert to buffers for comparison
-    const expectedBuffer = Buffer.from(expectedSignature, 'hex');
-    const signatureBuffer = Buffer.from(signatureHex, 'hex');
-    
-    // Lengths must match for timingSafeEqual
-    if (expectedBuffer.length !== signatureBuffer.length) {
-      return false;
-    }
-    
+      .createHmac("sha256", secret)
+      .update(body, "utf8")
+      .digest("hex");
+
+    const signatureHex = signature.replace(/^sha256=/, "");
+    const expectedBuffer = Buffer.from(expectedSignature, "hex");
+    const signatureBuffer = Buffer.from(signatureHex, "hex");
+
+    if (expectedBuffer.length !== signatureBuffer.length) return false;
     return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
   } catch (error) {
-    logger.warn("Error verifying Polar webhook signature:", {
-      error: error instanceof Error ? error.message : String(error),
-    });
     return false;
   }
 }
 
 // Middleware to verify webhook signature
-// Uses raw body buffer captured by server middleware for accurate signature verification
 const verifyWebhook = (req: Request, res: Response, next: () => void) => {
   const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
-  
+
   if (!webhookSecret) {
-    logger.warn("POLAR_WEBHOOK_SECRET not configured, skipping signature verification");
-    // In production, this should fail - but we'll allow it for now to not break existing setups
-    if (process.env.NODE_ENV === 'production') {
+    logger.warn(
+      "POLAR_WEBHOOK_SECRET not configured, skipping signature verification"
+    );
+    if (process.env.NODE_ENV === "production") {
       logger.error("POLAR_WEBHOOK_SECRET is required in production!");
     }
     return next();
   }
-  
-  // Polar uses 'x-polar-signature' header
-  // Try common variations to handle different Polar API versions
-  const signature = (req.headers['x-polar-signature'] || 
-                     req.headers['polar-signature'] || 
-                     req.headers['x-webhook-signature']) as string;
-  
-  // Get raw body buffer from request (set by server middleware)
+
+  // Get keys
   const rawBodyBuffer = (req as any).rawBody as Buffer | undefined;
-  
   if (!rawBodyBuffer) {
-    logger.error("Raw body buffer not found - signature verification cannot proceed");
-    // In production, reject if we can't verify
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(500).json({ 
-        success: false, 
-        error: "Internal error: raw body not available" 
-      });
+    logger.error("Raw body buffer not found");
+    if (process.env.NODE_ENV === "production") {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Internal error: raw body not available",
+        });
     }
-    // In development, allow through but warn
-    logger.warn("⚠️ Allowing webhook without raw body (development mode)");
     return next();
   }
-  
-  // Convert buffer to string for signature verification
-  const rawBody = rawBodyBuffer.toString('utf8');
-  
-  if (!signature) {
-    logger.warn("Missing Polar webhook signature", {
-      headers: Object.keys(req.headers).filter(h => h.toLowerCase().includes('signature') || h.toLowerCase().includes('polar'))
-    });
-    // Reject in production if signature is missing
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ 
-        success: false, 
-        error: "Missing signature" 
-      });
+
+  const rawBody = rawBodyBuffer.toString("utf8");
+
+  // Check for Standard Webhooks headers
+  const whSignature = req.headers["webhook-signature"] as string;
+  const whId = req.headers["webhook-id"] as string;
+  const whTimestamp = req.headers["webhook-timestamp"] as string;
+
+  if (whSignature && whId && whTimestamp) {
+    // Verify using Standard Webhooks
+    const isValid = verifyStandardWebhookSignature(
+      webhookSecret,
+      whSignature,
+      whId,
+      whTimestamp,
+      rawBody
+    );
+
+    if (isValid) {
+      // Check timestamp (prevent replay attacks > 5 mins)
+      const ts = parseInt(whTimestamp, 10);
+      const now = Math.floor(Date.now() / 1000);
+      if (!isNaN(ts) && Math.abs(now - ts) > 300) {
+        logger.warn("Webhook timestamp too old or future", { ts, now });
+        return res
+          .status(401)
+          .json({ success: false, error: "Invalid timestamp" });
+      }
+
+      logger.debug("✅ Standard Webhook signature verified");
+      return next();
+    } else {
+      logger.warn("Invalid Standard Webhook signature");
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid signature" });
     }
-    logger.warn("⚠️ Allowing webhook without signature (development mode)");
-    return next();
   }
-  
-  if (!verifyPolarSignature(webhookSecret, signature, rawBody)) {
-    logger.warn("Invalid Polar webhook signature", {
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      hasSignature: !!signature,
-      signatureLength: signature?.length
-    });
-    return res.status(401).json({ 
-      success: false, 
-      error: "Invalid signature" 
-    });
+
+  // Fallback to legacy
+  const legacySignature = (req.headers["x-polar-signature"] ||
+    req.headers["polar-signature"] ||
+    req.headers["x-webhook-signature"]) as string;
+
+  if (legacySignature) {
+    if (verifyLegacyPolarSignature(webhookSecret, legacySignature, rawBody)) {
+      logger.debug("✅ Legacy Polar signature verified");
+      return next();
+    }
   }
-  
-  logger.debug("✅ Polar webhook signature verified successfully");
+
+  logger.warn("Missing or invalid signature", {
+    headers: Object.keys(req.headers).filter(
+      (h) =>
+        h.toLowerCase().includes("signature") ||
+        h.toLowerCase().includes("webhook")
+    ),
+  });
+
+  if (process.env.NODE_ENV === "production") {
+    return res
+      .status(401)
+      .json({ success: false, error: "Missing or invalid signature" });
+  }
+
+  logger.warn("⚠️ Allowing webhook without valid signature (development mode)");
   next();
 };
 
 // Handle customer creation
 async function handleCustomerCreated(payload: any) {
   try {
-    logger.info("🔒 Polar webhook: Customer created", { 
+    logger.info("🔒 Polar webhook: Customer created", {
       timestamp: new Date().toISOString(),
-      payloadType: payload.type 
+      payloadType: payload.type,
     });
-    
+
     const customer = payload.data;
-    
+
     if (customer?.email) {
       await db.user.updateMany({
         where: { email: customer.email },
-        data: { polarCustomerId: customer.id }
+        data: { polarCustomerId: customer.id },
       });
-      logger.info(`✅ Updated user ${customer.email} with Polar customer ID: ${customer.id}`);
+      logger.info(
+        `✅ Updated user ${customer.email} with Polar customer ID: ${customer.id}`
+      );
     }
   } catch (error) {
     logger.error("❌ Error handling customer creation:", error);
@@ -140,38 +216,40 @@ async function handleOrderPaid(payload: any) {
     logger.info("💰 Order paid webhook received", payload);
     const customer = payload.data?.customer || payload.data;
     const order = payload.data?.order || payload.data;
-    
+
     const customerEmail = customer?.email || order?.customer?.email;
-    
+
     if (!customerEmail) {
       logger.error("❌ No customer email found in order paid payload");
       return;
     }
-    
+
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
-      include: { business: true }
+      include: { business: true },
     });
-    
+
     if (!user?.business) {
       logger.error(`❌ No business found for user ${customerEmail}`);
       return;
     }
-    
+
     // Create billing transaction for the payment
     await db.billingTransaction.create({
       data: {
         businessId: user.business.id,
         type: "PAYMENT",
         amount: order?.total_amount || 0,
-        description: `Payment for order ${order?.id || 'unknown'}`,
+        description: `Payment for order ${order?.id || "unknown"}`,
         status: "PAID",
         paidAt: new Date(),
-      }
+      },
     });
-    
-    logger.info(`✅ Created billing transaction for business ${user.business.id}`);
+
+    logger.info(
+      `✅ Created billing transaction for business ${user.business.id}`
+    );
   } catch (error) {
     logger.error("❌ Error handling order paid:", error);
     throw error;
@@ -194,17 +272,22 @@ async function handleSubscriptionCreated(payload: any) {
     const subscription = payload.data;
 
     // Try to get email from customer or user object
-    const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
+    const customerEmail =
+      customer?.email ||
+      subscription?.user?.email ||
+      subscription?.customer?.email;
 
     if (!customerEmail) {
-      logger.error("❌ No customer email found in subscription created payload");
+      logger.error(
+        "❌ No customer email found in subscription created payload"
+      );
       return;
     }
 
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
-      include: { business: true }
+      include: { business: true },
     });
 
     if (!user) {
@@ -213,7 +296,9 @@ async function handleSubscriptionCreated(payload: any) {
     }
 
     if (!user.business) {
-      logger.error(`❌ No business found for user ${customerEmail}. User ID: ${user.id}`);
+      logger.error(
+        `❌ No business found for user ${customerEmail}. User ID: ${user.id}`
+      );
       return;
     }
 
@@ -231,24 +316,36 @@ async function handleSubscriptionCreated(payload: any) {
 
     // Determine subscription status from Polar's actual status
     // Polar uses: 'trialing', 'active', 'canceled', 'incomplete', 'incomplete_expired', 'past_due', 'unpaid'
-    let subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "PAST_DUE" | "SUSPENDED" = "ACTIVE";
+    let subscriptionStatus:
+      | "TRIAL"
+      | "ACTIVE"
+      | "CANCELLED"
+      | "PAST_DUE"
+      | "SUSPENDED" = "ACTIVE";
 
-    if (subscription.status === 'trialing') {
+    if (subscription.status === "trialing") {
       subscriptionStatus = "TRIAL";
-    } else if (subscription.status === 'active') {
+    } else if (subscription.status === "active") {
       subscriptionStatus = "ACTIVE";
-    } else if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired') {
+    } else if (
+      subscription.status === "canceled" ||
+      subscription.status === "incomplete_expired"
+    ) {
       subscriptionStatus = "CANCELLED";
-    } else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+    } else if (
+      subscription.status === "past_due" ||
+      subscription.status === "unpaid"
+    ) {
       subscriptionStatus = "PAST_DUE";
     }
 
     // Get trial end date from Polar - they may use 'ends_at' during trial or 'trial_end'
-    const trialEndsAt = subscription.status === 'trialing' && subscription.ends_at
-      ? new Date(subscription.ends_at)
-      : subscription.trial_end
-        ? new Date(subscription.trial_end)
-        : null;
+    const trialEndsAt =
+      subscription.status === "trialing" && subscription.ends_at
+        ? new Date(subscription.ends_at)
+        : subscription.trial_end
+          ? new Date(subscription.trial_end)
+          : null;
 
     logger.info("📊 Subscription details from Polar:", {
       planType,
@@ -262,7 +359,7 @@ async function handleSubscriptionCreated(payload: any) {
 
     // Check if subscription already exists (upsert to handle race conditions)
     const existingSubscription = await db.subscription.findUnique({
-      where: { businessId: user.business.id }
+      where: { businessId: user.business.id },
     });
 
     // Get the period month/year for billing usage reset
@@ -282,13 +379,20 @@ async function handleSubscriptionCreated(payload: any) {
           overageRate: planConfig.overageRateUSD, // Store USD rate
           trialEndsAt,
           trialActivated: subscriptionStatus === "TRIAL",
-          trialStartedAt: subscriptionStatus === "TRIAL" ? currentPeriodStart : existingSubscription.trialStartedAt,
-          trialPlanType: subscriptionStatus === "TRIAL" ? planType : existingSubscription.trialPlanType,
+          trialStartedAt:
+            subscriptionStatus === "TRIAL"
+              ? currentPeriodStart
+              : existingSubscription.trialStartedAt,
+          trialPlanType:
+            subscriptionStatus === "TRIAL"
+              ? planType
+              : existingSubscription.trialPlanType,
           polarSubscriptionId: subscription.id,
-          polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
+          polarCustomerId:
+            customer?.id || subscription?.customer_id || subscription?.user_id,
           // Reset minutes used for new subscription
           minutesUsed: 0,
-        }
+        },
       });
 
       // Reset BillingUsage for the current period
@@ -298,7 +402,7 @@ async function handleSubscriptionCreated(payload: any) {
             businessId: user.business.id,
             month: periodMonth,
             year: periodYear,
-          }
+          },
         },
         create: {
           businessId: user.business.id,
@@ -316,15 +420,18 @@ async function handleSubscriptionCreated(payload: any) {
           overageMinutes: 0,
           overageCost: 0,
           totalCost: 0,
-        }
+        },
       });
 
-      logger.info(`✅ Updated existing subscription for business ${user.business.id}`, {
-        planType,
-        status: subscriptionStatus,
-        periodEnd: currentPeriodEnd.toISOString(),
-        trialEndsAt: trialEndsAt?.toISOString() || null,
-      });
+      logger.info(
+        `✅ Updated existing subscription for business ${user.business.id}`,
+        {
+          planType,
+          status: subscriptionStatus,
+          periodEnd: currentPeriodEnd.toISOString(),
+          trialEndsAt: trialEndsAt?.toISOString() || null,
+        }
+      );
     } else {
       // Create new subscription record with Polar's actual data
       await db.subscription.create({
@@ -339,11 +446,13 @@ async function handleSubscriptionCreated(payload: any) {
           overageRate: planConfig.overageRateUSD, // Store USD rate
           trialEndsAt,
           trialActivated: subscriptionStatus === "TRIAL",
-          trialStartedAt: subscriptionStatus === "TRIAL" ? currentPeriodStart : null,
+          trialStartedAt:
+            subscriptionStatus === "TRIAL" ? currentPeriodStart : null,
           trialPlanType: subscriptionStatus === "TRIAL" ? planType : null,
           polarSubscriptionId: subscription.id,
-          polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
-        }
+          polarCustomerId:
+            customer?.id || subscription?.customer_id || subscription?.user_id,
+        },
       });
 
       // Create BillingUsage record
@@ -353,7 +462,7 @@ async function handleSubscriptionCreated(payload: any) {
             businessId: user.business.id,
             month: periodMonth,
             year: periodYear,
-          }
+          },
         },
         create: {
           businessId: user.business.id,
@@ -371,15 +480,18 @@ async function handleSubscriptionCreated(payload: any) {
           overageMinutes: 0,
           overageCost: 0,
           totalCost: 0,
-        }
+        },
       });
 
-      logger.info(`✅ Created new subscription for business ${user.business.id}`, {
-        planType,
-        status: subscriptionStatus,
-        periodEnd: currentPeriodEnd.toISOString(),
-        trialEndsAt: trialEndsAt?.toISOString() || null,
-      });
+      logger.info(
+        `✅ Created new subscription for business ${user.business.id}`,
+        {
+          planType,
+          status: subscriptionStatus,
+          periodEnd: currentPeriodEnd.toISOString(),
+          trialEndsAt: trialEndsAt?.toISOString() || null,
+        }
+      );
     }
   } catch (error) {
     logger.error("❌ Error handling subscription created:", error);
@@ -399,18 +511,24 @@ async function handleSubscriptionUpdated(payload: any) {
       status: subscription?.status,
       currentPeriodStart: subscription?.current_period_start,
       currentPeriodEnd: subscription?.current_period_end,
-      customerEmail: customer?.email || subscription?.user?.email
+      customerEmail: customer?.email || subscription?.user?.email,
     });
 
     // Try to get email from customer or user object
-    const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
+    const customerEmail =
+      customer?.email ||
+      subscription?.user?.email ||
+      subscription?.customer?.email;
 
     if (!customerEmail) {
-      logger.error("❌ No customer email found in subscription updated payload", {
-        hasCustomer: !!customer,
-        hasUser: !!subscription?.user,
-        subscriptionKeys: Object.keys(subscription || {})
-      });
+      logger.error(
+        "❌ No customer email found in subscription updated payload",
+        {
+          hasCustomer: !!customer,
+          hasUser: !!subscription?.user,
+          subscriptionKeys: Object.keys(subscription || {}),
+        }
+      );
       return;
     }
 
@@ -422,7 +540,7 @@ async function handleSubscriptionUpdated(payload: any) {
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
-      include: { business: { include: { phoneNumberRecord: true } } }
+      include: { business: { include: { phoneNumberRecord: true } } },
     });
 
     if (!user) {
@@ -431,22 +549,29 @@ async function handleSubscriptionUpdated(payload: any) {
     }
 
     if (!user.business) {
-      logger.error(`❌ No business found for user ${customerEmail} (User ID: ${user.id})`);
+      logger.error(
+        `❌ No business found for user ${customerEmail} (User ID: ${user.id})`
+      );
       return;
     }
 
     // Check if subscription is revoked (immediate loss of access)
-    if (subscription.status === "canceled" || subscription.status === "revoked") {
-      logger.warn(`⚠️ Subscription ${subscription.status} for business ${user.business.id}`);
+    if (
+      subscription.status === "canceled" ||
+      subscription.status === "revoked"
+    ) {
+      logger.warn(
+        `⚠️ Subscription ${subscription.status} for business ${user.business.id}`
+      );
 
       // Find subscription first
       const existingSubscription = await db.subscription.findFirst({
         where: {
           OR: [
             { polarSubscriptionId: subscription.id },
-            { businessId: user.business.id }
-          ]
-        }
+            { businessId: user.business.id },
+          ],
+        },
       });
 
       if (existingSubscription) {
@@ -457,9 +582,11 @@ async function handleSubscriptionUpdated(payload: any) {
             status: "CANCELLED",
             cancelledAt: new Date(),
             polarSubscriptionId: subscription.id,
-          }
+          },
         });
-        logger.info(`✅ Cancelled subscription ${existingSubscription.id} for business ${user.business.id}`);
+        logger.info(
+          `✅ Cancelled subscription ${existingSubscription.id} for business ${user.business.id}`
+        );
       } else {
         // Create cancelled subscription record
         const planType = mapPolarProductToPlanType(subscription.product?.name);
@@ -470,25 +597,35 @@ async function handleSubscriptionUpdated(payload: any) {
             businessId: user.business.id,
             planType,
             status: "CANCELLED",
-            currentPeriodStart: new Date(subscription.current_period_start || Date.now()),
-            currentPeriodEnd: new Date(subscription.current_period_end || Date.now()),
+            currentPeriodStart: new Date(
+              subscription.current_period_start || Date.now()
+            ),
+            currentPeriodEnd: new Date(
+              subscription.current_period_end || Date.now()
+            ),
             minutesIncluded: planConfig.minutesIncluded,
             minutesUsed: 0,
             overageRate: planConfig.overageRateUSD,
             polarSubscriptionId: subscription.id,
             polarCustomerId: customer.id,
             cancelledAt: new Date(),
-          }
+          },
         });
-        logger.info(`✅ Created cancelled subscription record for business ${user.business.id}`);
+        logger.info(
+          `✅ Created cancelled subscription record for business ${user.business.id}`
+        );
       }
 
       // Release phone number if business has one
       if (user.business.phoneNumberRecord?.twilioSid) {
         try {
-          const { twilioService } = await import("../services/twilioService.js");
+          const { twilioService } = await import(
+            "../services/twilioService.js"
+          );
           await twilioService.releaseBusinessPhoneNumber(user.business.id);
-          logger.info(`✅ Released phone number for business ${user.business.id} due to ${subscription.status} subscription`);
+          logger.info(
+            `✅ Released phone number for business ${user.business.id} due to ${subscription.status} subscription`
+          );
         } catch (phoneError) {
           logger.error("❌ Error releasing phone number:", phoneError);
         }
@@ -510,33 +647,45 @@ async function handleSubscriptionUpdated(payload: any) {
       : new Date();
 
     // Determine subscription status from Polar's actual status
-    let subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "PAST_DUE" | "SUSPENDED" = "ACTIVE";
+    let subscriptionStatus:
+      | "TRIAL"
+      | "ACTIVE"
+      | "CANCELLED"
+      | "PAST_DUE"
+      | "SUSPENDED" = "ACTIVE";
 
-    if (subscription.status === 'trialing') {
+    if (subscription.status === "trialing") {
       subscriptionStatus = "TRIAL";
-    } else if (subscription.status === 'active') {
+    } else if (subscription.status === "active") {
       subscriptionStatus = "ACTIVE";
-    } else if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired') {
+    } else if (
+      subscription.status === "canceled" ||
+      subscription.status === "incomplete_expired"
+    ) {
       subscriptionStatus = "CANCELLED";
-    } else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+    } else if (
+      subscription.status === "past_due" ||
+      subscription.status === "unpaid"
+    ) {
       subscriptionStatus = "PAST_DUE";
     }
 
     // Get trial end date from Polar
-    const trialEndsAt = subscription.status === 'trialing' && subscription.ends_at
-      ? new Date(subscription.ends_at)
-      : subscription.trial_end
-        ? new Date(subscription.trial_end)
-        : null;
+    const trialEndsAt =
+      subscription.status === "trialing" && subscription.ends_at
+        ? new Date(subscription.ends_at)
+        : subscription.trial_end
+          ? new Date(subscription.trial_end)
+          : null;
 
     // Check if subscription already exists (by polarSubscriptionId or businessId)
     const existingSubscription = await db.subscription.findFirst({
       where: {
         OR: [
           { polarSubscriptionId: subscription.id },
-          { businessId: user.business.id }
-        ]
-      }
+          { businessId: user.business.id },
+        ],
+      },
     });
 
     const subscriptionData = {
@@ -550,13 +699,16 @@ async function handleSubscriptionUpdated(payload: any) {
       trialEndsAt,
       trialActivated: subscriptionStatus === "TRIAL",
       polarSubscriptionId: subscription.id,
-      polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
+      polarCustomerId:
+        customer?.id || subscription?.customer_id || subscription?.user_id,
       cancelledAt: null,
     };
 
     if (existingSubscription) {
       // Check if this is a new billing period (period start date changed)
-      const isNewPeriod = existingSubscription.currentPeriodStart.getTime() !== currentPeriodStart.getTime();
+      const isNewPeriod =
+        existingSubscription.currentPeriodStart.getTime() !==
+        currentPeriodStart.getTime();
 
       // Update existing subscription with minutesUsed reset if new period
       await db.subscription.update({
@@ -566,13 +718,16 @@ async function handleSubscriptionUpdated(payload: any) {
           // Reset minutes used if it's a new billing period
           minutesUsed: isNewPeriod ? 0 : existingSubscription.minutesUsed,
           // Update trial tracking fields
-          trialStartedAt: subscriptionStatus === "TRIAL" && !existingSubscription.trialStartedAt
-            ? currentPeriodStart
-            : existingSubscription.trialStartedAt,
-          trialPlanType: subscriptionStatus === "TRIAL"
-            ? planType
-            : existingSubscription.trialPlanType,
-        }
+          trialStartedAt:
+            subscriptionStatus === "TRIAL" &&
+            !existingSubscription.trialStartedAt
+              ? currentPeriodStart
+              : existingSubscription.trialStartedAt,
+          trialPlanType:
+            subscriptionStatus === "TRIAL"
+              ? planType
+              : existingSubscription.trialPlanType,
+        },
       });
 
       // If new period, reset BillingUsage for the new period's month
@@ -587,7 +742,7 @@ async function handleSubscriptionUpdated(payload: any) {
               businessId: user.business.id,
               month: newPeriodMonth,
               year: newPeriodYear,
-            }
+            },
           },
           create: {
             businessId: user.business.id,
@@ -605,9 +760,11 @@ async function handleSubscriptionUpdated(payload: any) {
             overageMinutes: 0,
             overageCost: 0,
             totalCost: 0,
-          }
+          },
         });
-        logger.info(`✅ Reset BillingUsage for business ${user.business.id} for ${newPeriodMonth}/${newPeriodYear}`);
+        logger.info(
+          `✅ Reset BillingUsage for business ${user.business.id} for ${newPeriodMonth}/${newPeriodYear}`
+        );
       }
 
       logger.info(`✅ Updated subscription for business ${user.business.id}`, {
@@ -622,14 +779,18 @@ async function handleSubscriptionUpdated(payload: any) {
         data: {
           ...subscriptionData,
           minutesUsed: 0,
-          trialStartedAt: subscriptionStatus === "TRIAL" ? currentPeriodStart : null,
+          trialStartedAt:
+            subscriptionStatus === "TRIAL" ? currentPeriodStart : null,
           trialPlanType: subscriptionStatus === "TRIAL" ? planType : null,
+        },
+      });
+      logger.info(
+        `✅ Created new subscription for business ${user.business.id}`,
+        {
+          planType,
+          status: subscriptionStatus,
         }
-      });
-      logger.info(`✅ Created new subscription for business ${user.business.id}`, {
-        planType,
-        status: subscriptionStatus,
-      });
+      );
     }
   } catch (error) {
     logger.error("❌ Error handling subscription updated:", error);
@@ -649,17 +810,22 @@ async function handleSubscriptionCanceled(payload: any) {
     const subscription = payload.data;
 
     // Try to get email from customer or user object
-    const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
+    const customerEmail =
+      customer?.email ||
+      subscription?.user?.email ||
+      subscription?.customer?.email;
 
     if (!customerEmail) {
-      logger.error("❌ No customer email found in subscription canceled payload");
+      logger.error(
+        "❌ No customer email found in subscription canceled payload"
+      );
       return;
     }
 
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
-      include: { business: { include: { phoneNumberRecord: true } } }
+      include: { business: { include: { phoneNumberRecord: true } } },
     });
 
     if (!user?.business) {
@@ -672,9 +838,9 @@ async function handleSubscriptionCanceled(payload: any) {
       where: {
         OR: [
           { polarSubscriptionId: subscription.id },
-          { businessId: user.business.id }
-        ]
-      }
+          { businessId: user.business.id },
+        ],
+      },
     });
 
     if (existingSubscription) {
@@ -685,9 +851,11 @@ async function handleSubscriptionCanceled(payload: any) {
           status: "CANCELLED",
           cancelledAt: new Date(),
           polarSubscriptionId: subscription.id,
-        }
+        },
       });
-      logger.info(`✅ Cancelled subscription ${existingSubscription.id} for business ${user.business.id}`);
+      logger.info(
+        `✅ Cancelled subscription ${existingSubscription.id} for business ${user.business.id}`
+      );
     } else {
       // Create cancelled subscription record if it doesn't exist
       const planType = mapPolarProductToPlanType(subscription.product?.name);
@@ -698,17 +866,24 @@ async function handleSubscriptionCanceled(payload: any) {
           businessId: user.business.id,
           planType,
           status: "CANCELLED",
-          currentPeriodStart: new Date(subscription.current_period_start || Date.now()),
-          currentPeriodEnd: new Date(subscription.current_period_end || Date.now()),
+          currentPeriodStart: new Date(
+            subscription.current_period_start || Date.now()
+          ),
+          currentPeriodEnd: new Date(
+            subscription.current_period_end || Date.now()
+          ),
           minutesIncluded: planConfig.minutesIncluded,
           minutesUsed: 0,
           overageRate: planConfig.overageRateUSD,
           polarSubscriptionId: subscription.id,
-          polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
+          polarCustomerId:
+            customer?.id || subscription?.customer_id || subscription?.user_id,
           cancelledAt: new Date(),
-        }
+        },
       });
-      logger.info(`✅ Created cancelled subscription record for business ${user.business.id}`);
+      logger.info(
+        `✅ Created cancelled subscription record for business ${user.business.id}`
+      );
     }
 
     // Release phone number if business has one
@@ -716,7 +891,9 @@ async function handleSubscriptionCanceled(payload: any) {
       try {
         const { twilioService } = await import("../services/twilioService.js");
         await twilioService.releaseBusinessPhoneNumber(user.business.id);
-        logger.info(`✅ Released phone number for business ${user.business.id}`);
+        logger.info(
+          `✅ Released phone number for business ${user.business.id}`
+        );
       } catch (phoneError) {
         logger.error("❌ Error releasing phone number:", phoneError);
       }
@@ -741,7 +918,10 @@ async function handleSubscriptionActive(payload: any) {
     const subscription = payload.data;
 
     // Try to get email from customer or user object
-    const customerEmail = customer?.email || subscription?.user?.email || subscription?.customer?.email;
+    const customerEmail =
+      customer?.email ||
+      subscription?.user?.email ||
+      subscription?.customer?.email;
 
     if (!customerEmail) {
       logger.error("❌ No customer email found in subscription active payload");
@@ -751,7 +931,7 @@ async function handleSubscriptionActive(payload: any) {
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
-      include: { business: true }
+      include: { business: true },
     });
 
     if (!user?.business) {
@@ -764,9 +944,9 @@ async function handleSubscriptionActive(payload: any) {
       where: {
         OR: [
           { polarSubscriptionId: subscription.id },
-          { businessId: user.business.id }
-        ]
-      }
+          { businessId: user.business.id },
+        ],
+      },
     });
 
     // POLAR IS THE SOURCE OF TRUTH - use actual values from Polar
@@ -781,7 +961,9 @@ async function handleSubscriptionActive(payload: any) {
 
     if (existingSubscription) {
       // Check if this is a new billing period (period start date changed)
-      const isNewPeriod = existingSubscription.currentPeriodStart.getTime() !== currentPeriodStart.getTime();
+      const isNewPeriod =
+        existingSubscription.currentPeriodStart.getTime() !==
+        currentPeriodStart.getTime();
 
       // Update existing subscription with Polar's actual data
       await db.subscription.update({
@@ -794,13 +976,14 @@ async function handleSubscriptionActive(payload: any) {
           minutesIncluded: planConfig.minutesIncluded,
           overageRate: planConfig.overageRateUSD,
           polarSubscriptionId: subscription.id,
-          polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
+          polarCustomerId:
+            customer?.id || subscription?.customer_id || subscription?.user_id,
           cancelledAt: null,
           trialEndsAt: null,
           trialActivated: false,
           // Reset minutes used if it's a new billing period
           minutesUsed: isNewPeriod ? 0 : existingSubscription.minutesUsed,
-        }
+        },
       });
 
       // If new period, reset BillingUsage for the new period's month
@@ -815,7 +998,7 @@ async function handleSubscriptionActive(payload: any) {
               businessId: user.business.id,
               month: newPeriodMonth,
               year: newPeriodYear,
-            }
+            },
           },
           create: {
             businessId: user.business.id,
@@ -833,16 +1016,21 @@ async function handleSubscriptionActive(payload: any) {
             overageMinutes: 0,
             overageCost: 0,
             totalCost: 0,
-          }
+          },
         });
-        logger.info(`✅ Reset BillingUsage for business ${user.business.id} for ${newPeriodMonth}/${newPeriodYear}`);
+        logger.info(
+          `✅ Reset BillingUsage for business ${user.business.id} for ${newPeriodMonth}/${newPeriodYear}`
+        );
       }
 
-      logger.info(`✅ Activated subscription for business ${user.business.id}`, {
-        planType,
-        periodEnd: currentPeriodEnd.toISOString(),
-        isNewPeriod,
-      });
+      logger.info(
+        `✅ Activated subscription for business ${user.business.id}`,
+        {
+          planType,
+          periodEnd: currentPeriodEnd.toISOString(),
+          isNewPeriod,
+        }
+      );
     } else {
       // Create new subscription if it doesn't exist
       await db.subscription.create({
@@ -856,13 +1044,17 @@ async function handleSubscriptionActive(payload: any) {
           minutesUsed: 0,
           overageRate: planConfig.overageRateUSD,
           polarSubscriptionId: subscription.id,
-          polarCustomerId: customer?.id || subscription?.customer_id || subscription?.user_id,
+          polarCustomerId:
+            customer?.id || subscription?.customer_id || subscription?.user_id,
+        },
+      });
+      logger.info(
+        `✅ Created active subscription for business ${user.business.id}`,
+        {
+          planType,
+          periodEnd: currentPeriodEnd.toISOString(),
         }
-      });
-      logger.info(`✅ Created active subscription for business ${user.business.id}`, {
-        planType,
-        periodEnd: currentPeriodEnd.toISOString(),
-      });
+      );
     }
   } catch (error) {
     logger.error("❌ Error handling subscription active:", error);
@@ -882,38 +1074,40 @@ async function handleRefundCreated(payload: any) {
     logger.info("💰 Refund created webhook received", payload);
     const customer = payload.data?.customer;
     const refund = payload.data?.refund || payload.data;
-    
+
     const customerEmail = customer?.email || refund?.customer?.email;
-    
+
     if (!customerEmail) {
       logger.error("❌ No customer email found in refund created payload");
       return;
     }
-    
+
     // Find the user by email
     const user = await db.user.findUnique({
       where: { email: customerEmail },
-      include: { business: true }
+      include: { business: true },
     });
-    
+
     if (!user?.business) {
       logger.error(`❌ No business found for user ${customerEmail}`);
       return;
     }
-    
+
     // Create billing transaction for the refund
     await db.billingTransaction.create({
       data: {
         businessId: user.business.id,
         type: "REFUND",
         amount: refund?.amount || 0,
-        description: `Refund for ${refund?.reason || 'refund'}`,
+        description: `Refund for ${refund?.reason || "refund"}`,
         status: "PAID",
         paidAt: new Date(),
-      }
+      },
     });
-    
-    logger.info(`✅ Created refund transaction for business ${user.business.id}`);
+
+    logger.info(
+      `✅ Created refund transaction for business ${user.business.id}`
+    );
   } catch (error) {
     logger.error("❌ Error handling refund created:", error);
     throw error;
@@ -929,7 +1123,7 @@ router.post("/", verifyWebhook, async (req: Request, res: Response) => {
     logger.info("📥 Polar webhook received", {
       type: eventType,
       subscriptionId: payload.subscription?.id,
-      customerEmail: payload.customer?.email
+      customerEmail: payload.customer?.email,
     });
 
     // Route to appropriate handler based on event type
@@ -937,55 +1131,54 @@ router.post("/", verifyWebhook, async (req: Request, res: Response) => {
       case "customer.created":
         await handleCustomerCreated(payload);
         break;
-      
+
       case "order.paid":
         await handleOrderPaid(payload);
         break;
-      
+
       case "subscription.created":
         await handleSubscriptionCreated(payload);
         break;
-      
+
       case "subscription.updated":
         await handleSubscriptionUpdated(payload);
         break;
-      
+
       case "subscription.canceled":
         await handleSubscriptionCanceled(payload);
         break;
-      
+
       case "subscription.active":
         await handleSubscriptionActive(payload);
         break;
-      
+
       case "subscription.revoked":
         await handleSubscriptionRevoked(payload);
         break;
-      
+
       case "refund.created":
         await handleRefundCreated(payload);
         break;
-      
+
       default:
         logger.info("ℹ️ Unhandled Polar webhook event type:", eventType, {
           hasData: !!payload.data,
-          dataKeys: payload.data ? Object.keys(payload.data) : []
+          dataKeys: payload.data ? Object.keys(payload.data) : [],
         });
     }
 
-    res.status(200).json({ 
-      success: true, 
-      message: "Webhook processed successfully" 
+    res.status(200).json({
+      success: true,
+      message: "Webhook processed successfully",
     });
   } catch (error) {
     logger.error("❌ Error processing Polar webhook:", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: "Error processing webhook",
-      message: error instanceof Error ? error.message : "Unknown error"
+      message: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
 
 export default router;
-
