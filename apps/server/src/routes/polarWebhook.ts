@@ -113,7 +113,7 @@ function verifyLegacyPolarSignature(
 
 // Middleware to verify webhook signature
 const verifyWebhook = (req: Request, res: Response, next: () => void) => {
-  const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
+  const webhookSecret = process.env.POLAR_WEBHOOK_SECRET?.trim();
 
   if (!webhookSecret) {
     logger.warn(
@@ -140,8 +140,8 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
 
   logger.info("Verifying Polar Webhook Signature", {
     hasSecret: !!webhookSecret,
-    secretLength: webhookSecret?.length,
-    rawBodyLength: rawBodyBuffer?.length,
+    secretLength: webhookSecret.length,
+    rawBodyLength: rawBodyBuffer.length,
     headers: {
       "webhook-signature": req.headers["webhook-signature"],
       "webhook-id": req.headers["webhook-id"],
