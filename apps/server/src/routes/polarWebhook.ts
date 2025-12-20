@@ -30,58 +30,105 @@ function verifyStandardWebhookSignature(
   body: string
 ): boolean {
   if (!secret || !signatureHeader || !msgId || !timestamp) {
+    logger.warn("Missing required parameters for signature verification", {
+      hasSecret: !!secret,
+      hasSignatureHeader: !!signatureHeader,
+      hasMsgId: !!msgId,
+      hasTimestamp: !!timestamp,
+    });
     return false;
   }
 
   try {
-    // Standard Webhooks signature format: v1,signature
-    const parts = signatureHeader.split(" ");
-    // Handle both "v1,signature" or just "v1,signature" (sometimes spaces clean up)
-    const signatures = signatureHeader.split(" ").map((s) => {
-      const [scheme, val] = s.split(",");
-      return { scheme, val };
-    });
-
-    // Construct the signed content
+    // Construct the signed content according to Standard Webhooks spec
     const signedContent = `${msgId}.${timestamp}.${body}`;
 
-    // Calculate expected signature
+    // Calculate expected signature using HMAC-SHA256
     const expectedSignature = crypto
       .createHmac("sha256", secret)
-      .update(signedContent)
+      .update(signedContent, "utf8")
       .digest("base64");
 
-    // Find a matching signature with scheme v1
-    // Note: Standard Webhooks often use v1,signature... but Polar might follow Svix which uses v1,signature
-    // Let's match against the calculated signature directly or try to parse the header
+    logger.debug("🔍 Signature Verification Debug", {
+      msgId,
+      timestamp,
+      bodyLength: body.length,
+      bodyPreview: body.substring(0, 100),
+      signedContentLength: signedContent.length,
+      signedContentPreview: signedContent.substring(0, 100) + "...",
+      secretLength: secret.length,
+      secretPreview: secret.toString("base64").substring(0, 20) + "...",
+      expectedSignature,
+      receivedSignatureHeader: signatureHeader,
+    });
 
-    // Simple verification: Construct HMAC and check if it's present in the header
-    // The header typically looks like "v1,Base64Signature v1,AnotherSignature"
+    // Standard Webhooks signature format: "v1,signature" or "v1,sig1 v1,sig2"
+    // Split by space to handle multiple signatures
+    const signatureParts = signatureHeader.split(" ");
 
-    // Let's implement robust checking:
-    return signatures.some((s) => {
-      if (s.scheme !== "v1" || !s.val) return false;
+    for (const part of signatureParts) {
+      const [scheme, signature] = part.split(",");
 
-      const expectedBuffer = Buffer.from(expectedSignature, "base64");
-      const signatureBuffer = Buffer.from(s.val!, "base64");
+      if (scheme !== "v1") {
+        logger.debug("Skipping non-v1 signature scheme", { scheme });
+        continue;
+      }
 
-      const match =
-        expectedBuffer.length === signatureBuffer.length &&
-        crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+      if (!signature) {
+        logger.debug("No signature value found for scheme", { scheme });
+        continue;
+      }
 
-      if (!match) {
-        logger.debug("Signature mismatch", {
-          scheme: s.scheme,
-          expectedShort: expectedSignature.substring(0, 10) + "...",
-          receivedShort: s.val ? s.val.substring(0, 10) + "..." : "undefined",
+      // Direct string comparison (both are base64)
+      if (expectedSignature === signature) {
+        logger.info("✅ Signature verified (direct match)");
+        return true;
+      }
+
+      // Also try timing-safe comparison of the decoded bytes
+      try {
+        const expectedBuffer = Buffer.from(expectedSignature, "base64");
+        const signatureBuffer = Buffer.from(signature, "base64");
+
+        if (expectedBuffer.length !== signatureBuffer.length) {
+          logger.debug("Buffer length mismatch", {
+            expectedLength: expectedBuffer.length,
+            receivedLength: signatureBuffer.length,
+          });
+          continue;
+        }
+
+        if (crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
+          logger.info("✅ Signature verified (timing-safe comparison)");
+          return true;
+        }
+      } catch (bufferError) {
+        logger.warn("Error in buffer comparison", {
+          error: bufferError,
+          signature,
         });
       }
 
-      if (expectedBuffer.length !== signatureBuffer.length) return false;
-      return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+      logger.debug("Signature mismatch", {
+        scheme,
+        expected: expectedSignature,
+        received: signature,
+      });
+    }
+
+    logger.warn("❌ No matching signature found", {
+      expectedSignature,
+      receivedHeader: signatureHeader,
+      signaturesChecked: signatureParts.length,
     });
+
+    return false;
   } catch (error) {
-    logger.warn("Error verifying Standard Webhook signature:", error);
+    logger.error("Error verifying Standard Webhook signature", {
+      error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
     return false;
   }
 }
@@ -141,6 +188,7 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
   logger.info("Verifying Polar Webhook Signature", {
     hasSecret: !!webhookSecret,
     secretLength: webhookSecret.length,
+    secretStartsWith: webhookSecret.substring(0, 7),
     rawBodyLength: rawBodyBuffer.length,
     headers: {
       "webhook-signature": req.headers["webhook-signature"],
@@ -158,19 +206,52 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
   const whTimestamp = req.headers["webhook-timestamp"] as string;
 
   if (whSignature && whId && whTimestamp) {
-    // Decode secret for Standard Webhooks
-    const decodedSecret = decodeWebhookSecret(webhookSecret);
+    // Try multiple secret decoding strategies
+    const secretStrategies = [
+      {
+        name: "Standard (base64 with optional whsec_ prefix)",
+        secret: decodeWebhookSecret(webhookSecret),
+      },
+      {
+        name: "Plain UTF-8 (no decoding)",
+        secret: Buffer.from(webhookSecret, "utf8"),
+      },
+      {
+        name: "Plain ASCII (no decoding)",
+        secret: Buffer.from(webhookSecret, "ascii"),
+      },
+    ];
 
-    // Verify using Standard Webhooks
-    const isValid = verifyStandardWebhookSignature(
-      decodedSecret,
-      whSignature,
-      whId,
-      whTimestamp,
-      rawBody
-    );
+    // If it starts with whsec_, also try without the prefix as plain text
+    if (webhookSecret.startsWith("whsec_")) {
+      secretStrategies.push({
+        name: "Without whsec_ prefix (plain)",
+        secret: Buffer.from(webhookSecret.substring(6), "utf8"),
+      });
+    }
 
-    if (isValid) {
+    let verified = false;
+    for (const strategy of secretStrategies) {
+      logger.debug(`Trying secret strategy: ${strategy.name}`, {
+        secretLength: strategy.secret.length,
+      });
+
+      const isValid = verifyStandardWebhookSignature(
+        strategy.secret,
+        whSignature,
+        whId,
+        whTimestamp,
+        rawBody
+      );
+
+      if (isValid) {
+        logger.info(`✅ Signature verified using strategy: ${strategy.name}`);
+        verified = true;
+        break;
+      }
+    }
+
+    if (verified) {
       // Check timestamp (prevent replay attacks > 5 mins)
       const ts = parseInt(whTimestamp, 10);
       const now = Math.floor(Date.now() / 1000);
@@ -181,13 +262,14 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
           .json({ success: false, error: "Invalid timestamp" });
       }
 
-      logger.debug("✅ Standard Webhook signature verified");
+      logger.info("✅ Standard Webhook signature verified and timestamp valid");
       return next();
     } else {
-      logger.warn("Invalid Standard Webhook signature", {
+      logger.warn("Invalid Standard Webhook signature (all strategies failed)", {
         whId,
         whTimestamp,
         signatureHeader: whSignature,
+        strategiesTried: secretStrategies.length,
       });
       // Don't return yet, try legacy just in case (though unlikely if these headers exist)
     }
