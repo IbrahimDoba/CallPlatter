@@ -10,9 +10,20 @@ import {
 
 const router: Router = Router();
 
+/**
+ * Decodes the Polar webhook secret.
+ * Polar/Standard Webhooks secrets are base64 encoded and may start with 'whsec_'
+ */
+function decodeWebhookSecret(secret: string): Buffer {
+  const actualSecret = secret.startsWith("whsec_")
+    ? secret.substring(6)
+    : secret;
+  return Buffer.from(actualSecret, "base64");
+}
+
 // Verify Standard Webhook signature
 function verifyStandardWebhookSignature(
-  secret: string,
+  secret: Buffer,
   signatureHeader: string,
   msgId: string,
   timestamp: string,
@@ -49,10 +60,22 @@ function verifyStandardWebhookSignature(
 
     // Let's implement robust checking:
     return signatures.some((s) => {
-      if (s.scheme !== "v1") return false;
+      if (s.scheme !== "v1" || !s.val) return false;
 
       const expectedBuffer = Buffer.from(expectedSignature, "base64");
-      const signatureBuffer = Buffer.from(s.val, "base64");
+      const signatureBuffer = Buffer.from(s.val!, "base64");
+
+      const match =
+        expectedBuffer.length === signatureBuffer.length &&
+        crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+
+      if (!match) {
+        logger.debug("Signature mismatch", {
+          scheme: s.scheme,
+          expectedShort: expectedSignature.substring(0, 10) + "...",
+          receivedShort: s.val ? s.val.substring(0, 10) + "..." : "undefined",
+        });
+      }
 
       if (expectedBuffer.length !== signatureBuffer.length) return false;
       return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
@@ -65,7 +88,7 @@ function verifyStandardWebhookSignature(
 
 // Legacy verification (for x-polar-signature)
 function verifyLegacyPolarSignature(
-  secret: string,
+  secret: Buffer,
   signature: string,
   body: string
 ): boolean {
@@ -107,15 +130,25 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
   if (!rawBodyBuffer) {
     logger.error("Raw body buffer not found");
     if (process.env.NODE_ENV === "production") {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Internal error: raw body not available",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Internal error: raw body not available",
+      });
     }
     return next();
   }
+
+  logger.info("Verifying Polar Webhook Signature", {
+    hasSecret: !!webhookSecret,
+    secretLength: webhookSecret?.length,
+    rawBodyLength: rawBodyBuffer?.length,
+    headers: {
+      "webhook-signature": req.headers["webhook-signature"],
+      "webhook-id": req.headers["webhook-id"],
+      "webhook-timestamp": req.headers["webhook-timestamp"],
+      "content-type": req.headers["content-type"],
+    },
+  });
 
   const rawBody = rawBodyBuffer.toString("utf8");
 
@@ -125,9 +158,12 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
   const whTimestamp = req.headers["webhook-timestamp"] as string;
 
   if (whSignature && whId && whTimestamp) {
+    // Decode secret for Standard Webhooks
+    const decodedSecret = decodeWebhookSecret(webhookSecret);
+
     // Verify using Standard Webhooks
     const isValid = verifyStandardWebhookSignature(
-      webhookSecret,
+      decodedSecret,
       whSignature,
       whId,
       whTimestamp,
@@ -148,10 +184,12 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
       logger.debug("✅ Standard Webhook signature verified");
       return next();
     } else {
-      logger.warn("Invalid Standard Webhook signature");
-      return res
-        .status(401)
-        .json({ success: false, error: "Invalid signature" });
+      logger.warn("Invalid Standard Webhook signature", {
+        whId,
+        whTimestamp,
+        signatureHeader: whSignature,
+      });
+      // Don't return yet, try legacy just in case (though unlikely if these headers exist)
     }
   }
 
@@ -161,13 +199,31 @@ const verifyWebhook = (req: Request, res: Response, next: () => void) => {
     req.headers["x-webhook-signature"]) as string;
 
   if (legacySignature) {
-    if (verifyLegacyPolarSignature(webhookSecret, legacySignature, rawBody)) {
-      logger.debug("✅ Legacy Polar signature verified");
+    // Legacy secrets might also be base64 or plain, try both or just plain if it's old
+    // Polar docs say secrets are base64, so let's try decoded first
+    const decodedSecret = decodeWebhookSecret(webhookSecret);
+
+    if (verifyLegacyPolarSignature(decodedSecret, legacySignature, rawBody)) {
+      logger.debug("✅ Legacy Polar signature verified (decoded secret)");
+      return next();
+    }
+
+    // Attempt with plain secret just in case
+    if (
+      verifyLegacyPolarSignature(
+        Buffer.from(webhookSecret),
+        legacySignature,
+        rawBody
+      )
+    ) {
+      logger.debug("✅ Legacy Polar signature verified (plain secret)");
       return next();
     }
   }
 
   logger.warn("Missing or invalid signature", {
+    hasWhSignature: !!whSignature,
+    hasLegacySignature: !!legacySignature,
     headers: Object.keys(req.headers).filter(
       (h) =>
         h.toLowerCase().includes("signature") ||

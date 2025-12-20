@@ -53,47 +53,56 @@ const PORT = Number.parseInt(process.env.PORT || "3001");
 // Use env TRUST_PROXY_HOPS if provided; default to 1 in production, 0 otherwise
 const TRUST_PROXY_HOPS = Number.isFinite(Number(process.env.TRUST_PROXY_HOPS))
   ? Number(process.env.TRUST_PROXY_HOPS)
-  : (process.env.NODE_ENV === 'production' ? 1 : 0);
-app.set('trust proxy', TRUST_PROXY_HOPS);
+  : process.env.NODE_ENV === "production"
+    ? 1
+    : 0;
+app.set("trust proxy", TRUST_PROXY_HOPS);
 
 // Middleware - CORS must be FIRST
 const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
-  : null; 
+  ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
+  : null;
 
 // Helper function to normalize origin (remove trailing slashes)
 const normalizeOrigin = (origin: string): string => {
-  return origin.endsWith('/') ? origin.slice(0, -1) : origin;
+  return origin.endsWith("/") ? origin.slice(0, -1) : origin;
 };
 
 // Helper function to check if origin is allowed
 const isOriginAllowed = (origin: string): boolean => {
   if (!corsOrigins) return true; // Allow all if CORS_ORIGIN not set
   const normalized = normalizeOrigin(origin);
-  return corsOrigins.some(allowed => normalizeOrigin(allowed) === normalized);
+  return corsOrigins.some((allowed) => normalizeOrigin(allowed) === normalized);
 };
 
-
-app.options('*', (req, res) => {
+app.options("*", (req, res) => {
   const origin = req.headers.origin;
-  
+
   // Always set CORS headers for preflight requests
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-business-id, x-user-id, x-user-email, x-user-business-id, x-user-role, x-user-name');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With, x-business-id, x-user-id, x-user-email, x-user-business-id, x-user-role, x-user-name"
+  );
+  res.setHeader("Access-Control-Max-Age", "86400");
+
   if (origin) {
     if (isOriginAllowed(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
     } else {
       // Log rejected origin for debugging
-      logger.warn(`CORS Preflight: Origin "${origin}" not in allowed list: ${corsOrigins?.join(', ') || 'none'}`);
+      logger.warn(
+        `CORS Preflight: Origin "${origin}" not in allowed list: ${corsOrigins?.join(", ") || "none"}`
+      );
       // Don't set Access-Control-Allow-Origin for rejected origins
       // Browser will reject the preflight, which is expected
     }
   }
-  
+
   res.status(204).end();
 });
 
@@ -104,30 +113,32 @@ app.use(
       if (!origin) {
         return callback(null, true);
       }
-      
+
       if (!corsOrigins) {
         return callback(null, true);
       }
-      
+
       if (isOriginAllowed(origin)) {
         callback(null, true);
       } else {
-        logger.warn(`CORS: Origin "${origin}" not in allowed list: ${corsOrigins.join(', ')}`);
+        logger.warn(
+          `CORS: Origin "${origin}" not in allowed list: ${corsOrigins.join(", ")}`
+        );
         callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'x-business-id',
-      'x-user-id',
-      'x-user-email',
-      'x-user-business-id',
-      'x-user-role',
-      'x-user-name',
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "x-business-id",
+      "x-user-id",
+      "x-user-email",
+      "x-user-business-id",
+      "x-user-role",
+      "x-user-name",
     ],
     preflightContinue: false,
     optionsSuccessStatus: 204,
@@ -136,9 +147,9 @@ app.use(
 
 // Log CORS config
 if (corsOrigins) {
-  logger.info(`CORS configured for origins: ${corsOrigins.join(', ')}`);
+  logger.info(`CORS configured for origins: ${corsOrigins.join(", ")}`);
 } else {
-  logger.info('CORS configured to allow all origins');
+  logger.info("CORS configured to allow all origins");
 }
 
 // Remove general rate limiting to avoid conflicts
@@ -146,23 +157,35 @@ if (corsOrigins) {
 
 // Middleware to capture raw body for Polar webhook signature verification
 // This must be before express.json() to capture the raw buffer
-app.use('/api/webhooks/polar', express.raw({ type: 'application/json', limit: '10mb' }), (req, res, next) => {
-  // Store raw body buffer for signature verification (before parsing)
-  const rawBodyBuffer = req.body as Buffer;
-  (req as any).rawBody = rawBodyBuffer;
-  
-  // Parse JSON for normal request handling
-  try {
-    const parsedBody = JSON.parse(rawBodyBuffer.toString('utf8'));
-    (req as any).body = parsedBody;
-    // Mark that body is already parsed to prevent express.json() from parsing again
-    (req as any)._body = true;
-  } catch (error) {
-    logger.error('Failed to parse Polar webhook body:', error);
-    return res.status(400).json({ success: false, error: 'Invalid JSON body' });
+app.use(
+  "/api/webhooks/polar",
+  express.raw({ type: () => true, limit: "10mb" }),
+  (req, res, next) => {
+    // Store raw body buffer for signature verification (before parsing)
+    const rawBodyBuffer = req.body as Buffer;
+    (req as any).rawBody = rawBodyBuffer;
+
+    logger.info("Polar Webhook Middleware Hit", {
+      contentType: req.headers["content-type"],
+      rawBodyLength: rawBodyBuffer?.length || 0,
+      isBuffer: Buffer.isBuffer(rawBodyBuffer),
+    });
+
+    // Parse JSON for normal request handling
+    try {
+      const parsedBody = JSON.parse(rawBodyBuffer.toString("utf8"));
+      (req as any).body = parsedBody;
+      // Mark that body is already parsed to prevent express.json() from parsing again
+      (req as any)._body = true;
+    } catch (error) {
+      logger.error("Failed to parse Polar webhook body:", error);
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid JSON body" });
+    }
+    next();
   }
-  next();
-});
+);
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -220,15 +243,13 @@ app.use("/api/elevenlabs-agent", elevenLabsAgentRoutes);
 app.use("/api/elevenlabs-management", elevenLabsAgentManagementRoutes);
 app.use("/api/tools", toolsRoutes);
 
-
 setupElevenLabsAgentWebSocket(server);
 
 app.use(notFoundHandler);
 
 app.use(errorHandler);
 
-
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Server successfully listening on 0.0.0.0:${PORT}`);
   logger.info(`Server is running on port ${PORT}`, {
     port: PORT,
